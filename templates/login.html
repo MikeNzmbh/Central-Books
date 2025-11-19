@@ -45,9 +45,10 @@
     {{ login_payload|json_script:"login-data" }}
     {% vite_asset 'login' as login_js %}
     {% if login_js %}
-      <script type="module">
-        import("{% static login_js %}").then(() => {
-          const fallback = document.getElementById("login-fallback");
+      <script type="module" src="{% static login_js %}"></script>
+      <script>
+        document.addEventListener("login-app-mounted", function () {
+          var fallback = document.getElementById("login-fallback");
           if (fallback) {
             fallback.style.display = "none";
           }
