@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}Ledger P&L Debug{% endblock %}
+
+{% block content %}
+<div class="mb-page-shell">
+  <div class="mb-page-header">
+    <div>
+      <div class="mb-kicker">REPORTS (DEV)</div>
+      <h1 class="mb-page-title">Ledger P&amp;L – Shadow</h1>
+      <p class="mb-page-subtitle">
+        Reading directly from journal entries for {{ start }} – {{ end }}.
+      </p>
+    </div>
+  </div>
+
+  <div class="mb-page-grid">
+    <div class="mb-page-main space-y-6">
+      <div class="mb-card">
+        <div class="mb-card-header">
+          <h2 class="mb-card-title">Summary</h2>
+        </div>
+        <div class="mb-card-body text-sm">
+          <p><strong>Total income:</strong> {{ pnl.total_income }}</p>
+          <p><strong>Total expenses:</strong> {{ pnl.total_expenses }}</p>
+          <p><strong>Net profit:</strong> {{ pnl.net_profit }}</p>
+        </div>
+      </div>
+
+      <div class="mb-card">
+        <div class="mb-card-header">
+          <h2 class="mb-card-title">Income by account</h2>
+        </div>
+        <div class="mb-card-body text-sm">
+          <ul>
+            {% for row in pnl.income_by_account %}
+              <li>{{ row.account__code }} – {{ row.account__name }}: {{ row.total }}</li>
+            {% empty %}
+              <li>No income lines in this period.</li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+
+      <div class="mb-card">
+        <div class="mb-card-header">
+          <h2 class="mb-card-title">Expenses by account</h2>
+        </div>
+        <div class="mb-card-body text-sm">
+          <ul>
+            {% for row in pnl.expense_by_account %}
+              <li>{{ row.account__code }} – {{ row.account__name }}: {{ row.total }}</li>
+            {% empty %}
+              <li>No expense lines in this period.</li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="mb-page-side"></div>
+  </div>
+</div>
+{% endblock %}

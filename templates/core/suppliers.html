@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+
+{% block title %} · Suppliers{% endblock %}
+
+{% block content %}
+<div class="app-page-shell suppliers-page">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Suppliers</h1>
+      <p class="page-subtitle">
+        See where your money is going and manage recurring vendors.
+      </p>
+    </div>
+    <div class="page-header-actions">
+      <button type="button" class="btn-ghost-sm" title="Export CSV coming soon" disabled>
+        Export CSV
+      </button>
+      <a href="{% url 'supplier_create' %}" class="btn-pill-primary">+ New supplier</a>
+    </div>
+  </div>
+
+  <section class="page-kpi-grid suppliers-kpis">
+    <div class="kpi-card">
+      <div class="kpi-label">Total suppliers</div>
+      <div class="kpi-value">{{ total_suppliers|default:0 }}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">YTD spend</div>
+      <div class="kpi-value">
+        {{ total_ytd|default:0|floatformat:2 }} {{ business.currency|default:"" }}
+      </div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">This month</div>
+      <div class="kpi-value">
+        {{ total_mtd|default:0|floatformat:2 }} {{ business.currency|default:"" }}
+      </div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Avg per supplier (YTD)</div>
+      <div class="kpi-value">
+        {{ avg_per_supplier|default:0|floatformat:2 }} {{ business.currency|default:"" }}
+      </div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Open balance</div>
+      <div class="kpi-value">
+        {{ total_open_balance|default:0|floatformat:2 }} {{ business.currency|default:"" }}
+      </div>
+      <p class="kpi-help">Unpaid expenses across all suppliers.</p>
+    </div>
+  </section>
+
+  <section class="suppliers-filter-card">
+    <div class="pill-tabs">
+      <a href="{% url 'suppliers' %}?status=all"
+         class="pill-tab {% if status == 'all' %}is-active{% endif %}">All</a>
+      <a href="{% url 'suppliers' %}?status=active"
+         class="pill-tab {% if status == 'active' %}is-active{% endif %}">Active</a>
+      <a href="{% url 'suppliers' %}?status=archived"
+         class="pill-tab {% if status == 'archived' %}is-active{% endif %}">Archived</a>
+    </div>
+    <form method="get" class="suppliers-filter-form">
+      <input type="hidden" name="status" value="{{ status }}">
+      <select name="category" class="input-select" onchange="this.form.submit()">
+        <option value="">All categories</option>
+        {% for cat in categories %}
+          <option value="{{ cat.pk }}" {% if category_id|default:'' == cat.pk|stringformat:'s' %}selected{% endif %}>
+            {{ cat.name }}
+          </option>
+        {% endfor %}
+      </select>
+      <div class="input-search-pill">
+        <input
+          type="text"
+          name="q"
+          value="{{ search_q }}"
+          placeholder="Search suppliers"
+        />
+        <span>⌕</span>
+      </div>
+    </form>
+  </section>
+
+  <section class="suppliers-layout">
+    <div class="card suppliers-table">
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Supplier</th>
+              <th class="hidden-sm">Default category</th>
+              <th class="hidden-sm text-right">YTD spend</th>
+              <th class="hidden-md text-right">MTD spend</th>
+              <th class="text-right">Open balance</th>
+              <th class="hidden-lg text-right">Phone</th>
+              <th class="text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if suppliers %}
+              {% for supplier in suppliers %}
+              <tr
+                class="supplier-row {% if selected_supplier and supplier.pk == selected_supplier.pk %}is-selected{% endif %}"
+                onclick="window.location.href='{{ request.path }}?status={{ status }}{% if category_id %}&category={{ category_id }}{% endif %}{% if search_q %}&q={{ search_q }}{% endif %}&supplier={{ supplier.pk }}'"
+              >
+                <td>
+                  <div class="supplier-cell">
+                    <div class="supplier-avatar">
+                      {{ supplier.name|default:"?"|slice:":2"|upper }}
+                    </div>
+                    <div class="supplier-text">
+                      <div class="supplier-name">{{ supplier.name }}</div>
+                      {% if supplier.email %}
+                        <div class="supplier-meta">{{ supplier.email }}</div>
+                      {% endif %}
+                    </div>
+                  </div>
+                </td>
+                <td class="hidden-sm">
+                  {{ supplier.default_category_name|default:"—" }}
+                </td>
+                <td class="hidden-sm text-right">
+                  {{ supplier.ytd_spend|default:0|floatformat:2 }} {{ business.currency|default:"" }}
+                </td>
+                <td class="hidden-md text-right">
+                  {{ supplier.mtd_spend|default:0|floatformat:2 }} {{ business.currency|default:"" }}
+                </td>
+                <td class="text-right">
+                  {% if supplier.open_balance %}
+                    <span class="badge badge--warning">
+                      {{ supplier.open_balance|floatformat:2 }} {{ business.currency|default:"" }}
+                    </span>
+                  {% else %}
+                    <span class="supplier-meta">0.00 {{ business.currency|default:"" }}</span>
+                  {% endif %}
+                </td>
+                <td class="hidden-lg text-right">
+                  {{ supplier.phone|default:"—" }}
+                </td>
+                <td class="text-right">
+                  <div class="supplier-actions">
+                    <a href="{% url 'supplier_update' supplier.pk %}">Edit</a>
+                    <span>·</span>
+                    <a href="{% url 'supplier_delete' supplier.pk %}">Delete</a>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td colspan="6" class="empty-row">
+                  No suppliers yet. <a href="{% url 'supplier_create' %}">Create one</a>.
+                </td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <aside class="card suppliers-detail">
+      {% if selected_supplier %}
+        <div class="detail-header">
+          <div class="supplier-avatar supplier-avatar-lg">
+            {{ selected_supplier.name|default:"?"|slice:":2"|upper }}
+          </div>
+          <div>
+            <h2 class="detail-title">{{ selected_supplier.name }}</h2>
+            <p class="detail-subtitle">
+              {{ selected_supplier.default_category_name|default:"Supplier" }}
+            </p>
+          </div>
+          <div class="detail-actions">
+            <a href="{% url 'expense_create' %}?supplier={{ selected_supplier.pk }}" class="btn-pill-primary btn-pill-small">+ Expense</a>
+            <a href="{% url 'supplier_update' selected_supplier.pk %}" class="btn-ghost-sm">Edit</a>
+          </div>
+        </div>
+
+        <div class="mini-stat-grid">
+          <div class="mini-stat">
+            <div class="mini-stat-label">YTD spend</div>
+            <div class="mini-stat-value">
+              {{ selected_supplier.ytd_spend|default:0|floatformat:2 }} {{ business.currency|default:"" }}
+            </div>
+            <div class="mini-stat-meta">{{ ytd_percent }}% of vendor spend</div>
+          </div>
+          <div class="mini-stat">
+            <div class="mini-stat-label">This month</div>
+            <div class="mini-stat-value">
+              {{ selected_supplier.mtd_spend|default:0|floatformat:2 }} {{ business.currency|default:"" }}
+            </div>
+            <div class="mini-stat-meta">{{ mtd_percent }}% of monthly expenses</div>
+          </div>
+          <div class="mini-stat">
+            <div class="mini-stat-label">Avg monthly</div>
+            <div class="mini-stat-value">
+              {{ avg_monthly_selected|default:0|floatformat:2 }} {{ business.currency|default:"" }}
+            </div>
+            <div class="mini-stat-meta">Since start of year</div>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <h3>Amount owed</h3>
+          <div style="
+            border-radius:20px;
+            border:1px dashed #cdd4f5;
+            background:#f5f7ff;
+            padding:14px 18px;
+            font-size:16px;
+            font-weight:600;
+            color:#4c4f8f;
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+          ">
+            <span>Outstanding invoices</span>
+            <span>{{ selected_supplier.open_balance|default:0|floatformat:2 }} {{ business.currency|default:"" }}</span>
+          </div>
+          <p class="detail-subtext" style="margin-top:6px;">
+            Based on expenses marked as unpaid for this supplier.
+          </p>
+        </div>
+
+        <div class="detail-section">
+          <h3>Contact</h3>
+          <dl>
+            <div><dt>Email</dt><dd>{{ selected_supplier.email|default:"No email on file" }}</dd></div>
+            <div><dt>Phone</dt><dd>{{ selected_supplier.phone|default:"No phone on file" }}</dd></div>
+          </dl>
+        </div>
+
+        <div class="detail-section">
+          <h3>Notes &amp; recurring</h3>
+          <p class="detail-helper">
+            Use this area to track recurring payments or reminders. e.g. “Bills $25/mo on the 5th for hosting.”
+          </p>
+          <div class="notes-placeholder">
+            <span class="placeholder-text">No notes yet.</span>
+          </div>
+        </div>
+      {% else %}
+        <p class="detail-empty">Select a supplier from the left to see details.</p>
+      {% endif %}
+    </aside>
+  </section>
+</div>
+{% endblock %}

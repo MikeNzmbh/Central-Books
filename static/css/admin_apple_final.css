@@ -1,0 +1,130 @@
+/* Apple-style theme for vanilla Django admin — precedence-safe, visual-only */
+
+:root{
+  --bg:#f5f5f7; --panel:#ffffff; --border:#e5e5ea;
+  --text:#111111; --muted:#6e6e73;
+  --blue:#007aff; --blue2:#0a84ff; --thead:#fafafa;
+  --r:16px; --rsm:12px; --shadow:0 8px 30px rgba(0,0,0,.06);
+}
+
+html, body, #container {
+  background: var(--bg) !important;
+  color: var(--text) !important;
+  font-family: -apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display",system-ui,"Helvetica Neue",Helvetica,Arial,sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a:link, a:visited { color: var(--blue); }
+a:hover { color: var(--blue2); }
+
+#header{
+  background: rgba(255,255,255,.82) !important;
+  border-bottom: 1px solid #d2d2d7 !important;
+  backdrop-filter: saturate(110%) blur(10px);
+  -webkit-backdrop-filter: saturate(110%) blur(10px);
+  color: var(--text) !important;
+}
+#header a { color: var(--text) !important; }
+#branding h1, #branding h1 a {
+  font-weight: 700;
+  letter-spacing: .2px;
+}
+
+#content, .content, .module, .app-index .module, .dashboard #content {
+  background: var(--panel) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--r) !important;
+  box-shadow: var(--shadow) !important;
+}
+.breadcrumbs {
+  background: transparent !important;
+  border: 0 !important;
+  color: var(--muted) !important;
+}
+
+#changelist #toolbar, #toolbar {
+  background: transparent !important;
+  border: 0 !important;
+}
+#changelist-search input[type="text"], #toolbar form input[type="text"] {
+  background: #fff !important;
+  color: var(--text) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 999px !important;
+  padding: 10px 14px !important;
+}
+
+.button, input[type=submit], .submit-row input, .object-tools a,
+.object-tools a.addlink, .object-tools a.historylink, .object-tools a.viewsitelink {
+  background: var(--blue) !important;
+  border: 1px solid transparent !important;
+  color: #fff !important;
+  border-radius: var(--rsm) !important;
+  padding: 8px 12px !important;
+  font-weight: 600 !important;
+  text-shadow: none !important;
+}
+.button:hover, input[type=submit]:hover, .submit-row input:hover, .object-tools a:hover {
+  background: var(--blue2) !important;
+}
+.actions .button {
+  background:#fff !important;
+  color: var(--text) !important;
+  border:1px solid var(--border) !important;
+}
+
+form .aligned label { color: var(--muted) !important; }
+.vTextField, .vURLField, .vIntegerField, .vLargeTextField, select, textarea,
+input[type=text], input[type=password], input[type=email], input[type=number], input[type=search] {
+  background:#fff !important;
+  color: var(--text) !important;
+  border:1px solid var(--border) !important;
+  border-radius:12px !important;
+  padding:10px 12px !important;
+}
+input:focus, select:focus, textarea:focus {
+  outline:2px solid var(--blue) !important;
+  outline-offset:1px !important;
+}
+
+#changelist table {
+  border-collapse:separate !important;
+  border-spacing:0 !important;
+}
+#changelist table thead th, .module table thead th {
+  background: var(--thead) !important;
+  color: var(--muted) !important;
+  font-weight: 600 !important;
+}
+#changelist table td, #changelist table th, .module table td {
+  border-bottom: 1px solid var(--border) !important;
+}
+#changelist table tbody tr:hover td, .module table tbody tr:hover td {
+  background: #f7f7f7 !important;
+}
+
+#changelist-filter {
+  background: var(--panel) !important;
+  border-left: 1px solid var(--border) !important;
+}
+#changelist-filter h2 { color: var(--muted) !important; }
+#changelist-filter a.selected {
+  color: var(--blue) !important;
+  font-weight: 600 !important;
+}
+
+.paginator { border-top: 1px solid var(--border) !important; }
+.inline-group .module { border-radius: var(--rsm) !important; }
+
+.login #container {
+  background: var(--panel) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--r) !important;
+  box-shadow: var(--shadow) !important;
+}
+.login #header { background: transparent !important; border: 0 !important; }
+.login .form-row label { color: var(--muted) !important; }
+.login input { border-radius: 12px !important; }
+
+.success, .warning, .error { border-radius: 12px !important; }

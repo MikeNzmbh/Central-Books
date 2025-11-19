@@ -1,0 +1,7 @@
+{% extends "base.html" %}{% block content %}
+<h2 style="margin-top:0">Create your account</h2>
+<p class="help">Password must be at least 8 characters.</p>
+{% if form.errors %}<div class="form-errors">Please fix the errors below.</div>{% endif %}
+<form method="post" class="row">{% csrf_token %}{{ form.as_p }}<button class="button">Sign up</button></form>
+<p class="help">Already have an account? <a href="{% url 'login' %}">Log in</a>.</p>
+{% endblock %}

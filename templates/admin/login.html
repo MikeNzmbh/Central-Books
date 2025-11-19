@@ -1,0 +1,25 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+{% block content %}
+  <div id="content-main">
+    {% if form.errors %}
+      <p class="errornote">{% trans 'Please correct the error below.' %}</p>
+    {% endif %}
+    <form action="" method="post" id="login-form">{% csrf_token %}
+      <div class="form-row">
+        {{ form.username.errors }}
+        <label for="{{ form.username.id_for_label }}">{% trans 'Username' %}:</label>
+        {{ form.username }}
+      </div>
+      <div class="form-row">
+        {{ form.password.errors }}
+        <label for="{{ form.password.id_for_label }}">{% trans 'Password' %}:</label>
+        {{ form.password }}
+      </div>
+      <div class="submit-row">
+        <input type="submit" value="{% trans 'Log in' %}">
+        <input type="hidden" name="next" value="{{ next }}">
+      </div>
+    </form>
+  </div>
+{% endblock %}

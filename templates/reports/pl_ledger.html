@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+
+{% block title %}Profit &amp; Loss – Mini-Books{% endblock %}
+
+{% block content %}
+<div class="mb-pl-shell">
+  <header class="mb-pl-header">
+    <div>
+      <div class="mb-kicker">REPORTS</div>
+      <div class="mb-pl-title-row">
+        <h1 class="mb-pl-title">Profit &amp; Loss</h1>
+        <span class="mb-pill mb-pill-green">
+          <span class="mb-pill-dot"></span>
+          Ledger-backed
+        </span>
+      </div>
+      <p class="mb-pl-subtitle">
+        A clean, ledger-backed view of how your business is performing. Click any amount to drill into
+        the underlying invoices or expenses.
+      </p>
+    </div>
+    <div class="mb-pl-header-actions">
+      {% with current=current_period|default:"this_month" %}
+      <div class="mb-pl-period-pills">
+        <a href="?period=this_month" class="mb-pill {% if current == 'this_month' %}mb-pill-filled{% endif %}">This month</a>
+        <a href="?period=last_month" class="mb-pill {% if current == 'last_month' %}mb-pill-filled{% endif %}">Last month</a>
+        <a href="?period=this_quarter" class="mb-pill {% if current == 'this_quarter' %}mb-pill-filled{% endif %}">This quarter</a>
+        <a href="?period=ytd" class="mb-pill {% if current == 'ytd' %}mb-pill-filled{% endif %}">Year to date</a>
+        <a href="?period=last_year" class="mb-pill {% if current == 'last_year' %}mb-pill-filled{% endif %}">Last year</a>
+        <a href="?period=custom" class="mb-pill {% if current == 'custom' %}mb-pill-filled{% endif %}">Custom</a>
+      </div>
+      {% endwith %}
+      <div class="mb-pl-meta-pills">
+        <span class="mb-pill mb-pill-dark">Basis: Accrual</span>
+        <span class="mb-pill">Compare to last period</span>
+        <a href="{% url 'pl_export_csv' %}?{{ request.GET.urlencode }}" class="mb-pill mb-pill-primary">Export CSV</a>
+      </div>
+    </div>
+  </header>
+
+  <div class="mb-pl-grid">
+    <section class="mb-card mb-pl-main-card">
+      <div class="mb-card-header mb-pl-main-header" style="padding:32px 36px 24px;">
+        <div>
+          <h2 class="mb-card-title">Profit &amp; Loss summary</h2>
+          <p class="mb-card-subtitle">Period: {{ period_label }} · Cashflow view powered by your ledger entries.</p>
+        </div>
+        <p class="mb-pl-hint"><span class="mb-text-good">Positive</span> is good. <span class="mb-text-bad">Negative</span> will show in red.</p>
+      </div>
+      <div class="mb-card-body" style="padding:28px 36px 32px;">
+        <div class="mb-pl-table-head">
+          <div class="mb-pl-col-category">Category</div>
+          <div class="mb-pl-col-amount text-right">Amount</div>
+          <div class="mb-pl-col-amount text-right">Vs last period</div>
+        </div>
+
+        <div class="mb-pl-section-label">Income</div>
+        {% for row in income_rows %}
+          <div class="mb-pl-row">
+            <div class="mb-pl-col-category">
+              {% if row.drilldown_url %}
+                <a href="{{ row.drilldown_url }}" class="mb-pl-link">{{ row.name }}</a>
+              {% else %}
+                {{ row.name }}
+              {% endif %}
+            </div>
+            <div class="mb-pl-col-amount text-right mb-pl-amount-income">
+              ${{ row.amount|floatformat:2 }}
+            </div>
+            <div class="mb-pl-col-amount text-right mb-pl-delta-income">
+              {% if row.change_pct is not None %}
+                {% if row.change_pct > 0 %}▲{% elif row.change_pct < 0 %}▼{% endif %}
+                {{ row.change_pct|floatformat:1 }}%
+              {% else %}
+                –
+              {% endif %}
+            </div>
+          </div>
+        {% empty %}
+          <div class="mb-pl-empty">No income categories for this period.</div>
+        {% endfor %}
+
+        <div class="mb-pl-row mb-pl-row-total">
+          <div class="mb-pl-col-category">Total income</div>
+          <div class="mb-pl-col-amount text-right mb-pl-amount-income-strong">${{ total_income|floatformat:2 }}</div>
+          <div class="mb-pl-col-amount text-right mb-pl-delta-income">
+            {% if income_change_pct is not None %}
+              {% if income_change_pct > 0 %}▲{% elif income_change_pct < 0 %}▼{% endif %}
+              {{ income_change_pct|floatformat:1 }}%
+            {% else %}–{% endif %}
+          </div>
+        </div>
+
+        <div class="mb-pl-section-label">Expenses</div>
+        {% for row in expense_rows %}
+          <div class="mb-pl-row">
+            <div class="mb-pl-col-category">
+              {% if row.drilldown_url %}
+                <a href="{{ row.drilldown_url }}" class="mb-pl-link">{{ row.name }}</a>
+              {% else %}
+                {{ row.name }}
+              {% endif %}
+            </div>
+            <div class="mb-pl-col-amount text-right mb-pl-amount-expense">
+              ${{ row.amount|floatformat:2 }}
+            </div>
+            <div class="mb-pl-col-amount text-right mb-pl-delta-expense">
+              {% if row.change_pct is not None %}
+                {% if row.change_pct > 0 %}▲{% elif row.change_pct < 0 %}▼{% endif %}
+                {{ row.change_pct|floatformat:1 }}%
+              {% else %}
+                –
+              {% endif %}
+            </div>
+          </div>
+        {% empty %}
+          <div class="mb-pl-empty">No expense categories for this period.</div>
+        {% endfor %}
+
+        <div class="mb-pl-row mb-pl-row-total">
+          <div class="mb-pl-col-category">Total expenses</div>
+          <div class="mb-pl-col-amount text-right mb-pl-amount-expense-strong">${{ total_expenses|floatformat:2 }}</div>
+          <div class="mb-pl-col-amount text-right mb-pl-delta-expense">
+            {% if expenses_change_pct is not None %}
+              {% if expenses_change_pct > 0 %}▲{% elif expenses_change_pct < 0 %}▼{% endif %}
+              {{ expenses_change_pct|floatformat:1 }}%
+            {% else %}–{% endif %}
+          </div>
+        </div>
+
+        <div class="mb-pl-row mb-pl-row-net">
+          <div class="mb-pl-col-category">Net profit</div>
+          <div class="mb-pl-col-amount text-right mb-pl-amount-income-strong">${{ net_profit|floatformat:2 }}</div>
+          <div class="mb-pl-col-amount text-right mb-pl-delta-income">
+            {% if net_change_pct is not None %}
+              {% if net_change_pct > 0 %}▲{% elif net_change_pct < 0 %}▼{% endif %}
+              {{ net_change_pct|floatformat:1 }}%
+            {% else %}–{% endif %}
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="mb-pl-side">
+      <section class="mb-card">
+        <div class="mb-card-header"><h2 class="mb-card-title">This {{ period_short_label|default:"period" }} at a glance</h2></div>
+        <div class="mb-card-body mb-pl-at-a-glance">
+          <div class="mb-pl-stat-row"><span>Total income</span><span class="mb-pl-stat-income">${{ total_income|floatformat:2 }}</span></div>
+          <div class="mb-pl-stat-row"><span>Total expenses</span><span class="mb-pl-stat-expense">${{ total_expenses|floatformat:2 }}</span></div>
+          <div class="mb-pl-stat-row"><span>Sales tax collected</span><span class="mb-pl-stat-tax">${{ total_tax|floatformat:2 }}</span></div>
+          <div class="mb-pl-stat-row mb-pl-stat-row-net"><span>Net profit</span><span class="mb-pl-stat-income">${{ net_profit|floatformat:2 }}</span></div>
+          <p class="mb-pl-stat-note">These numbers come directly from your ledger (Journal entries), not raw invoices.</p>
+        </div>
+      </section>
+
+      <section class="mb-card mb-pl-drill-card">
+        <div class="mb-card-header"><h2 class="mb-card-title">Drill-down shortcuts</h2></div>
+        <div class="mb-card-body mb-pl-drill-body">
+          <p class="mb-pl-drill-intro">Click any blue category name or amount in the table to open a filtered list of the underlying invoices or expenses.</p>
+          <ul class="mb-pl-drill-list">
+            <li>Consulting revenue → opens Invoices filtered by category &amp; period.</li>
+            <li>Software subscriptions → opens Expenses for that category.</li>
+            <li>Total income/expenses → opens all activity for the selected period.</li>
+          </ul>
+        </div>
+      </section>
+
+      <form method="get" class="mb-card mb-pl-refine-card">
+        <div class="mb-card-header"><h2 class="mb-card-title">Refine this view</h2></div>
+        <div class="mb-card-body mb-pl-refine">
+          {% if request.GET.period %}<input type="hidden" name="period" value="{{ request.GET.period }}" />{% endif %}
+          <p class="mb-pl-refine-copy">Narrow down the report without losing the core picture.</p>
+          <label class="mb-pl-refine-label">Show only categories containing
+            <input type="text" name="q" value="{{ request.GET.q }}" placeholder="e.g. software, travel" class="mb-input mb-pl-refine-input" />
+          </label>
+          <div class="mb-pl-refine-filters">
+            <button type="submit" name="hide_small" value="1" class="mb-pill">Hide small categories</button>
+            <button type="submit" name="only_income" value="1" class="mb-pill">Show only income</button>
+            <button type="submit" name="only_expense" value="1" class="mb-pill">Show only expenses</button>
+          </div>
+        </div>
+      </form>
+    </aside>
+  </div>
+</div>
+
+<style>
+  .mb-pl-shell{padding:40px 48px;background:#f8fafc;color:#0f172a;}
+  .mb-pl-header{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap;margin-bottom:24px;}
+  .mb-pl-title-row{display:flex;align-items:center;gap:8px;}
+  .mb-pl-title{margin:0;font-size:28px;font-weight:600;letter-spacing:-0.01em;}
+  .mb-pl-subtitle{margin-top:4px;font-size:13px;color:#64748b;max-width:460px;}
+  .mb-pl-header-actions{display:flex;flex-direction:column;gap:12px;align-items:flex-end;}
+  .mb-pill{border-radius:999px;padding:6px 14px;font-size:11px;font-weight:600;border:1px solid #e2e8f0;background:#fff;color:#475569;text-decoration:none;}
+  .mb-pill-filled{background:#0f172a;color:#fff;border-color:#0f172a;}
+  .mb-pill-primary{background:#0ea5e9;color:#fff;border-color:#0ea5e9;}
+  .mb-pill-dark{background:#0f172a;color:#f9fafb;border-color:#020617;}
+  .mb-pill-green{background:#ecfdf5;border-color:#bbf7d0;color:#047857;display:inline-flex;align-items:center;gap:4px;}
+  .mb-pill-dot{width:6px;height:6px;border-radius:999px;background:#22c55e;display:inline-block;}
+  .mb-pl-period-pills{display:flex;flex-wrap:wrap;gap:12px;}
+  .mb-pl-meta-pills{display:flex;flex-wrap:wrap;gap:12px;justify-content:flex-end;}
+  .mb-pl-grid{display:grid;gap:24px;grid-template-columns:minmax(0,3fr) minmax(0,2fr);align-items:flex-start;}
+  .mb-pl-table-head{display:flex;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;border-bottom:1px solid #e2e8f0;padding-bottom:6px;margin-bottom:8px;}
+  .mb-pl-col-category{flex:1.2;}
+  .mb-pl-col-amount{flex:0.8;}
+  .mb-pl-section-label{margin-top:14px;font-size:11px;font-weight:600;text-transform:uppercase;color:#94a3b8;}
+  .mb-pl-row{display:flex;align-items:center;padding:6px 0;border-bottom:1px solid #eef2ff;font-size:13px;}
+  .mb-pl-row-total,.mb-pl-row-net{font-weight:600;border-top:1px solid #e2e8f0;margin-top:8px;padding-top:10px;}
+  .mb-pl-link{color:#0ea5e9;font-weight:600;text-decoration:none;}
+  .mb-pl-link:hover{text-decoration:underline;}
+  .mb-pl-amount-income{color:#16a34a;font-weight:500;}
+  .mb-pl-amount-income-strong{color:#16a34a;font-weight:700;}
+  .mb-pl-amount-expense{color:#ef4444;font-weight:500;}
+  .mb-pl-amount-expense-strong{color:#ef4444;font-weight:700;}
+  .mb-pl-delta-income{color:#16a34a;font-size:11px;}
+  .mb-pl-delta-expense{color:#ef4444;font-size:11px;}
+  .mb-pl-hint{font-size:11px;color:#94a3b8;max-width:220px;}
+  .mb-text-good{color:#16a34a;font-weight:600;}
+  .mb-text-bad{color:#ef4444;font-weight:600;}
+  .mb-pl-side{display:flex;flex-direction:column;gap:16px;}
+  .mb-pl-at-a-glance .mb-pl-stat-row{display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;}
+  .mb-pl-stat-income{color:#16a34a;font-weight:700;}
+  .mb-pl-stat-expense{color:#ef4444;font-weight:700;}
+  .mb-pl-stat-tax{color:#0ea5e9;font-weight:600;}
+  .mb-pl-stat-row-net{padding-top:8px;margin-top:4px;border-top:1px dashed #e2e8f0;}
+  .mb-pl-stat-note{margin-top:10px;font-size:11px;color:#64748b;}
+  .mb-pl-drill-body{font-size:12px;color:#475569;}
+  .mb-pl-drill-list{list-style:disc;padding-left:18px;font-size:11px;color:#64748b;}
+  .mb-pl-refine-card{display:block;}
+  .mb-pl-refine{font-size:12px;color:#475569;}
+  .mb-pl-refine-label{display:block;font-size:11px;font-weight:500;margin-bottom:8px;color:#475569;}
+  .mb-pl-refine-input{margin-top:4px;width:100%;}
+  .mb-pl-refine-filters{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;}
+  .mb-pl-empty{padding:8px 0;font-size:12px;color:#94a3b8;}
+  @media (max-width:960px){.mb-pl-header-actions{align-items:flex-start;}.mb-pl-grid{grid-template-columns:1fr;}}
+</style>
+{% endblock %}

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% load static mb_extras %}
+
+{% block content %}
+  <div
+    id="chart-of-accounts-root"
+    data-initial="{{ spa_initial|escapejs }}"
+    data-new-account-url="{{ new_account_url }}"
+  ></div>
+
+  {{ spa_payload|json_script:"chart-of-accounts-data" }}
+
+  {% vite_asset 'chart-of-accounts' as js_path %}
+  {% if js_path %}
+    <script type="module" src="{% static js_path %}"></script>
+  {% else %}
+    <!-- Vite JS asset not found for 'chart-of-accounts' -->
+  {% endif %}
+
+  {% vite_asset 'chart-of-accounts' 'css' as css_path %}
+  {% if css_path %}
+    <link rel="stylesheet" href="{% static css_path %}">
+  {% endif %}
+{% endblock %}

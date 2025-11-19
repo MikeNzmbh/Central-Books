@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+
+{% block title %} · Products & Services{% endblock %}
+
+{% block content %}
+<div class="app-page-shell products-page">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Products &amp; Services</h1>
+      <p class="page-subtitle">
+        Items you sell or bill for, using the same grid layout as Categories.
+      </p>
+    </div>
+    <div class="page-header-actions">
+      <form method="get" class="search-form" style="width:280px;">
+        <input type="hidden" name="kind" value="{{ filter_kind }}">
+        <input type="hidden" name="status" value="{{ filter_status }}">
+        <div class="search-input">
+          <span class="search-icon">⌕</span>
+          <input type="text"
+                 name="q"
+                 value="{{ search_query }}"
+                 placeholder="Search by name or SKU">
+        </div>
+      </form>
+      <a href="{% url 'item_create' %}" class="btn-pill-primary">+ New item</a>
+    </div>
+  </div>
+
+  <section class="page-kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-label">Active items</div>
+      <div class="kpi-value">{{ active_count }}</div>
+      <p class="kpi-help">Products and services available to use.</p>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Products</div>
+      <div class="kpi-value">{{ product_count }}</div>
+      <p class="kpi-help">Physical or digital goods.</p>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Services</div>
+      <div class="kpi-value">{{ service_count }}</div>
+      <p class="kpi-help">Billable time or engagements.</p>
+    </div>
+  </section>
+
+  <div class="categories-filter-bar">
+    <form method="get" class="segmented-control">
+      <input type="hidden" name="status" value="{{ filter_status }}">
+      <input type="hidden" name="q" value="{{ search_query }}">
+      <button type="submit"
+              name="kind"
+              value="all"
+              class="segmented-item{% if filter_kind == 'all' %} is-active{% endif %}">
+        All
+      </button>
+      <button type="submit"
+              name="kind"
+              value="product"
+              class="segmented-item{% if filter_kind == 'product' %} is-active{% endif %}">
+        Product
+      </button>
+      <button type="submit"
+              name="kind"
+              value="service"
+              class="segmented-item{% if filter_kind == 'service' %} is-active{% endif %}">
+        Service
+      </button>
+    </form>
+
+    <form method="get" class="status-chips">
+      <input type="hidden" name="kind" value="{{ filter_kind }}">
+      <input type="hidden" name="q" value="{{ search_query }}">
+      <button type="submit"
+              name="status"
+              value="active"
+              class="chip{% if filter_status == 'active' %} chip--active{% endif %}">
+        Active
+      </button>
+      <button type="submit"
+              name="status"
+              value="archived"
+              class="chip{% if filter_status == 'archived' %} chip--active{% endif %}">
+        Archived
+      </button>
+      <button type="submit"
+              name="status"
+              value="all"
+              class="chip{% if filter_status == 'all' %} chip--active{% endif %}">
+        All
+      </button>
+    </form>
+  </div>
+
+  <section class="categories-grid-panel">
+    {% if items %}
+      <div class="categories-grid products-grid">
+        {% for item in items %}
+          <article class="category-card product-card">
+            <div class="category-card-header">
+              <div>
+                <h2 class="category-name">{{ item.name }}</h2>
+                {% if item.is_archived %}
+                  <span class="pill pill-muted">Archived</span>
+                {% elif not item.is_active %}
+                  <span class="pill pill-muted">Inactive</span>
+                {% endif %}
+              </div>
+              <div>
+                {% if item.type == 'PRODUCT' %}
+                  <span class="pill pill-income">Product</span>
+                {% else %}
+                  <span class="pill pill-expense">Service</span>
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="category-card-body">
+              <div class="category-code">
+                SKU / Code:
+                {% if item.sku %}
+                  {{ item.sku }}
+                {% else %}
+                  —
+                {% endif %}
+              </div>
+              <div class="category-usage">
+                <span class="usage-number">
+                  {{ item.unit_price|floatformat:2 }}
+                </span>
+                <span class="usage-label">{{ currency }}</span>
+              </div>
+            </div>
+
+            <div class="category-card-footer">
+              <span class="category-helper">
+                {% if item.income_category %}
+                  {{ item.income_category.name }}
+                {% else %}
+                  Uncategorised income
+                {% endif %}
+                {% if item.description %}
+                  · {{ item.description|truncatechars:70 }}
+                {% endif %}
+              </span>
+              <div class="category-actions">
+                <a href="{% url 'item_update' item.pk %}" class="link-inline">Edit</a>
+              </div>
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty-state">
+        <p>No products or services to display.</p>
+        <a href="{% url 'item_create' %}" class="btn-link">Create your first item</a>
+      </div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

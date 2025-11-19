@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% load static mb_extras %}
+
+{% block content %}
+  <div
+    id="banking-root"
+    data-overview-url="{% url 'api_banking_overview' %}"
+    data-feed-url="{% url 'bank_feeds_overview' %}"
+    data-import-url="{% url 'bank_feed_import' %}"
+  ></div>
+
+  {% vite_asset 'banking-accounts-feed' as js_path %}
+  {% if js_path %}
+    <script type="module" src="{% static js_path %}"></script>
+  {% else %}
+    <!-- Vite JS asset not found for 'banking-accounts-feed' -->
+  {% endif %}
+
+  {% vite_asset 'banking-accounts-feed' 'css' as css_path %}
+  {% if css_path %}
+    <link rel="stylesheet" href="{% static css_path %}">
+  {% endif %}
+{% endblock %}

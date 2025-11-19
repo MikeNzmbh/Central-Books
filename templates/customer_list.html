@@ -1,0 +1,36 @@
+{% extends "base.html" %}{% block content %}
+<h2 style="margin-top:0">Customers – {{ business.name }}</h2>
+<p><a href="{% url 'customer_create' %}" class="button">Add customer</a></p>
+{% if customers %}
+<table class="table">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Email</th>
+      <th>Phone</th>
+      <th>Active</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for c in customers %}
+    <tr>
+      <td>{{ c.name }}</td>
+      <td>{{ c.email }}</td>
+      <td>{{ c.phone }}</td>
+      <td>{{ c.is_active|yesno:"Yes,No" }}</td>
+      <td>
+        <a href="{% url 'customer_update' c.pk %}">Edit</a>
+        <form method="post" action="{% url 'customer_delete' c.pk %}" style="display:inline">
+          {% csrf_token %}
+          <button type="submit" class="button secondary">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No customers yet.</p>
+{% endif %}
+{% endblock %}

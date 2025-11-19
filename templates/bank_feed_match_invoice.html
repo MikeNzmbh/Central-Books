@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}Match transaction – {{ bank_account.name }}{% endblock %}
+
+{% block content %}
+<div class="mb-page-shell">
+  <div class="mb-page-header">
+    <div>
+      <div class="mb-kicker">BANK FEEDS</div>
+      <h1 class="mb-page-title">Match transaction to invoice</h1>
+      <p class="mb-page-subtitle">
+        Choose which invoice this bank deposit belongs to. Matching will mark the invoice as paid if needed.
+      </p>
+    </div>
+  </div>
+
+  <div class="mb-page-grid">
+    <div class="mb-page-main">
+      <div class="mb-card mb-4">
+        <div class="mb-card-header">
+          <h2 class="mb-card-title">Transaction</h2>
+        </div>
+        <div class="mb-card-body text-sm text-slate-600 space-y-2">
+          <div><span class="font-semibold text-slate-800">Date:</span> {{ bank_tx.date|date:"M d, Y" }}</div>
+          <div><span class="font-semibold text-slate-800">Description:</span> {{ bank_tx.description }}</div>
+          <div>
+            <span class="font-semibold text-slate-800">Amount:</span>
+            <span class="text-emerald-600 font-semibold">{{ bank_tx.amount }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="mb-card">
+        <div class="mb-card-header">
+          <h2 class="mb-card-title">Select invoice</h2>
+        </div>
+        <div class="mb-card-body">
+          {% if has_candidates %}
+            <form method="post" class="space-y-4">
+              {% csrf_token %}
+              <div class="mb-field">
+                <label class="mb-label">Invoice</label>
+                {{ form.invoice }}
+                {% for error in form.invoice.errors %}
+                  <div class="mb-error">{{ error }}</div>
+                {% endfor %}
+              </div>
+
+              <div class="flex gap-2">
+                <button type="submit" class="mb-btn mb-btn-pill mb-btn-primary">
+                  Match transaction
+                </button>
+                <a href="{% url 'bank_feed_review' bank_account.id %}" class="mb-btn mb-btn-pill mb-btn-secondary">
+                  Cancel
+                </a>
+              </div>
+            </form>
+          {% else %}
+            <p class="text-sm text-slate-500">
+              No invoices found with the same amount. Go back to the Bank feed to create an income entry or adjust the invoice.
+            </p>
+            <a href="{% url 'bank_feed_review' bank_account.id %}" class="mt-4 inline-flex mb-btn mb-btn-pill mb-btn-secondary">
+              Back to bank feed
+            </a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

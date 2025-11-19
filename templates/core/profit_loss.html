@@ -1,0 +1,534 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %} · Profit &amp; Loss{% endblock %}
+
+{% block content %}
+
+<style>
+  .pl-page {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 32px 40px 48px;
+  }
+  .pl-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 24px;
+    margin-bottom: 24px;
+  }
+  .pl-title {
+    font-size: 24px;
+    font-weight: 600;
+    margin: 0 0 4px;
+  }
+  .pl-subtitle {
+    font-size: 13px;
+    color: #6e6e73;
+    margin: 0;
+  }
+
+  .pl-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+  }
+  .pl-select {
+    border-radius: 999px;
+    padding: 6px 16px;
+    border: 1px solid #d2d2d7;
+    background: #f5f5f7;
+    font-size: 13px;
+  }
+  .pl-btn {
+    border-radius: 999px;
+    padding: 6px 16px;
+    border: 1px solid #d2d2d7;
+    background: #ffffff;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .pl-btn-primary {
+    background: #0b84ff;
+    border-color: #0b84ff;
+    color: #fff;
+  }
+  .pl-btn[disabled] {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  .pl-kpis {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .pl-card {
+    border-radius: 18px;
+    background: #ffffff;
+    box-shadow: 0 18px 35px rgba(0, 0, 0, 0.04);
+    padding: 16px 18px;
+  }
+  .pl-card-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: #6e6e73;
+    margin-bottom: 6px;
+  }
+  .pl-card-value {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 2px;
+  }
+  .pl-card-helper {
+    font-size: 12px;
+    color: #6e6e73;
+  }
+  .pl-kpi-positive {
+    color: #1a7f37;
+  }
+  .pl-kpi-negative {
+    color: #b00020;
+  }
+
+  .pl-main {
+    display: grid;
+    grid-template-columns: minmax(0, 2.3fr) minmax(260px, 1fr);
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+
+  .pl-section-title {
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 10px;
+  }
+
+  .pl-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .pl-table th,
+  .pl-table td {
+    padding: 6px 0;
+  }
+  .pl-table th {
+    font-weight: 600;
+    color: #6e6e73;
+    text-align: left;
+  }
+  .pl-table td:last-child,
+  .pl-table th:last-child {
+    text-align: right;
+  }
+  .pl-row-section {
+    font-weight: 600;
+    padding-top: 12px;
+  }
+  .pl-row-total {
+    font-weight: 600;
+  }
+  .pl-row-income {
+    color: #1a7f37;
+  }
+  .pl-row-expenses {
+    color: #b00020;
+  }
+  .pl-row-net {
+    color: #1a7f37;
+  }
+  .pl-row-muted {
+    color: #6e6e73;
+    font-size: 12px;
+  }
+
+  .pl-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .pl-chip {
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 11px;
+    border: 1px solid #e5e5ea;
+    background: #f5f5f7;
+    color: #6e6e73;
+  }
+  .pl-chip-primary {
+    background: #111827;
+    border-color: #111827;
+    color: #fff;
+  }
+
+  .pl-bullets {
+    margin: 0;
+    padding-left: 18px;
+    font-size: 12px;
+    color: #4b4b4b;
+  }
+
+  .pl-bottom {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr);
+    gap: 16px;
+    margin-bottom: 40px;
+  }
+  .pl-note-box {
+    border-radius: 16px;
+    border: 1px dashed #d2d2d7;
+    background: #f9fafb;
+    padding: 12px 14px;
+    font-size: 12px;
+    color: #6e6e73;
+  }
+  .pl-note-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .pl-link {
+    font-size: 12px;
+    color: #0b84ff;
+    text-decoration: none;
+  }
+  .pl-link:hover {
+    text-decoration: underline;
+  }
+  .pl-link-row {
+    color: inherit;
+    text-decoration: none;
+  }
+  .pl-link-row:hover {
+    text-decoration: underline;
+  }
+
+  @media (max-width: 1024px) {
+    .pl-page {
+      padding: 24px 16px 32px;
+    }
+    .pl-kpis {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .pl-main {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  @media (max-width: 640px) {
+    .pl-header {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    .pl-kpis {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .pl-controls {
+      align-self: stretch;
+      flex-wrap: wrap;
+      justify-content: flex-start;
+    }
+  }
+</style>
+
+<div class="pl-page">
+  <div class="pl-header">
+    <div>
+      <h1 class="pl-title">Profit &amp; Loss</h1>
+      <p class="pl-subtitle">
+        Cash basis report using paid invoices and recorded expenses.
+      </p>
+    </div>
+
+    <form method="get" class="pl-controls">
+      <select name="period" class="pl-select" onchange="this.form.submit()">
+        <option value="this_month" {% if current_period == 'this_month' %}selected{% endif %}>
+          This month
+        </option>
+        <option value="last_month" {% if current_period == 'last_month' %}selected{% endif %}>
+          Last month
+        </option>
+        <option value="this_year" {% if current_period == 'this_year' %}selected{% endif %}>
+          This year
+        </option>
+      </select>
+
+      <button type="button" class="pl-btn" disabled>
+        Compare to previous period
+      </button>
+
+      <button type="button" class="pl-btn">
+        Export CSV
+      </button>
+    </form>
+  </div>
+
+  <div class="pl-kpis">
+    <div class="pl-card">
+      <div class="pl-card-label">Total revenue</div>
+      <div class="pl-card-value">
+        {{ total_revenue|floatformat:2 }} {{ business.currency }}
+      </div>
+      <div class="pl-card-helper">Paid invoices in this period.</div>
+    </div>
+    <div class="pl-card">
+      <div class="pl-card-label">Total expenses</div>
+      <div class="pl-card-value pl-kpi-negative">
+        {{ total_expenses|floatformat:2 }} {{ business.currency }}
+      </div>
+      <div class="pl-card-helper">Recorded expenses in this period.</div>
+    </div>
+    <div class="pl-card">
+      <div class="pl-card-label">Net income</div>
+      <div class="pl-card-value {% if net_income >= 0 %}pl-kpi-positive{% else %}pl-kpi-negative{% endif %}">
+        {{ net_income|floatformat:2 }} {{ business.currency }}
+      </div>
+      <div class="pl-card-helper">Revenue minus expenses.</div>
+    </div>
+    <div class="pl-card">
+      <div class="pl-card-label">Profit margin</div>
+      <div class="pl-card-value {% if profit_margin and profit_margin >= 0 %}pl-kpi-positive{% else %}pl-kpi-negative{% endif %}">
+        {% if profit_margin is not None %}
+          {{ profit_margin|floatformat:1 }}%
+        {% else %}
+          &mdash;
+        {% endif %}
+      </div>
+      <div class="pl-card-helper">Net income as a percentage of revenue.</div>
+    </div>
+  </div>
+
+  <div class="pl-main">
+    <div class="pl-card">
+      <div class="pl-section-title">
+        Statement
+      </div>
+      <div class="pl-row-muted" style="margin-bottom: 8px;">
+        {{ period_label }} · Cash basis. Click any amount row to drill into
+        the underlying transactions.
+      </div>
+
+      <table class="pl-table">
+        <thead>
+          <tr>
+            <th>Category</th>
+            <th>Amount ({{ business.currency }})</th>
+            <th>% of income</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="pl-row-section">Income</td>
+            <td></td>
+            <td></td>
+          </tr>
+          {% for row in statement_income %}
+            <tr>
+              <td>{{ row.label }}</td>
+              <td class="pl-row-income">
+                {% if row.label == "Revenue" and total_revenue %}
+                  <a
+                    href="{% url 'invoice_list' %}?start={{ start_date|date:'Y-m-d' }}&end={{ end_date|date:'Y-m-d' }}"
+                    class="pl-link-row"
+                  >
+                    {{ row.amount|floatformat:2 }}
+                  </a>
+                {% else %}
+                  {{ row.amount|floatformat:2 }}
+                {% endif %}
+              </td>
+              <td></td>
+            </tr>
+          {% endfor %}
+
+          <tr>
+            <td class="pl-row-section" style="padding-top: 16px;">Expenses</td>
+            <td></td>
+            <td></td>
+          </tr>
+          {% for row in statement_expenses %}
+            <tr>
+              <td>
+                {% if row.category_id %}
+                  <a
+                    href="{% url 'expense_list' %}?start={{ start_date|date:'Y-m-d' }}&end={{ end_date|date:'Y-m-d' }}&category={{ row.category_id }}"
+                    class="pl-link-row"
+                  >
+                    {{ row.label }}
+                  </a>
+                {% else %}
+                  {{ row.label }}
+                {% endif %}
+              </td>
+              <td class="pl-row-expenses">
+                <a
+                  href="{% url 'expense_list' %}?start={{ start_date|date:'Y-m-d' }}&end={{ end_date|date:'Y-m-d' }}{% if row.category_id %}&category={{ row.category_id }}{% endif %}"
+                  class="pl-link-row"
+                >
+                  {{ row.amount|floatformat:2 }}
+                </a>
+              </td>
+              <td>
+                {% if row.percent %}
+                  {{ row.percent|floatformat:1 }}%
+                {% else %}
+                  &mdash;
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+          <tr>
+            <td class="pl-row-total">
+              <a
+                href="{% url 'expense_list' %}?start={{ start_date|date:'Y-m-d' }}&end={{ end_date|date:'Y-m-d' }}"
+                class="pl-link-row"
+              >
+                Total expenses
+              </a>
+            </td>
+            <td class="pl-row-expenses pl-row-total">
+              <a
+                href="{% url 'expense_list' %}?start={{ start_date|date:'Y-m-d' }}&end={{ end_date|date:'Y-m-d' }}"
+                class="pl-link-row"
+              >
+                {{ total_expenses|floatformat:2 }}
+              </a>
+            </td>
+            <td></td>
+          </tr>
+
+          <tr>
+            <td class="pl-row-section" style="padding-top: 16px;">Net</td>
+            <td></td>
+            <td></td>
+          </tr>
+          {% for row in statement_net %}
+            <tr>
+              <td class="pl-row-total">{{ row.label }}</td>
+              <td class="pl-row-net pl-row-total">
+                {{ row.amount|floatformat:2 }}
+              </td>
+              <td>
+                {% if profit_margin is not None %}
+                  {{ profit_margin|floatformat:1 }}%
+                {% else %}
+                  &mdash;
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <aside class="pl-sidebar">
+      <div class="pl-card" style="margin-bottom: 16px;">
+        <div class="pl-section-title">Period comparison</div>
+        <div class="pl-chips">
+          <span class="pl-chip pl-chip-primary">vs last month (coming soon)</span>
+          <span class="pl-chip">vs same month last year</span>
+          <span class="pl-chip">12-month trend</span>
+        </div>
+        <p class="pl-card-helper">
+          Comparison views will let you see changes in revenue, expenses and
+          margin across periods.
+        </p>
+      </div>
+
+      <div class="pl-card">
+        <div class="pl-section-title">Health check</div>
+        <ul class="pl-bullets">
+          <li>
+            Revenue is <strong>{{ insights.revenue|floatformat:2 }} {{ business.currency }}</strong>
+            for this period.
+          </li>
+          <li>
+            Expenses total
+            <strong>{{ insights.expenses|floatformat:2 }} {{ business.currency }}</strong>.
+          </li>
+          <li>
+            Net income is
+            <strong>{{ insights.net_income|floatformat:2 }} {{ business.currency }}</strong>.
+          </li>
+        </ul>
+      </div>
+
+      <div class="pl-card" style="background:#f8fafc;">
+        <div class="pl-section-title" style="margin-bottom:6px;">Tax summary</div>
+        <dl style="font-size:12px; color:#64748b;">
+          <div class="mb-side-row" style="margin-bottom:6px;">
+            <dt>Tax on sales</dt>
+            <dd class="font-medium text-slate-900">
+              {{ tax_on_sales|default:0|floatformat:2 }} {{ business.currency|default:"USD" }}
+            </dd>
+          </div>
+          <div class="mb-side-row" style="margin-bottom:6px;">
+            <dt>Tax on expenses</dt>
+            <dd class="font-medium text-slate-900">
+              {{ tax_on_expenses|default:0|floatformat:2 }} {{ business.currency|default:"USD" }}
+            </dd>
+          </div>
+          <div class="mb-side-row" style="margin-top:8px; padding-top:6px; border-top:1px solid #e2e8f0;">
+            <dt class="font-semibold text-slate-900">Net tax position</dt>
+            <dd class="font-semibold">
+              {% if net_tax > 0 %}
+                <span style="color:#047857;">
+                  {{ net_tax|floatformat:2 }} {{ business.currency|default:"USD" }}
+                </span>
+              {% elif net_tax < 0 %}
+                <span style="color:#be123c;">
+                  {{ net_tax|floatformat:2 }} {{ business.currency|default:"USD" }}
+                </span>
+              {% else %}
+                <span class="text-slate-500">
+                  0.00 {{ business.currency|default:"USD" }}
+                </span>
+              {% endif %}
+            </dd>
+          </div>
+        </dl>
+        <p class="pl-card-helper" style="margin-top:10px;">
+          Net tax = tax on sales − tax on expenses for this period.
+        </p>
+      </div>
+    </aside>
+  </div>
+
+  <div class="pl-bottom">
+    <div class="pl-card">
+      <div class="pl-section-title">Insights</div>
+      <ul class="pl-bullets">
+        <li>
+          Keep an eye on any expense categories that are more than 20% of your
+          income.
+        </li>
+        <li>
+          Use this report monthly to track your runway and spot trends in
+          subscriptions or other recurring costs.
+        </li>
+      </ul>
+    </div>
+
+    <div class="pl-card">
+      <div class="pl-note-header">
+        <span>Notes for this period</span>
+        <a href="#" class="pl-link">Edit</a>
+      </div>
+      <div class="pl-note-box">
+        No notes yet. Use this area to record anything unusual about this
+        period.
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

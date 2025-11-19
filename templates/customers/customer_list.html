@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% load static core_extras %}
+
+{% block title %} · Customers{% endblock %}
+
+{% block content %}
+<div class="app-page-shell">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Customers</h1>
+      <p class="page-subtitle">People and companies you invoice.</p>
+    </div>
+    <a href="{% url 'customer_create' %}" class="btn-pill-primary">
+      + New customer
+    </a>
+  </div>
+
+  <div class="page-kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-label">Open balance</div>
+      <div class="kpi-value">
+        {{ total_open_balance|default:"0.00" }} {{ business.currency|default:"" }}
+      </div>
+      <p class="kpi-footnote">Unpaid invoices for all customers.</p>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Total billed (YTD)</div>
+      <div class="kpi-value">
+        {{ total_billed_ytd|default:"0.00" }} {{ business.currency|default:"" }}
+      </div>
+      <p class="kpi-footnote">Paid invoices this year.</p>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Active customers</div>
+      <div class="kpi-value">
+        {{ active_customers_count|default:"0" }}
+      </div>
+      <p class="kpi-footnote">Currently active records.</p>
+    </div>
+  </div>
+
+  <div class="page-toolbar">
+    <form method="get" class="toolbar-search">
+      <input
+        type="text"
+        name="q"
+        value="{{ search_query }}"
+        placeholder="Search by name, email, or phone"
+        class="input-search"
+      />
+      {% if search_query %}
+        <a href="{% url 'customer_list' %}" class="btn-link">Clear</a>
+      {% endif %}
+    </form>
+    <div class="toolbar-filters">
+      <span class="pill pill-muted">All customers</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="table-wrapper">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Customer</th>
+            <th>Contact</th>
+            <th>Last invoice</th>
+            <th class="th-right">Open balance</th>
+            <th class="th-right">Total billed (YTD)</th>
+            <th class="th-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if customers %}
+            {% for customer in customers %}
+              {% with stats=per_customer_stats|get_item:customer.pk %}
+              <tr>
+                <td>
+                  <div class="table-primary-cell">
+                    <div class="avatar-initials">
+                      {{ customer.name|first|upper }}
+                    </div>
+                    <div class="table-primary-text">
+                      <div class="title">{{ customer.name }}</div>
+                      {% if customer.is_active %}
+                        <span class="badge-soft badge-soft-green">Active</span>
+                      {% else %}
+                        <span class="badge-soft">Archived</span>
+                      {% endif %}
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <div class="table-secondary">
+                    {% if customer.email %}
+                      <div class="line-strong">{{ customer.email }}</div>
+                    {% else %}
+                      <div class="line-weak">No email</div>
+                    {% endif %}
+                    {% if customer.phone %}
+                      <div class="line-weak">{{ customer.phone }}</div>
+                    {% endif %}
+                  </div>
+                </td>
+                <td>
+                  {% if stats and stats.last_invoice_date %}
+                    {{ stats.last_invoice_date|date:"M j, Y" }}
+                  {% else %}
+                    <span class="line-weak">No invoices yet</span>
+                  {% endif %}
+                </td>
+                <td class="td-right">
+                  {% with ob=stats.open_balance %}
+                    {% if ob and ob > 0 %}
+                      <span class="badge-pill badge-pill-warning">
+                        {{ ob }} {{ business.currency|default:"" }}
+                      </span>
+                    {% else %}
+                      <span class="line-weak">0.00 {{ business.currency|default:"" }}</span>
+                    {% endif %}
+                  {% endwith %}
+                </td>
+                <td class="td-right">
+                  {% with tb=stats.total_billed_ytd %}
+                    {% if tb and tb > 0 %}
+                      {{ tb }} {{ business.currency|default:"" }}
+                    {% else %}
+                      <span class="line-weak">0.00 {{ business.currency|default:"" }}</span>
+                    {% endif %}
+                  {% endwith %}
+                </td>
+                <td class="td-right">
+                  <div class="table-actions">
+                    <a href="{% url 'customer_update' customer.pk %}" class="link-strong">Edit</a>
+                    <a href="{% url 'customer_delete' customer.pk %}" class="link-weak">Delete</a>
+                  </div>
+                </td>
+              </tr>
+              {% endwith %}
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td colspan="6" class="td-empty">
+                <div class="empty-state">
+                  <h3>No customers yet</h3>
+                  <p>
+                    Start by adding your first customer, or create an invoice and we’ll add them automatically.
+                  </p>
+                  <a href="{% url 'customer_create' %}" class="btn-primary">
+                    + Add customer
+                  </a>
+                </div>
+              </td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

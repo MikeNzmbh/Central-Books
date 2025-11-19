@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+
+{% block title %} · Customers{% endblock %}
+
+{% block content %}
+<div class="app-page-shell customers-page">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Customers</h1>
+      <p class="page-subtitle">
+        See who owes you money and nurture your best clients.
+      </p>
+    </div>
+    <div class="page-header-actions">
+      <button type="button" class="btn-ghost-sm" title="Export CSV coming soon" disabled>
+        Export CSV
+      </button>
+      <a href="{% url 'customer_create' %}" class="btn-pill-primary">+ New customer</a>
+    </div>
+  </div>
+
+  <section class="page-kpi-grid customers-kpis">
+    <div class="kpi-card">
+      <div class="kpi-label">Total customers</div>
+      <div class="kpi-value">{{ total_customers|default:0 }}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">YTD revenue</div>
+      <div class="kpi-value">
+        {{ total_ytd|default:0|floatformat:2 }} {{ business.currency|default:"" }}
+      </div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">This month</div>
+      <div class="kpi-value">
+        {{ total_mtd|default:0|floatformat:2 }} {{ business.currency|default:"" }}
+      </div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Avg per customer (YTD)</div>
+      <div class="kpi-value">
+        {{ avg_per_customer|default:0|floatformat:2 }} {{ business.currency|default:"" }}
+      </div>
+    </div>
+  </section>
+
+  <section class="customers-filter-card">
+    <div class="pill-tabs">
+      <a href="{% url 'customer_list' %}?status=all"
+         class="pill-tab {% if status == 'all' %}is-active{% endif %}">All</a>
+      <a href="{% url 'customer_list' %}?status=active"
+         class="pill-tab {% if status == 'active' %}is-active{% endif %}">Active</a>
+      <a href="{% url 'customer_list' %}?status=archived"
+         class="pill-tab {% if status == 'archived' %}is-active{% endif %}">Archived</a>
+    </div>
+    <form method="get" class="customers-filter-form">
+      <input type="hidden" name="status" value="{{ status }}">
+      <div class="input-search-pill">
+        <input type="text" name="q" value="{{ search_q }}" placeholder="Search customers" />
+        <span>⌕</span>
+      </div>
+    </form>
+  </section>
+
+  <section class="customers-layout">
+    <div class="card customers-table">
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Customer</th>
+              <th class="hidden-sm">Contact</th>
+              <th>Last invoice</th>
+              <th>Open balance</th>
+              <th class="hidden-md text-right">Total billed (YTD)</th>
+              <th class="text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if customers %}
+              {% for customer in customers %}
+                <tr
+                  class="customer-row {% if selected_customer and customer.pk == selected_customer.pk %}is-selected{% endif %}"
+                  onclick="window.location.href='{{ request.path }}?status={{ status }}{% if search_q %}&q={{ search_q }}{% endif %}&customer={{ customer.pk }}'"
+                >
+                  <td>
+                    <div class="customer-cell">
+                      <div class="customer-avatar">
+                        {{ customer.name|default:"?"|slice:":2"|upper }}
+                      </div>
+                      <div class="customer-text">
+                        <div class="customer-name">{{ customer.name }}</div>
+                        {% if customer.email %}
+                          <div class="customer-meta">{{ customer.email }}</div>
+                        {% endif %}
+                        {% if customer.is_active %}
+                          <div class="customer-meta"><span class="badge badge--success">Active</span></div>
+                        {% else %}
+                          <div class="customer-meta"><span class="badge badge--muted">Archived</span></div>
+                        {% endif %}
+                      </div>
+                    </div>
+                  </td>
+                  <td class="hidden-sm">
+                    {% if customer.phone %}
+                      <div class="customer-name">{{ customer.phone }}</div>
+                    {% endif %}
+                    {% if customer.email %}
+                      <div class="customer-meta">{{ customer.email }}</div>
+                    {% else %}
+                      <div class="customer-meta">No email on file</div>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if customer.last_invoice_date %}
+                      {{ customer.last_invoice_date|date:"M j, Y" }}
+                    {% else %}
+                      <span class="customer-meta">No invoices</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% with balance=customer.open_balance|default:0 %}
+                      {% if balance > 0 %}
+                        <span class="pill pill--warning">
+                          {{ balance|floatformat:2 }} {{ business.currency|default:"" }}
+                        </span>
+                      {% else %}
+                        <span class="customer-meta">0.00 {{ business.currency|default:"" }}</span>
+                      {% endif %}
+                    {% endwith %}
+                  </td>
+                  <td class="hidden-md text-right">
+                    {{ customer.ytd_revenue|default:0|floatformat:2 }} {{ business.currency|default:"" }}
+                  </td>
+                  <td class="text-right">
+                    <div class="customer-actions">
+                      <a href="{% url 'customer_update' customer.pk %}">Edit</a>
+                      <span>·</span>
+                      <a href="{% url 'customer_delete' customer.pk %}">Delete</a>
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td colspan="6" class="empty-row">
+                  No customers yet. <a href="{% url 'customer_create' %}">Create one</a>.
+                </td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <aside class="card customers-detail">
+      {% if selected_customer %}
+        <div class="detail-header" style="align-items:center;">
+          <div>
+            <h2 class="detail-title">{{ selected_customer.name }}</h2>
+            <p class="detail-subtitle">
+              Customer · {% if selected_customer.last_invoice_date %}
+                Last invoice {{ selected_customer.last_invoice_date|date:"M j" }}
+              {% else %}
+                No invoices yet
+              {% endif %}
+            </p>
+          </div>
+          <div class="detail-actions" style="display:flex; gap:10px; align-items:center;">
+            <a href="{% url 'invoice_create' %}?customer={{ selected_customer.pk }}"
+               style="
+                 display:inline-flex;
+                 align-items:center;
+                 gap:6px;
+                 border-radius:999px;
+                 padding:10px 22px;
+                 font-size:13px;
+                 font-weight:600;
+                 color:#fff;
+                 text-decoration:none;
+                 background:linear-gradient(135deg,#3b82f6,#2563eb);
+                 box-shadow:none;
+                 transition:opacity 0.15s ease;
+               "
+               onmouseover="this.style.opacity='0.9';"
+               onmouseout="this.style.opacity='1';">
+              <span style="font-size:16px;">+</span>
+              Invoice
+            </a>
+            <a href="{% url 'customer_update' selected_customer.pk %}"
+               style="
+                 border-radius:999px;
+                 padding:9px 20px;
+                 font-size:13px;
+                 font-weight:600;
+                 color:#0f172a;
+                 border:1px solid #d0d7ff;
+                 background:#fff;
+                 text-decoration:none;
+                 box-shadow:0 12px 20px rgba(15,23,42,0.07);
+               ">
+              Edit
+            </a>
+          </div>
+        </div>
+
+        <div class="mini-stat-grid">
+          <div class="mini-stat">
+            <div class="mini-stat-label">YTD revenue</div>
+            <div class="mini-stat-value">
+              {{ selected_customer.ytd_revenue|default:0|floatformat:2 }} {{ business.currency|default:"" }}
+            </div>
+            <div class="mini-stat-meta">{{ ytd_percent }}% of customer revenue</div>
+          </div>
+          <div class="mini-stat">
+            <div class="mini-stat-label">This month</div>
+            <div class="mini-stat-value">
+              {{ selected_customer.mtd_revenue|default:0|floatformat:2 }} {{ business.currency|default:"" }}
+            </div>
+            <div class="mini-stat-meta">{{ mtd_percent }}% of monthly revenue</div>
+          </div>
+          <div class="mini-stat">
+            <div class="mini-stat-label">Avg monthly</div>
+            <div class="mini-stat-value">
+              {{ avg_monthly_selected|default:0|floatformat:2 }} {{ business.currency|default:"" }}
+            </div>
+            <div class="mini-stat-meta">Since start of year</div>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <h3>Contact</h3>
+          <dl>
+            <div><dt>Email</dt><dd>{{ selected_customer.email|default:"No email on file" }}</dd></div>
+            <div><dt>Phone</dt><dd>{{ selected_customer.phone|default:"No phone on file" }}</dd></div>
+          </dl>
+        </div>
+
+        <div class="detail-section">
+          <h3>Open balance</h3>
+          <p class="detail-helper">
+            Outstanding invoices for this customer.
+          </p>
+          <div class="open-balance-box">
+            {{ selected_customer.open_balance|default:0|floatformat:2 }} {{ business.currency|default:"" }}
+          </div>
+        </div>
+      {% else %}
+        <p class="detail-empty">Select a customer from the left to see details.</p>
+      {% endif %}
+    </aside>
+  </section>
+</div>
+{% endblock %}

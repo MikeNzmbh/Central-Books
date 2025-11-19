@@ -1,0 +1,35 @@
+:root{
+  --apple-blue:#007aff; --apple-blue-2:#0a84ff;
+  --bg:#f5f5f7; --panel:#ffffff; --border:#e5e5ea;
+  --muted:#6e6e73; --text:#111111;
+  --radius:16px; --shadow:0 8px 30px rgba(0,0,0,.06);
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background:var(--bg); color:var(--text);
+  font:16px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display",system-ui,"Helvetica Neue",Helvetica,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+}
+a{color:var(--apple-blue); text-decoration:none}
+a:hover{text-decoration:underline}
+hr{border:none; border-top:1px solid var(--border); margin:16px 0}
+.container{max-width:1000px; margin:0 auto; padding:0 20px}
+.header{position:sticky; top:0; z-index:10; backdrop-filter:saturate(110%) blur(10px); background:rgba(255,255,255,.7); border-bottom:1px solid #d2d2d7}
+.nav{display:flex; align-items:center; gap:18px; padding:12px 0}
+.nav a{color:var(--text); opacity:.9}
+.nav a.active{font-weight:600; text-decoration:underline}
+.card{background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); padding:24px}
+.flash{border:1px solid var(--border); background:#fff; border-radius:12px; padding:12px; margin:16px 0}
+form .row{display:grid; gap:12px}
+label{display:block; font-size:14px; color:var(--muted); margin-bottom:6px}
+input,select{width:100%; padding:12px; border-radius:12px; border:1px solid var(--border); background:#fff; color:var(--text)}
+input:focus,select:focus{outline:2px solid var(--apple-blue); outline-offset:1px}
+.button{display:inline-block; padding:10px 14px; border-radius:12px; border:1px solid transparent; background:var(--apple-blue); color:#fff; font-weight:600; cursor:pointer}
+.button:hover{background:var(--apple-blue-2)}
+.button.secondary{background:#fff; color:var(--text); border-color:var(--border)}
+.form-errors{border:1px solid #ff3b30; background:rgba(255,59,48,.08); color:#ff3b30; padding:12px; border-radius:12px; margin-bottom:12px}
+.table{width:100%; border-collapse:separate; border-spacing:0}
+.table th,.table td{padding:12px 14px; border-bottom:1px solid var(--border)}
+.table th{color:var(--muted); font-weight:600; text-align:left; background:#fafafa}
+.table tr:hover td{background:#fafafa}

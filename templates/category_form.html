@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+
+{% block title %}New category – Mini-Books{% endblock %}
+
+{% block content %}
+<div class="mb-page-shell">
+  <div class="mb-page-header">
+    <div>
+      <div class="mb-kicker">CATEGORIES</div>
+      <h1 class="mb-page-title">
+        {% if form.instance.pk %}Edit category{% else %}New category{% endif %}
+      </h1>
+      <p class="mb-page-subtitle">
+        Create a category to group income or expenses in reports and keep bookkeeping tidy.
+      </p>
+    </div>
+    <div class="mb-page-actions">
+      <button type="button" class="mb-btn mb-btn-pill" style="border:1px solid #E2E8F0;background:#fff;color:#475569;">
+        Draft
+      </button>
+      <a href="{% url 'category_list' %}"
+         class="mb-btn mb-btn-pill mb-btn-secondary">
+        Cancel
+      </a>
+      <button type="submit" form="category-form"
+              class="mb-btn mb-btn-pill mb-btn-primary">
+        Save category
+      </button>
+    </div>
+  </div>
+
+  <form id="category-form" method="post" novalidate>
+    {% csrf_token %}
+    {% if form.non_field_errors %}
+      <div class="mb-error mb-4">{{ form.non_field_errors }}</div>
+    {% endif %}
+
+    <div class="mb-page-grid">
+      <div class="mb-page-main space-y-6">
+        <div class="mb-card">
+          <div class="mb-card-header">
+            <div>
+              <h2 class="mb-card-title">Category details</h2>
+              <p class="mb-card-subtitle">
+                Basic information for how this category appears on expenses,
+                items, and Profit &amp; Loss.
+              </p>
+            </div>
+            <div class="mb-card-meta">
+              Required fields are marked with <span class="mb-text-required">*</span>.
+            </div>
+          </div>
+
+          <div class="mb-card-body max-w-xl">
+            <div class="mb-field">
+              <label class="mb-label">
+                Category name <span class="mb-text-required">*</span>
+              </label>
+              {% if form.name.errors %}
+                {% for error in form.name.errors %}
+                  <div class="mb-error">{{ error }}</div>
+                {% endfor %}
+              {% endif %}
+              <input
+                type="text"
+                name="{{ form.name.html_name }}"
+                value="{{ form.name.value|default_if_none:'' }}"
+                class="mb-input"
+                placeholder="Subscriptions"
+              />
+              <p class="mb-hint">
+                e.g. Subscriptions, Software, Travel revenue.
+              </p>
+            </div>
+
+            <div class="mb-field">
+              <label class="mb-label">
+                Type <span class="mb-text-required">*</span>
+              </label>
+              {% if form.type.errors %}
+                {% for error in form.type.errors %}
+                  <div class="mb-error">{{ error }}</div>
+                {% endfor %}
+              {% endif %}
+              <div class="mb-pill-toggle">
+                {% for value, label in form.fields.type.choices %}
+                  {% with current=form.type.value|stringformat:"s" option=value|stringformat:"s" %}
+                    <label class="mb-pill-option">
+                      <input type="radio"
+                             name="{{ form.type.html_name }}"
+                             value="{{ value }}"
+                             {% if current == option %}checked{% endif %}>
+                      <span>{{ label }}</span>
+                    </label>
+                  {% endwith %}
+                {% endfor %}
+              </div>
+              <p class="mb-hint">
+                Controls whether this shows under income or expenses in reports.
+              </p>
+            </div>
+
+            <div class="mb-field">
+              <label class="mb-label">
+                Code
+              </label>
+              {% if form.code.errors %}
+                {% for error in form.code.errors %}
+                  <div class="mb-error">{{ error }}</div>
+                {% endfor %}
+              {% endif %}
+              <input
+                type="text"
+                name="{{ form.code.html_name }}"
+                value="{{ form.code.value|default_if_none:'' }}"
+                class="mb-input"
+                placeholder="e.g. 6100"
+              />
+              <p class="mb-hint">
+                Optional short code used in exports or when syncing with other systems.
+              </p>
+            </div>
+
+            <div class="mb-field">
+              <label class="mb-label">Description</label>
+              {% if form.description.errors %}
+                {% for error in form.description.errors %}
+                  <div class="mb-error">{{ error }}</div>
+                {% endfor %}
+              {% endif %}
+              <textarea
+                name="{{ form.description.html_name }}"
+                rows="3"
+                class="mb-textarea"
+                placeholder="Short internal description of how this category is used."
+              >{{ form.description.value|default_if_none:'' }}</textarea>
+              <p class="mb-hint">
+                Internal notes on when to use this category. Doesn’t appear on invoices.
+              </p>
+            </div>
+
+            {% if form.account %}
+            <div class="mb-field">
+              <label class="mb-label">Accounting account</label>
+              {% if form.account.errors %}
+                {% for error in form.account.errors %}
+                  <div class="mb-error">{{ error }}</div>
+                {% endfor %}
+              {% endif %}
+              <select name="{{ form.account.html_name }}" class="mb-input">
+                <option value="">Select account</option>
+                {% for acc in form.fields.account.queryset %}
+                  <option value="{{ acc.pk }}"
+                    {% if form.account.value|stringformat:"s" == acc.pk|stringformat:"s" %}selected{% endif %}>
+                    {{ acc }}
+                  </option>
+                {% endfor %}
+              </select>
+              <p class="mb-hint">Maps this category to your chart of accounts.</p>
+            </div>
+            {% endif %}
+
+            <div class="mb-field">
+              <label class="mb-label">Category status</label>
+              <div class="mb-status-pill mb-status-pill--active">
+                <span class="mb-status-dot"></span>
+                <span class="mb-status-text">Active</span>
+              </div>
+              <p class="mb-hint">
+                Archive unused categories later to keep lists short.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mb-page-side">
+        <div class="mb-card mb-card-side">
+          <div class="mb-card-header">
+            <h2 class="mb-card-title">Category overview</h2>
+          </div>
+          <div class="mb-card-body mb-card-body-muted">
+            <div class="mb-overview-row">
+              <div class="mb-overview-label">Will be used on</div>
+              <div class="mb-overview-value">
+                Expenses, Products &amp; services
+              </div>
+            </div>
+            <div class="mb-overview-row">
+              <div class="mb-overview-label">Reports</div>
+              <div class="mb-overview-value">
+                Profit &amp; Loss, Categories
+              </div>
+            </div>
+            <div class="mb-overview-row">
+              <div class="mb-overview-label">Status</div>
+              <div class="mb-overview-value mb-overview-value-active">
+                <span class="mb-status-dot mb-status-dot--tiny"></span>
+                <span>Active</span>
+              </div>
+            </div>
+            <div class="mb-overview-row">
+              <div class="mb-overview-label">Type</div>
+              <div class="mb-overview-value">
+                {{ form.type.value|default:"Expense"|title }}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mb-card mb-card-side">
+          <div class="mb-card-header">
+            <h2 class="mb-card-title">Tip for simple reports</h2>
+          </div>
+          <div class="mb-card-body mb-card-body-muted mb-card-tip">
+            Start with a few broad buckets like Subscriptions, Taxes, and Travel.
+            Only add more categories when you need extra detail. Once saved, this category
+            is selectable on new expenses and items and can be archived later without
+            losing history.
+          </div>
+        </div>
+      </div>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% load static mb_extras %}
+
+{% block content %}
+  <div id="bank-feed-root"></div>
+  {% vite_asset 'bank-feed' as js_path %}
+  {% if js_path %}
+    <script type="module" src="{% static js_path %}"></script>
+  {% else %}
+    <!-- Vite asset not found for bank-feed -->
+  {% endif %}
+  {% vite_asset 'bank-feed' 'css' as css_path %}
+  {% if css_path %}
+    <link rel="stylesheet" href="{% static css_path %}">
+  {% endif %}
+{% endblock %}

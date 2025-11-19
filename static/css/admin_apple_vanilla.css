@@ -1,0 +1,166 @@
+:root {
+  --apple-bg: #f5f5f7;
+  --apple-panel: #ffffff;
+  --apple-border: #e5e5ea;
+  --apple-text: #111111;
+  --apple-muted: #6e6e73;
+  --apple-blue: #007aff;
+  --apple-blue-2: #0a84ff;
+  --thead: #fafafa;
+  --radius-card: 16px;
+  --radius-input: 12px;
+  --shadow-soft: 0 8px 24px rgba(0, 0, 0, 0.06);
+  --font-stack: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+html, body, #container {
+  background: var(--apple-bg);
+  color: var(--apple-text);
+  font-family: var(--font-stack);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a:link, a:visited {
+  color: var(--apple-text);
+}
+
+/* Glassy header */
+#header {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: saturate(180%) blur(18px);
+  -webkit-backdrop-filter: saturate(180%) blur(18px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  color: var(--apple-text);
+}
+
+#branding h1, #branding h1 a {
+  color: var(--apple-text);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+#user-tools {
+  color: var(--apple-muted);
+}
+
+#user-tools a {
+  color: var(--apple-text);
+}
+
+/* Panels */
+#content, .module, .dashboard #content, .app-index .module {
+  background: var(--apple-panel);
+  border: 1px solid var(--apple-border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-soft);
+}
+
+.breadcrumbs {
+  background: transparent;
+  color: var(--apple-muted);
+}
+
+/* Buttons */
+.button, input[type=submit], input[type=button], .submit-row input, .object-tools a, .object-tools li a {
+  background: var(--apple-blue);
+  border: 1px solid transparent;
+  border-radius: 12px;
+  color: #fff;
+  font-weight: 600;
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.button:hover, input[type=submit]:hover, input[type=button]:hover, .object-tools a:hover, .object-tools li a:hover {
+  background: var(--apple-blue-2);
+  box-shadow: 0 6px 16px rgba(10, 132, 255, 0.2);
+}
+
+.actions .button, .actions button, .actions input[type=submit] {
+  background: #fff;
+  color: var(--apple-text);
+  border: 1px solid var(--apple-border);
+}
+
+.actions .button:hover, .actions button:hover, .actions input[type=submit]:hover {
+  background: var(--thead);
+}
+
+/* Inputs */
+input[type=text], input[type=password], input[type=email], input[type=number], input[type=url], input[type=search], textarea, select, .vTextField, .vIntegerField, .vLargeTextField {
+  background: var(--apple-panel);
+  border: 1px solid var(--apple-border);
+  border-radius: var(--radius-input);
+  padding: 10px 12px;
+  color: var(--apple-text);
+  font-family: var(--font-stack);
+}
+
+input:focus, textarea:focus, select:focus {
+  outline: 2px solid var(--apple-blue);
+  outline-offset: 1px;
+}
+
+.help, .helptext, .help-tooltip {
+  color: var(--apple-muted);
+}
+
+/* Search bar visuals */
+#changelist-search input[type=text], #toolbar form input[type=text] {
+  border-radius: var(--radius-input);
+  background: var(--apple-panel);
+  border: 1px solid var(--apple-border);
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
+}
+
+/* Tables */
+#changelist table thead th, .module table thead th {
+  background: var(--thead);
+  color: var(--apple-muted);
+  font-weight: 600;
+}
+
+#changelist table tbody tr:hover td, .module table tbody tr:hover td {
+  background: #f0f0f2;
+}
+
+#changelist table td, #changelist table th, .module table td {
+  border-bottom: 1px solid var(--apple-border);
+}
+
+/* Filters sidebar */
+#changelist-filter {
+  background: var(--apple-panel);
+  border-left: 1px solid var(--apple-border);
+  border-radius: var(--radius-card) 0 0 var(--radius-card);
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.02);
+}
+
+#changelist-filter h2, #changelist-filter h3 {
+  color: var(--apple-muted);
+}
+
+#changelist-filter a.selected {
+  color: var(--apple-blue);
+  font-weight: 600;
+}
+
+/* Messages */
+.messagelist li {
+  background: var(--apple-panel);
+  border: 1px solid var(--apple-border);
+  border-radius: var(--radius-input);
+  color: var(--apple-text);
+}
+
+/* Login */
+.login #container {
+  background: var(--apple-panel);
+  border: 1px solid var(--apple-border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-soft);
+}
+
+.login .form-row label {
+  color: var(--apple-muted);
+}

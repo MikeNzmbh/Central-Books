@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Import bank statement – Mini-Books{% endblock %}
+
+{% block content %}
+<div class="mb-page-shell">
+  <div class="mb-page-header">
+    <div>
+      <div class="mb-kicker">BANK FEED</div>
+      <h1 class="mb-page-title">Import bank statement</h1>
+      <p class="mb-page-subtitle">
+        Upload a CSV export from your bank to review and categorize transactions in Mini-Books.
+      </p>
+    </div>
+
+    <div class="mb-page-actions">
+      <a href="{% url 'bank_feeds_overview' %}" class="mb-btn mb-btn-pill mb-btn-secondary">
+        Cancel
+      </a>
+      <button type="submit" form="bank-import-form" class="mb-btn mb-btn-pill mb-btn-primary">
+        Upload &amp; import
+      </button>
+    </div>
+  </div>
+
+  <form id="bank-import-form" method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+
+    <div class="mb-page-grid">
+      <div class="mb-page-main">
+        <div class="mb-card">
+          <div class="mb-card-header">
+            <div>
+              <h2 class="mb-card-title">Statement file</h2>
+              <p class="mb-card-subtitle">
+                Choose which bank account this file belongs to and how its columns are structured.
+              </p>
+            </div>
+          </div>
+          <div class="mb-card-body max-w-xl">
+            <div class="mb-field">
+              <label class="mb-label">Bank account <span class="mb-text-required">*</span></label>
+              {{ form.bank_account }}
+              {% for error in form.bank_account.errors %}
+                <div class="mb-error">{{ error }}</div>
+              {% endfor %}
+            </div>
+
+            <div class="mb-field">
+              <label class="mb-label">File format <span class="mb-text-required">*</span></label>
+              {{ form.file_format }}
+              {% for error in form.file_format.errors %}
+                <div class="mb-error">{{ error }}</div>
+              {% endfor %}
+              <p class="mb-hint">
+                For v1, use a CSV with headers like
+                <strong>Date, Description, Amount</strong> or
+                <strong>Date, Description, Debit, Credit</strong>.
+              </p>
+            </div>
+
+            <div class="mb-field">
+              <label class="mb-label">CSV file <span class="mb-text-required">*</span></label>
+              {{ form.file }}
+              {% for error in form.file.errors %}
+                <div class="mb-error">{{ error }}</div>
+              {% endfor %}
+              <p class="mb-hint">
+                Export a CSV from your online banking, then upload it here.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mb-page-side">
+        <div class="mb-card mb-card-side">
+          <div class="mb-card-body" style="padding: 24px 26px;">
+            <div class="flex items-center justify-between gap-3 mb-4">
+              <p class="text-[11px] font-semibold tracking-[0.16em] text-slate-400 uppercase">Tips for imports</p>
+              <span class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700 ring-1 ring-emerald-100">
+                <span class="mr-1 h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                Recommended
+              </span>
+            </div>
+            <p class="text-xs text-slate-500 mb-4">Follow these pointers to keep your feed clean and your reports accurate.</p>
+            <ul class="space-y-2 text-xs text-slate-600 list-disc pl-4 mb-5">
+              <li>Use recent statements to avoid importing overlapping date ranges.</li>
+              <li>Mini-Books automatically ignores transactions it has already seen.</li>
+              <li>After each upload, go to <span class="font-medium">Review transactions</span> to match or create expenses and income.</li>
+            </ul>
+            <div class="rounded-2xl bg-slate-50 px-3 py-2 text-[11px] text-slate-500 flex items-start gap-2">
+              <span class="mt-[3px] h-1.5 w-1.5 rounded-full bg-sky-500"></span>
+              <p>
+                <span class="font-medium text-slate-700">Pro tip:</span>
+                once everything for a statement is reviewed, your bank feed snapshot will move toward <span class="font-medium">100% reconciled</span>.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </form>
+</div>
+{% endblock %}

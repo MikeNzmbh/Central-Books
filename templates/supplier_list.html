@@ -1,0 +1,34 @@
+{% extends "base.html" %}{% block content %}
+<h2 style="margin-top:0">Suppliers – {{ business.name }}</h2>
+<p><a href="{% url 'supplier_create' %}" class="button">Add supplier</a></p>
+{% if suppliers %}
+<table class="table">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Email</th>
+      <th>Phone</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for s in suppliers %}
+    <tr>
+      <td>{{ s.name }}</td>
+      <td>{{ s.email }}</td>
+      <td>{{ s.phone }}</td>
+      <td>
+        <a href="{% url 'supplier_update' s.pk %}">Edit</a>
+        <form method="post" action="{% url 'supplier_delete' s.pk %}" style="display:inline">
+          {% csrf_token %}
+          <button type="submit" class="button secondary">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No suppliers yet.</p>
+{% endif %}
+{% endblock %}

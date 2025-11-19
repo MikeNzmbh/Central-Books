@@ -1,0 +1,349 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+
+<style>
+  .mb-page {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 24px 32px 40px;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    color: #1d1d1f;
+  }
+
+  .mb-header {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  @media (min-width: 768px) {
+    .mb-header {
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+    }
+  }
+
+  .mb-header-label {
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: #6e6e73;
+    margin-bottom: 2px;
+  }
+
+  .mb-header-title {
+    font-size: 28px;
+    font-weight: 600;
+    line-height: 1.2;
+    margin: 0;
+  }
+
+  .mb-header-subtitle {
+    font-size: 13px;
+    color: #6e6e73;
+    margin: 4px 0 0;
+  }
+
+  .mb-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .mb-pill-draft {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    background: #e5f4ff;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 500;
+    color: #0071e3;
+  }
+
+  .mb-btn {
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid #d2d2d7;
+    background: #ffffff;
+    color: #1d1d1f;
+    cursor: pointer;
+    transition: background 120ms, box-shadow 120ms;
+  }
+
+  .mb-btn:hover {
+    background: #f5f5f7;
+  }
+
+  .mb-btn-primary {
+    background: #0071e3;
+    border-color: #0071e3;
+    color: #ffffff;
+    box-shadow: 0 2px 6px rgba(0, 113, 227, 0.35);
+  }
+
+  .mb-btn-primary:hover {
+    background: #0b84ff;
+  }
+
+  .mb-card-ghost {
+    border-radius: 18px;
+    border: 1px dashed #d2d2d7;
+    background: #f9fafb;
+    padding: 14px 16px;
+  }
+
+  .mb-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .mb-card-title {
+    font-size: 14px;
+    font-weight: 600;
+    margin: 0;
+  }
+
+  .mb-card-subtitle {
+    font-size: 12px;
+    color: #6e6e73;
+    margin: 2px 0 0;
+  }
+
+  .mb-card-helper {
+    font-size: 11px;
+    color: #6e6e73;
+  }
+
+  .mb-form-grid-full {
+    grid-column: 1 / -1;
+  }
+
+  @media (max-width: 768px) {
+    .mb-form-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .mb-form-grid-full {
+      grid-column: auto;
+    }
+  }
+
+  .mb-label span.required {
+    color: #ff3b30;
+  }
+
+  .mb-error {
+    font-size: 11px;
+    color: #ff3b30;
+    margin-top: 2px;
+  }
+
+  .mb-nonfield-errors {
+    margin-bottom: 10px;
+    font-size: 12px;
+    color: #ff3b30;
+  }
+
+  .mb-status-pill {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    background: #e8f5e9;
+    padding: 3px 9px;
+    font-size: 11px;
+    font-weight: 500;
+    color: #1a7f37;
+  }
+
+  .mb-status-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: #6e6e73;
+    margin-right: 4px;
+  }
+</style>
+
+<div class="mb-page">
+  <form method="post" novalidate>
+    {% csrf_token %}
+
+    <header class="mb-header">
+      <div>
+        <p class="mb-header-label">Customers</p>
+        <h1 class="mb-header-title">New customer</h1>
+        <p class="mb-header-subtitle">
+          Create a customer you can invoice later. You can always edit these details.
+        </p>
+      </div>
+
+      <div class="mb-header-actions">
+        <span class="mb-pill-draft">Draft</span>
+
+        <a href="{% url 'customer_list' %}" class="mb-btn">
+          Cancel
+        </a>
+
+        <button type="submit" class="mb-btn mb-btn-primary">
+          Save customer
+        </button>
+      </div>
+    </header>
+
+    {% if form.non_field_errors %}
+      <div class="mb-nonfield-errors">
+        {% for error in form.non_field_errors %}
+          <div>{{ error }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <div class="mb-page-body">
+      <div class="mb-layout">
+        <div class="mb-main">
+          <section class="mb-card">
+          <div class="mb-card-header">
+            <div>
+              <h2 class="mb-card-title">Customer details</h2>
+              <p class="mb-card-subtitle">
+                Basic contact info used on invoices and reports.
+              </p>
+            </div>
+            <span class="mb-card-helper">
+              Required fields are marked with <span style="color:#ff3b30">*</span>.
+            </span>
+          </div>
+
+          <div class="mb-form-grid">
+            <div class="mb-field">
+              <label class="mb-label">
+                Customer name
+                {% if form.name.field.required %}<span class="required">*</span>{% endif %}
+              </label>
+              {{ form.name }}
+              {% for error in form.name.errors %}
+                <div class="mb-error">{{ error }}</div>
+              {% endfor %}
+            </div>
+
+            {% if form.company %}
+              <div class="mb-field">
+                <label class="mb-label">Company (optional)</label>
+                {{ form.company }}
+                {% for error in form.company.errors %}
+                  <div class="mb-error">{{ error }}</div>
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+
+          <div class="mb-contact-pair">
+            {% if form.email %}
+              <div class="mb-field">
+                <label class="mb-label">Email</label>
+                {{ form.email }}
+                {% for error in form.email.errors %}
+                  <div class="mb-error">{{ error }}</div>
+                {% endfor %}
+              </div>
+            {% endif %}
+
+            {% if form.phone %}
+              <div class="mb-field">
+                <label class="mb-label">Phone</label>
+                {{ form.phone }}
+                {% for error in form.phone.errors %}
+                  <div class="mb-error">{{ error }}</div>
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+
+          {% if form.billing_address %}
+            <div class="mb-form-grid mb-form-grid-full" style="margin-top: 12px;">
+              <div class="mb-field">
+                <label class="mb-label">Billing address</label>
+                {{ form.billing_address }}
+                {% for error in form.billing_address.errors %}
+                  <div class="mb-error">{{ error }}</div>
+                {% endfor %}
+              </div>
+            </div>
+          {% endif %}
+        </section>
+
+          <section class="mb-card">
+            <h2 class="mb-card-title" style="margin-bottom: 6px;">Internal notes</h2>
+            <p class="mb-card-subtitle" style="margin-bottom: 10px;">
+            These notes are for you and your team only. They never appear on invoices.
+          </p>
+
+          {% if form.notes %}
+            <div class="mb-field">
+              {{ form.notes }}
+              {% for error in form.notes.errors %}
+                <div class="mb-error">{{ error }}</div>
+              {% endfor %}
+            </div>
+          {% endif %}
+
+          <div style="margin-top: 10px; display:flex; flex-wrap:wrap; align-items:center; gap:6px;">
+            <span class="mb-status-label">Customer status</span>
+            <span class="mb-status-pill">Active</span>
+            {% if form.is_active %}
+              <span style="display:none;">
+                {{ form.is_active }}
+              </span>
+            {% endif %}
+            </div>
+          </section>
+        </div>
+
+        <aside class="mb-aside">
+          <section class="mb-card">
+            <h2 class="mb-card-title" style="margin-bottom: 6px;">Customer overview</h2>
+            <p class="mb-card-subtitle" style="margin-bottom: 12px;">
+            Once you start invoicing this customer, you’ll see their open balance and history here.
+          </p>
+
+          <div style="display:flex; flex-direction:column; gap:8px; font-size:13px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="color:#6e6e73;">Open balance</span>
+              <span style="font-weight:600; color:#b0b0b5;">0.00 {{ business.currency }}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="color:#6e6e73;">Invoices (last 12 months)</span>
+              <span style="font-weight:600; color:#b0b0b5;">0 sent</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="color:#6e6e73;">Average payment time</span>
+              <span style="font-weight:600; color:#b0b0b5;">—</span>
+            </div>
+          </div>
+          </section>
+
+          <section class="mb-card mb-card-ghost">
+            <p class="mb-card-helper" style="font-weight:600; margin-bottom:4px;">
+            Tip for faster setup
+          </p>
+          <p class="mb-card-helper">
+            You can also create customers directly while creating an invoice. Mini-Books will remember
+            them here for next time.
+          </p>
+          </section>
+        </aside>
+      </div>
+    </div>
+  </form>
+</div>
+
+{% endblock %}

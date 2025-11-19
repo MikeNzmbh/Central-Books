@@ -1,0 +1,5 @@
+{% extends "base.html" %}{% block content %}
+<h2 style="margin-top:0">Business setup</h2>
+{% if form.errors %}<div class="form-errors">Please fix the errors below.</div>{% endif %}
+<form method="post" class="row">{% csrf_token %}{{ form.as_p }}<button class="button">Create</button></form>
+{% endblock %}

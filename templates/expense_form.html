@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+
+{% block title %}New expense – Mini-Books{% endblock %}
+
+{% block content %}
+<style>
+  .mb-shell { min-height: 100vh; background: #f8fafc; font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif; color: #0f172a; padding: 32px 24px 40px; }
+  .mb-shell-inner { max-width: 1120px; margin: 0 auto; }
+  .mb-header { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:24px; }
+  .mb-kicker { text-transform:uppercase; letter-spacing:0.18em; font-size:11px; font-weight:600; color:#94a3b8; margin-bottom:6px; }
+  .mb-title { font-size:24px; font-weight:600; letter-spacing:-0.02em; margin-bottom:4px; }
+  .mb-subtitle { font-size:13px; color:#64748b; max-width:520px; margin:0; }
+  .mb-header-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .mb-chip { border-radius:999px; border:1px solid #e2e8f0; background:#fff; padding:4px 10px; font-size:11px; font-weight:500; color:#64748b; }
+  .mb-btn { border-radius:999px; border:1px solid #e2e8f0; background:#fff; padding:6px 14px; font-size:13px; font-weight:500; color:#0f172a; text-decoration:none; }
+  .mb-btn-primary { border-color:transparent; background:#0284c7; color:#fff; box-shadow:0 10px 25px rgba(37,99,235,0.25); }
+  .mb-grid { display:grid; gap:24px; }
+  @media (min-width:1024px) { .mb-grid { grid-template-columns:minmax(0,3fr) minmax(0,2fr); } }
+  .mb-card { border-radius:24px; background:#fff; border:1px solid #e2e8f0; box-shadow:0 18px 45px rgba(15,23,42,0.06); overflow:hidden; }
+  .mb-card-header { display:flex; justify-content:space-between; gap:16px; padding:18px 24px; border-bottom:1px solid #e2e8f0; }
+  .mb-card-title { font-size:14px; font-weight:600; margin-bottom:4px; }
+  .mb-card-subtitle { font-size:12px; color:#64748b; }
+  .mb-card-meta { font-size:11px; color:#94a3b8; white-space:nowrap; }
+  .mb-card-body { padding:18px 24px 20px; }
+  .mb-field { margin-bottom:14px; }
+  .mb-label { display:block; font-size:11px; font-weight:500; color:#475569; margin-bottom:4px; }
+  .mb-label span.req { color:#f97373; margin-left:3px; }
+  .mb-hint { margin-top:2px; font-size:11px; color:#94a3b8; }
+  .mb-error { margin-top:2px; font-size:11px; color:#b91c1c; }
+  .mb-row-2 { display:grid; gap:48px; }
+  .mb-row-2 + .mb-row-2 { margin-top:14px; }
+  @media (min-width:640px) { .mb-row-2 { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+  .mb-card-body input,
+  .mb-card-body select,
+  .mb-card-body textarea {
+    width:100%; border-radius:16px; border:1px solid #e2e8f0; background:#f8fafc;
+    padding:7px 10px; font-size:13px; color:#0f172a; outline:none;
+    transition:border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+  }
+  .mb-card-body textarea { min-height:70px; resize:vertical; }
+  .mb-card-body input:focus,
+  .mb-card-body select:focus,
+  .mb-card-body textarea:focus { border-color:#0ea5e9; background:#fff; box-shadow:0 0 0 2px #e0f2fe; }
+  .mb-side-card dl { font-size:12px; color:#64748b; }
+  .mb-side-row { display:flex; justify-content:space-between; margin-bottom:6px; }
+  .mb-side-row dd { font-weight:500; color:#0f172a; }
+  .mb-side-row dd.amount { color:#e11d48; font-weight:600; }
+  .mb-side-note { margin-top:10px; border-radius:16px; background:#f8fafc; padding:8px 10px; font-size:11px; color:#64748b; }
+</style>
+
+<div class="mb-shell">
+  <div class="mb-shell-inner">
+    <header class="mb-header">
+      <div>
+        <div class="mb-kicker">Expenses</div>
+        <h1 class="mb-title">New expense</h1>
+        <p class="mb-subtitle">
+          Record spending so it appears correctly in your cashflow and Profit &amp; Loss.
+        </p>
+      </div>
+      <div class="mb-header-actions">
+        <span class="mb-chip">Draft</span>
+        <a href="{% url 'expense_list' %}" class="mb-btn">Cancel</a>
+        <button type="submit" form="expense-form" class="mb-btn mb-btn-primary">
+          Save expense
+        </button>
+      </div>
+    </header>
+
+    <form id="expense-form" method="post" novalidate>
+      {% csrf_token %}
+      <div class="mb-grid">
+        <div>
+          <section class="mb-card">
+            <div class="mb-card-header">
+              <div>
+                <h2 class="mb-card-title">Expense details</h2>
+                <p class="mb-card-subtitle">
+                  Core information used for reports and tax-ready bookkeeping.
+                </p>
+              </div>
+              <div class="mb-card-meta">
+                Required fields are marked with <span class="req">*</span>.
+              </div>
+            </div>
+            <div class="mb-card-body">
+              <div class="mb-row-2">
+                <div class="mb-field">
+                  <label class="mb-label">Date<span class="req">*</span></label>
+                  {{ form.date }}
+                  {% for error in form.date.errors %}<p class="mb-error">{{ error }}</p>{% endfor %}
+                </div>
+                <div class="mb-field">
+                  <label class="mb-label">Amount<span class="req">*</span></label>
+                  {{ form.amount }}
+                  {% for error in form.amount.errors %}<p class="mb-error">{{ error }}</p>{% endfor %}
+                </div>
+              </div>
+              <div class="mb-field">
+                <label class="mb-label">Tax amount</label>
+                {{ form.tax_amount }}
+                <p class="mb-hint">If this expense includes tax, enter just the tax portion here.</p>
+                {% for error in form.tax_amount.errors %}<p class="mb-error">{{ error }}</p>{% endfor %}
+              </div>
+              <div class="mb-field">
+                <label class="mb-label">Tax rate</label>
+                {{ form.tax_rate }}
+                <p class="mb-hint">Choose a tax rate to auto-calculate the recoverable portion.</p>
+                {% for error in form.tax_rate.errors %}<p class="mb-error">{{ error }}</p>{% endfor %}
+              </div>
+              <div class="mb-row-2">
+                <div class="mb-field">
+                  <label class="mb-label">Supplier</label>
+                  {{ form.supplier }}
+                  {% for error in form.supplier.errors %}<p class="mb-error">{{ error }}</p>{% endfor %}
+                </div>
+                <div class="mb-field">
+                  <label class="mb-label">Category<span class="req">*</span></label>
+                  {{ form.category }}
+                  {% for error in form.category.errors %}<p class="mb-error">{{ error }}</p>{% endfor %}
+                </div>
+              </div>
+              <div class="mb-field">
+                <label class="mb-label">Description</label>
+                {{ form.description }}
+                <p class="mb-hint">e.g. Google Workspace subscription.</p>
+                {% for error in form.description.errors %}<p class="mb-error">{{ error }}</p>{% endfor %}
+              </div>
+              {% if form.notes %}
+              <div class="mb-field">
+                <label class="mb-label">Notes</label>
+                {{ form.notes }}
+                <p class="mb-hint">Internal notes, reimbursement info, or recurring details.</p>
+                {% for error in form.notes.errors %}<p class="mb-error">{{ error }}</p>{% endfor %}
+              </div>
+              {% endif %}
+            </div>
+          </section>
+          <section class="mb-card" style="margin-top:18px;">
+            <div class="mb-card-header">
+              <div>
+                <h2 class="mb-card-title">Receipt &amp; attachments</h2>
+                <p class="mb-card-subtitle">
+                  Upload support is coming soon. For now, keep your receipt handy.
+                </p>
+              </div>
+            </div>
+            <div class="mb-card-body">
+              <div style="border-radius:16px;border:1px dashed #e2e8f0;background:#f8fafc;padding:18px;font-size:12px;color:#94a3b8;text-align:center;">
+                Drag a receipt here (coming soon)
+              </div>
+            </div>
+          </section>
+        </div>
+        <aside>
+          <section class="mb-card mb-side-card">
+            <div class="mb-card-header">
+              <h2 class="mb-card-title">Expense summary</h2>
+            </div>
+            <div class="mb-card-body">
+              {% with summary=expense_preview %}
+              <dl>
+                <div class="mb-side-row">
+                  <dt>Amount (excl. tax)</dt>
+                  <dd class="amount">
+                    {{ summary.amount|floatformat:2 }} {{ business.currency|default:"USD" }}
+                  </dd>
+                </div>
+                <div class="mb-side-row">
+                  <dt>Tax</dt>
+                  <dd>
+                    {{ summary.tax|floatformat:2 }} {{ business.currency|default:"USD" }}
+                  </dd>
+                </div>
+                <div class="mb-side-row">
+                  <dt>Total</dt>
+                  <dd class="amount">
+                    {{ summary.total|floatformat:2 }} {{ business.currency|default:"USD" }}
+                  </dd>
+                </div>
+                <div class="mb-side-row">
+                  <dt>Category</dt>
+                  <dd>{% if form.category.value %}Selected{% else %}Not set{% endif %}</dd>
+                </div>
+                <div class="mb-side-row">
+                  <dt>Date</dt>
+                  <dd>{% if form.date.value %}{{ form.date.value }}{% else %}Today{% endif %}</dd>
+                </div>
+              </dl>
+              {% endwith %}
+              <div class="mb-side-note">
+                Changing the category will update how this expense is grouped in your Profit &amp; Loss report.
+              </div>
+            </div>
+          </section>
+        </aside>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

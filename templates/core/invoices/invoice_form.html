@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}
+  {% if form.instance.pk %}Edit invoice{% else %}New invoice{% endif %} – Mini-Books
+{% endblock %}
+
+{% block content %}
+<div class="mb-page">
+  <div class="mb-page-header">
+    <div>
+      <p class="mb-page-kicker">INVOICES</p>
+      <h1 class="mb-page-title">
+        {% if form.instance.pk %}Edit invoice{% else %}New invoice{% endif %}
+      </h1>
+      <p class="mb-page-subtitle">
+        Create a professional invoice. You can always edit these details later.
+      </p>
+    </div>
+    <div class="mb-page-actions">
+      <span class="mb-pill mb-pill-muted">Draft</span>
+      <a href="{% url 'invoice_list' %}" class="mb-btn mb-btn-ghost">Cancel</a>
+      <button type="submit" form="invoice-form" class="mb-btn mb-btn-primary">
+        {% if form.instance.pk %}Save changes{% else %}Save invoice{% endif %}
+      </button>
+    </div>
+  </div>
+
+  <form id="invoice-form" method="post" novalidate>
+    {% csrf_token %}
+
+    <div class="mb-form-layout">
+      <div class="mb-form-main">
+
+        <section class="mb-card">
+          <div class="mb-card-header">
+            <div>
+              <h2 class="mb-card-title">Invoice details</h2>
+              <p class="mb-card-subtitle">
+                Core information shown to your customer.
+              </p>
+            </div>
+            <p class="mb-card-meta">Required fields are marked with <span class="required">*</span>.</p>
+          </div>
+
+          <div class="mb-card-body">
+            <div class="mb-field">
+              <label class="mb-label">
+                Customer <span class="required">*</span>
+              </label>
+              {{ form.customer }}
+              {% for error in form.customer.errors %}
+                <div class="mb-error">{{ error }}</div>
+              {% endfor %}
+            </div>
+
+            <div class="mb-form-grid mb-form-grid-3">
+              <div class="mb-field">
+                <label class="mb-label">Invoice #</label>
+                {{ form.invoice_number }}
+                {% for error in form.invoice_number.errors %}
+                  <div class="mb-error">{{ error }}</div>
+                {% endfor %}
+              </div>
+
+              <div class="mb-field">
+                <label class="mb-label">Issue date</label>
+                {{ form.issue_date }}
+                {% for error in form.issue_date.errors %}
+                  <div class="mb-error">{{ error }}</div>
+                {% endfor %}
+              </div>
+
+              <div class="mb-field">
+                <label class="mb-label">Due date</label>
+                {{ form.due_date }}
+                {% for error in form.due_date.errors %}
+                  <div class="mb-error">{{ error }}</div>
+                {% endfor %}
+              </div>
+            </div>
+
+            <div class="mb-field">
+              <label class="mb-label">
+                Total amount <span class="required">*</span>
+              </label>
+              {{ form.total_amount }}
+              {% for error in form.total_amount.errors %}
+                <div class="mb-error">{{ error }}</div>
+              {% endfor %}
+              <p class="mb-help">
+                This is the full amount you’re charging for this invoice.
+              </p>
+            </div>
+
+            <div class="mb-field">
+              <label class="mb-label">Description</label>
+              {{ form.description }}
+              {% for error in form.description.errors %}
+                <div class="mb-error">{{ error }}</div>
+              {% endfor %}
+              <p class="mb-help">
+                Shown on the invoice (e.g. “Consulting services for November”).
+              </p>
+            </div>
+
+          </div>
+        </section>
+
+        <section class="mb-card">
+          <div class="mb-card-header">
+            <h2 class="mb-card-title">Internal notes</h2>
+            <p class="mb-card-subtitle">
+              These notes are only visible to you and your team.
+            </p>
+          </div>
+          <div class="mb-card-body">
+            <div class="mb-field">
+              {{ form.notes }}
+              {% for error in form.notes.errors %}
+                <div class="mb-error">{{ error }}</div>
+              {% endfor %}
+              <p class="mb-help">
+                Use this area for context like payment terms or follow-up reminders.
+              </p>
+            </div>
+          </div>
+        </section>
+
+      </div>
+
+      <aside class="mb-form-aside">
+
+        <section class="mb-card mb-card-compact">
+          <div class="mb-card-header">
+            <h3 class="mb-card-title">Invoice summary</h3>
+          </div>
+          <div class="mb-card-body">
+            <dl class="mb-summary-list">
+              <div class="mb-summary-row">
+                <dt>Status</dt>
+                <dd><span class="mb-pill mb-pill-muted">Draft</span></dd>
+              </div>
+              <div class="mb-summary-row">
+                <dt>Customer</dt>
+                <dd>
+                  {% if form.instance.customer %}
+                    {{ form.instance.customer.name }}
+                  {% else %}
+                    Not selected yet
+                  {% endif %}
+                </dd>
+              </div>
+              <div class="mb-summary-row">
+                <dt>Invoice total</dt>
+                <dd>
+                  {% if form.instance.total_amount %}
+                    {{ form.instance.total_amount }} {{ business.currency|default:"USD" }}
+                  {% else %}
+                    0.00 {{ business.currency|default:"USD" }}
+                  {% endif %}
+                </dd>
+              </div>
+              <div class="mb-summary-row">
+                <dt>Due date</dt>
+                <dd>
+                  {% if form.instance.due_date %}
+                    {{ form.instance.due_date }}
+                  {% else %}
+                    Not set
+                  {% endif %}
+                </dd>
+              </div>
+            </dl>
+          </div>
+        </section>
+
+        <section class="mb-card mb-card-dotted">
+          <div class="mb-card-body">
+            <h3 class="mb-card-title-sm">Tip for faster setup</h3>
+            <p class="mb-card-subtitle">
+              You can also create invoices directly from a customer profile.
+              Mini-Books will keep everything linked for you.
+            </p>
+          </div>
+        </section>
+
+      </aside>
+    </div>
+  </form>
+</div>
+{% endblock %}

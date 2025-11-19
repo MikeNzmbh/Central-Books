@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block title %}{{ account.code }} – {{ account.name }} – Mini-Books{% endblock %}
+
+{% block content %}
+<div class="mb-page-shell">
+  <div class="mb-page-header">
+    <div>
+      <div class="mb-kicker">ACCOUNT LEDGER</div>
+      <h1 class="mb-page-title">
+        {{ account.code }} – {{ account.name }}
+      </h1>
+      <p class="mb-page-subtitle">
+        Detailed ledger for this account. Balances are computed from journal entries
+        and respect the normal balance for {{ account.get_type_display|lower }} accounts.
+      </p>
+    </div>
+
+    <div class="mb-page-actions">
+      <a href="{% url 'account_list' %}" class="mb-btn mb-btn-pill mb-btn-secondary">
+        Back to Chart of Accounts
+      </a>
+    </div>
+  </div>
+
+  <div class="mb-page-grid">
+    <!-- Main column: ledger table -->
+    <div class="mb-page-main space-y-6">
+      <div class="mb-card">
+        <div class="mb-card-header">
+          <div>
+            <h2 class="mb-card-title">Transactions</h2>
+            <p class="mb-card-subtitle">
+              Filter by date range to review movements in this account.
+            </p>
+          </div>
+          <div class="mb-card-meta">
+            Current balance:
+            <span class="{% if running_balance < 0 %}text-rose-600{% else %}text-emerald-600{% endif %}">
+              {{ running_balance }}
+            </span>
+          </div>
+        </div>
+
+        <div class="mb-card-body">
+          <!-- Date filter form -->
+          <form method="get" class="mb-4 flex flex-wrap items-end gap-3 text-xs">
+            <div>
+              <label class="mb-label">From</label>
+              <input
+                type="date"
+                name="start"
+                value="{{ start_date|date:'Y-m-d' }}"
+                class="mb-input"
+                style="height:32px;font-size:12px;"
+              />
+            </div>
+            <div>
+              <label class="mb-label">To</label>
+              <input
+                type="date"
+                name="end"
+                value="{{ end_date|date:'Y-m-d' }}"
+                class="mb-input"
+                style="height:32px;font-size:12px;"
+              />
+            </div>
+            <div class="flex items-center gap-2 mt-1">
+              <button type="submit" class="mb-btn mb-btn-pill mb-btn-primary">
+                Apply
+              </button>
+              <a href="." class="mb-btn mb-btn-pill mb-btn-secondary">
+                Reset
+              </a>
+            </div>
+          </form>
+
+          <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+              <thead>
+                <tr class="text-xs text-slate-500 border-b border-slate-100">
+                  <th class="py-2 pr-4 text-left">Date</th>
+                  <th class="py-2 pr-4 text-left">Description</th>
+                  <th class="py-2 pr-4 text-right">Debit</th>
+                  <th class="py-2 pr-4 text-right">Credit</th>
+                  <th class="py-2 pl-4 text-right">Running balance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in rows %}
+                  <tr class="border-b border-slate-50 hover:bg-slate-50/70">
+                    <td class="py-1.5 pr-4 text-xs text-slate-500 align-middle">
+                      {{ row.date|date:"Y-m-d" }}
+                    </td>
+                    <td class="py-1.5 pr-4 text-xs text-slate-900 align-middle">
+                      {{ row.description }}
+                    </td>
+                    <td class="py-1.5 pr-4 text-right font-mono text-xs align-middle text-slate-700">
+                      {% if row.debit %}{{ row.debit }}{% else %}—{% endif %}
+                    </td>
+                    <td class="py-1.5 pr-4 text-right font-mono text-xs align-middle text-slate-700">
+                      {% if row.credit %}{{ row.credit }}{% else %}—{% endif %}
+                    </td>
+                    <td class="py-1.5 pl-4 text-right font-mono text-xs align-middle
+                               {% if row.running_balance < 0 %}text-rose-600{% else %}text-slate-900{% endif %}">
+                      {{ row.running_balance }}
+                    </td>
+                  </tr>
+                {% empty %}
+                  <tr>
+                    <td colspan="5" class="py-4 text-xs text-slate-500">
+                      No journal entries for this account in the selected range yet.
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Side column: account summary -->
+    <div class="mb-page-side space-y-4">
+      <div class="mb-card">
+        <div class="mb-card-header">
+          <h2 class="mb-card-title">Account summary</h2>
+        </div>
+        <div class="mb-card-body text-xs space-y-3">
+          <div>
+            <div class="mb-overview-label">Type</div>
+            <div class="mb-overview-value">{{ account.get_type_display }}</div>
+          </div>
+          {% if account.code %}
+          <div>
+            <div class="mb-overview-label">Code</div>
+            <div class="mb-overview-value">{{ account.code }}</div>
+          </div>
+          {% endif %}
+          {% if account.description %}
+          <div>
+            <div class="mb-overview-label">Description</div>
+            <div class="mb-overview-value">{{ account.description }}</div>
+          </div>
+          {% endif %}
+          <div>
+            <div class="mb-overview-label">Current balance</div>
+            <div class="mb-overview-value
+                        {% if running_balance < 0 %}text-rose-600{% else %}text-emerald-600{% endif %}">
+              {{ running_balance }}
+            </div>
+          </div>
+          <div class="mt-3 text-[11px] text-slate-500 leading-relaxed">
+            This running balance uses the normal side for {{ account.get_type_display|lower }}
+            accounts (debits for assets/expenses, credits for liabilities/equity/income).
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

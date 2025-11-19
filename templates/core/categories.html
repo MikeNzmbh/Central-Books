@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block title %} · Categories{% endblock %}
+
+{% block content %}
+<div class="app-page-shell categories-page">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Categories</h1>
+      <p class="page-subtitle">
+        Card view of income and expense categories.
+      </p>
+    </div>
+    <div class="page-header-actions">
+      <form method="get" class="search-form" style="width:280px;">
+        <input type="hidden" name="type" value="{{ category_type }}">
+        <input type="hidden" name="status" value="{{ status }}">
+        <div class="search-input">
+          <span class="search-icon">⌕</span>
+          <input type="text" name="q" value="{{ search_query }}" placeholder="Search by name or code">
+        </div>
+      </form>
+      <a href="{% url 'category_create' %}" class="btn-pill-primary">+ New category</a>
+    </div>
+  </div>
+
+  <section class="page-kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-label">Active expense categories</div>
+      <div class="kpi-value">{{ active_expense_count }}</div>
+      <p class="kpi-help">Used to group spending.</p>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Active income categories</div>
+      <div class="kpi-value">{{ active_income_count }}</div>
+      <p class="kpi-help">Used to group revenue.</p>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">View</div>
+      <div class="kpi-value kpi-value-sm">Grid</div>
+      <p class="kpi-help">Same layout used for products.</p>
+    </div>
+  </section>
+
+  <div class="categories-filter-bar">
+    <form method="get" class="segmented-control">
+      <input type="hidden" name="status" value="{{ status }}">
+      <input type="hidden" name="q" value="{{ search_query }}">
+      <button type="submit" name="type" value="EXPENSE" class="segmented-item{% if category_type == 'EXPENSE' %} is-active{% endif %}">Expense</button>
+      <button type="submit" name="type" value="INCOME" class="segmented-item{% if category_type == 'INCOME' %} is-active{% endif %}">Income</button>
+    </form>
+    <form method="get" class="status-chips">
+      <input type="hidden" name="type" value="{{ category_type }}">
+      <input type="hidden" name="q" value="{{ search_query }}">
+      <button type="submit" name="status" value="active" class="chip{% if status == 'active' %} chip--active{% endif %}">Active</button>
+      <button type="submit" name="status" value="archived" class="chip{% if status == 'archived' %} chip--active{% endif %}">Archived</button>
+    </form>
+  </div>
+
+  <section class="categories-grid-panel">
+    {% if categories %}
+      <div class="categories-grid">
+        {% for cat in categories %}
+          <article class="category-card">
+            <div class="category-card-header">
+              <div>
+                <h2 class="category-name">{{ cat.name }}</h2>
+                {% if cat.is_archived %}
+                  <span class="pill pill-muted">Archived</span>
+                {% endif %}
+              </div>
+              <div>
+                {% if cat.type == 'INCOME' %}
+                  <span class="pill pill-income">Income</span>
+                {% else %}
+                  <span class="pill pill-expense">Expense</span>
+                {% endif %}
+              </div>
+            </div>
+            <div class="category-card-body">
+              <div class="category-code">Code: {{ cat.id }}</div>
+              <div class="category-usage">
+                <span class="usage-number">{{ cat.usage_count }}</span>
+                <span class="usage-label">txns</span>
+              </div>
+            </div>
+            <div class="category-card-footer">
+              <span class="category-helper">Used in Profit &amp; Loss.</span>
+              <div class="category-actions">
+                <a href="{% url 'category_update' cat.pk %}" class="link-inline">Edit</a>
+                <form method="post" action="{% if cat.is_archived %}{% url 'category_restore' cat.pk %}{% else %}{% url 'category_archive' cat.pk %}{% endif %}">
+                  {% csrf_token %}
+                  <button type="submit" class="link-inline">
+                    {% if cat.is_archived %}Restore{% else %}Archive{% endif %}
+                  </button>
+                </form>
+                <form method="post" action="{% url 'category_delete' cat.pk %}">
+                  {% csrf_token %}
+                  <button type="submit" class="link-inline link-inline--danger">Delete</button>
+                </form>
+              </div>
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty-state">
+        <p>No categories to display.</p>
+        <a href="{% url 'category_create' %}" class="btn-link">Create your first category</a>
+      </div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

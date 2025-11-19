@@ -1,0 +1,699 @@
+/* Apple-style Monochrome Admin Theme for Django
+   Pure white/black/grey palette - no colors */
+
+/* ===== Design Tokens (Apple HIG) ===== */
+:root {
+  /* Greys - Apple's exact palette */
+  --apple-black: #1d1d1f;
+  --apple-grey-1: #86868b;  /* Secondary text */
+  --apple-grey-2: #d2d2d7;  /* Borders */
+  --apple-grey-3: #e8e8ed;  /* Subtle backgrounds */
+  --apple-grey-4: #f5f5f7;  /* Page background */
+  --apple-grey-5: #fafafa;  /* Table headers */
+  
+  /* Semantic tokens */
+  --bg: var(--apple-grey-4);
+  --panel: #ffffff;
+  --border: var(--apple-grey-2);
+  --border-subtle: var(--apple-grey-3);
+  --text: var(--apple-black);
+  --text-secondary: var(--apple-grey-1);
+  --hover-bg: var(--apple-grey-3);
+  
+  /* Geometry */
+  --radius: 16px;
+  --radius-sm: 12px;
+  --radius-button: 980px;  /* Apple's pill buttons */
+  --shadow: 0 2px 16px rgba(0,0,0,.08);
+  --shadow-hover: 0 4px 24px rgba(0,0,0,.12);
+  
+  /* Typography - SF Pro */
+  --font-system: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", 
+                 system-ui, "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+/* ===== Base Reset ===== */
+html, body, #container {
+  background: var(--bg) !important;
+  color: var(--text) !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+body {
+  font: 14px/1.47059 var(--font-system) !important;
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+  letter-spacing: -0.016em !important;
+}
+
+/* Links - monochrome with hover */
+a:link, a:visited {
+  color: var(--text) !important;
+  text-decoration: none !important;
+}
+a:hover {
+  color: var(--text-secondary) !important;
+}
+
+/* ===== Header (Glass Morphism) ===== */
+#header {
+  background: rgba(255,255,255,.72) !important;
+  backdrop-filter: saturate(180%) blur(20px) !important;
+  -webkit-backdrop-filter: saturate(180%) blur(20px) !important;
+  border-bottom: 1px solid var(--border-subtle) !important;
+  padding: 16px 40px !important;
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 1000 !important;
+}
+
+#header a:link,
+#header a:visited {
+  color: var(--text) !important;
+}
+
+#branding h1,
+#branding h1 a:link {
+  font-size: 21px !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.021em !important;
+  color: var(--text) !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+#header .user-tools {
+  font-size: 12px !important;
+  color: var(--text-secondary) !important;
+  font-weight: 400 !important;
+}
+
+#header .user-tools a {
+  color: var(--text-secondary) !important;
+  font-weight: 500 !important;
+}
+
+/* ===== Breadcrumbs ===== */
+.breadcrumbs {
+  background: transparent !important;
+  border: 0 !important;
+  padding: 20px 40px 10px !important;
+  font-size: 12px !important;
+  color: var(--text-secondary) !important;
+  font-weight: 400 !important;
+}
+
+.breadcrumbs a {
+  color: var(--text-secondary) !important;
+}
+
+.breadcrumbs a:hover {
+  color: var(--text) !important;
+}
+
+/* ===== Content Cards ===== */
+#content,
+.module,
+.app-index .module,
+#content-main {
+  background: var(--panel) !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: var(--radius) !important;
+  box-shadow: var(--shadow) !important;
+  padding: 32px !important;
+  margin: 0 40px 40px !important;
+}
+
+#content-main {
+  padding: 0 !important;
+}
+
+/* ===== Buttons (Monochrome Pill Style) ===== */
+.button,
+input[type=submit],
+input[type=button],
+.submit-row input,
+.submit-row button,
+button[type="submit"],
+.object-tools a,
+.object-tools li a,
+a.addlink,
+a.historylink,
+a.viewsitelink {
+  background: var(--text) !important;
+  color: #ffffff !important;
+  border: 1px solid transparent !important;
+  border-radius: var(--radius-button) !important;
+  padding: 12px 24px !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  letter-spacing: -0.016em !important;
+  text-decoration: none !important;
+  text-shadow: none !important;
+  box-shadow: none !important;
+  display: inline-block !important;
+  cursor: pointer !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.button:hover,
+input[type=submit]:hover,
+input[type=button]:hover,
+.submit-row input:hover,
+button[type="submit"]:hover,
+.object-tools a:hover,
+.object-tools li a:hover {
+  background: var(--apple-grey-1) !important;
+  box-shadow: var(--shadow-hover) !important;
+  transform: translateY(-1px) !important;
+}
+
+.button:active,
+input[type=submit]:active,
+button[type="submit"]:active {
+  transform: translateY(0) !important;
+  box-shadow: var(--shadow) !important;
+}
+
+/* Secondary buttons (white with border) */
+.default,
+.cancel-link,
+.deletelink-box a {
+  background: var(--panel) !important;
+  color: var(--text) !important;
+  border: 1px solid var(--border) !important;
+}
+
+.default:hover,
+.cancel-link:hover {
+  background: var(--hover-bg) !important;
+  border-color: var(--text-secondary) !important;
+}
+
+/* Object tools container */
+.object-tools {
+  display: flex !important;
+  gap: 12px !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  padding: 0 40px 20px !important;
+  margin: 0 !important;
+  list-style: none !important;
+}
+
+.object-tools li {
+  list-style: none !important;
+  margin: 0 !important;
+}
+
+/* ===== Forms ===== */
+.form-row {
+  padding: 16px 0 !important;
+  border-bottom: 1px solid var(--border-subtle) !important;
+}
+
+.form-row:last-child {
+  border-bottom: 0 !important;
+}
+
+.aligned label {
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  color: var(--text-secondary) !important;
+  letter-spacing: -0.016em !important;
+}
+
+/* Input fields */
+input[type=text],
+input[type=password],
+input[type=email],
+input[type=number],
+input[type=url],
+input[type=search],
+textarea,
+select,
+.vTextField,
+.vURLField,
+.vIntegerField,
+.vLargeTextField {
+  background: var(--panel) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-sm) !important;
+  padding: 12px 16px !important;
+  font-size: 14px !important;
+  color: var(--text) !important;
+  font-family: var(--font-system) !important;
+  transition: all 0.2s ease !important;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: 2px solid var(--text) !important;
+  outline-offset: 2px !important;
+  border-color: var(--text) !important;
+}
+
+/* Help text */
+.help,
+.helptext,
+.help-tooltip {
+  font-size: 12px !important;
+  color: var(--text-secondary) !important;
+  font-weight: 400 !important;
+}
+
+/* ===== Search Bar (Spotlight Style) ===== */
+#changelist-search,
+#toolbar {
+  background: transparent !important;
+  border: 0 !important;
+  padding: 0 40px 20px !important;
+}
+
+#searchbar,
+#changelist-search input[type="text"] {
+  background: var(--panel) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-button) !important;
+  padding: 12px 40px 12px 20px !important;
+  font-size: 14px !important;
+  color: var(--text) !important;
+  width: 320px !important;
+  transition: all 0.2s ease !important;
+}
+
+#searchbar:focus,
+#changelist-search input[type="text"]:focus {
+  outline: 2px solid var(--text) !important;
+  outline-offset: 2px !important;
+  width: 480px !important;
+}
+
+/* ===== Action Bar ===== */
+.actions {
+  background: transparent !important;
+  border: 0 !important;
+  padding: 0 40px 20px !important;
+  display: flex !important;
+  gap: 12px !important;
+  align-items: center !important;
+}
+
+.actions label {
+  font-size: 13px !important;
+  color: var(--text-secondary) !important;
+  font-weight: 500 !important;
+}
+
+.actions select {
+  background: var(--panel) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-sm) !important;
+  padding: 10px 14px !important;
+  font-size: 13px !important;
+  color: var(--text) !important;
+}
+
+.actions .button,
+.actions button,
+.actions input[type="submit"] {
+  padding: 10px 20px !important;
+  font-size: 13px !important;
+}
+
+/* ===== Tables (Clean & Minimal) ===== */
+#changelist,
+.change-list {
+  background: transparent !important;
+  border: 0 !important;
+}
+
+#changelist-form {
+  background: var(--panel) !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: var(--radius) !important;
+  overflow: hidden !important;
+  margin: 0 40px !important;
+}
+
+#result_list {
+  width: 100% !important;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+  background: var(--panel) !important;
+}
+
+#result_list thead th {
+  background: var(--apple-grey-5) !important;
+  color: var(--text-secondary) !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.06em !important;
+  padding: 16px 20px !important;
+  border-bottom: 1px solid var(--border-subtle) !important;
+  text-align: left !important;
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 10 !important;
+}
+
+#result_list thead th a {
+  color: var(--text-secondary) !important;
+}
+
+#result_list tbody tr {
+  background: var(--panel) !important;
+  transition: background 0.15s ease !important;
+}
+
+#result_list tbody tr:hover {
+  background: var(--apple-grey-4) !important;
+}
+
+#result_list tbody td {
+  padding: 16px 20px !important;
+  border-bottom: 1px solid var(--border-subtle) !important;
+  color: var(--text) !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+}
+
+#result_list tbody tr:last-child td {
+  border-bottom: 0 !important;
+}
+
+/* Table links */
+#result_list a {
+  color: var(--text) !important;
+  font-weight: 500 !important;
+}
+
+#result_list a:hover {
+  color: var(--text-secondary) !important;
+}
+
+/* Checkboxes */
+#result_list input[type="checkbox"],
+.actions input[type="checkbox"] {
+  width: 18px !important;
+  height: 18px !important;
+  border: 1.5px solid var(--border) !important;
+  border-radius: 4px !important;
+  cursor: pointer !important;
+}
+
+/* ===== Filters Sidebar (Card Style) ===== */
+#changelist-filter {
+  background: var(--panel) !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-left: 1px solid var(--border-subtle) !important;
+  border-radius: var(--radius) !important;
+  padding: 24px !important;
+  margin: 0 40px 40px 0 !important;
+}
+
+#changelist-filter h2,
+#changelist-filter h3 {
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.06em !important;
+  color: var(--text-secondary) !important;
+  margin: 0 0 12px 0 !important;
+  padding: 0 !important;
+}
+
+#changelist-filter h3 {
+  margin-top: 24px !important;
+}
+
+#changelist-filter h3:first-child {
+  margin-top: 0 !important;
+}
+
+#changelist-filter ul {
+  list-style: none !important;
+  padding: 0 !important;
+  margin: 0 0 20px 0 !important;
+}
+
+#changelist-filter li {
+  padding: 8px 0 !important;
+}
+
+#changelist-filter a {
+  color: var(--text-secondary) !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  text-decoration: none !important;
+  display: block !important;
+  transition: color 0.15s ease !important;
+}
+
+#changelist-filter a:hover {
+  color: var(--text) !important;
+}
+
+#changelist-filter a.selected {
+  color: var(--text) !important;
+  font-weight: 600 !important;
+}
+
+/* Filter choice indicator */
+#changelist-filter li.selected a::before {
+  content: "•" !important;
+  margin-right: 8px !important;
+  color: var(--text) !important;
+}
+
+/* ===== Date Hierarchy ===== */
+.xfull {
+  background: var(--panel) !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: var(--radius-sm) !important;
+  padding: 12px 20px !important;
+  margin: 0 40px 20px !important;
+  font-size: 13px !important;
+}
+
+.xfull a {
+  color: var(--text) !important;
+  text-decoration: none !important;
+  padding: 6px 12px !important;
+  border-radius: 6px !important;
+  display: inline-block !important;
+  transition: background 0.15s ease !important;
+}
+
+.xfull a:hover {
+  background: var(--hover-bg) !important;
+}
+
+/* ===== Pagination ===== */
+.paginator {
+  background: transparent !important;
+  border: 0 !important;
+  border-top: 1px solid var(--border-subtle) !important;
+  padding: 16px 20px !important;
+  text-align: right !important;
+  font-size: 13px !important;
+  color: var(--text-secondary) !important;
+}
+
+.paginator a {
+  color: var(--text) !important;
+  padding: 6px 12px !important;
+  border-radius: 6px !important;
+  display: inline-block !important;
+  text-decoration: none !important;
+}
+
+.paginator a:hover {
+  background: var(--hover-bg) !important;
+}
+
+/* ===== Messages / Alerts ===== */
+.messagelist {
+  padding: 0 40px !important;
+  margin: 0 0 20px 0 !important;
+  list-style: none !important;
+}
+
+.messagelist li {
+  background: var(--panel) !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: var(--radius-sm) !important;
+  padding: 16px 20px !important;
+  margin: 0 0 12px 0 !important;
+  font-size: 13px !important;
+  color: var(--text) !important;
+}
+
+.success {
+  border-left: 3px solid var(--apple-grey-1) !important;
+}
+
+.warning {
+  border-left: 3px solid var(--text-secondary) !important;
+}
+
+.error {
+  border-left: 3px solid var(--text) !important;
+}
+
+/* ===== Login Page ===== */
+.login #container {
+  background: var(--panel) !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: var(--radius) !important;
+  box-shadow: var(--shadow) !important;
+  max-width: 480px !important;
+  margin: 80px auto !important;
+  padding: 48px !important;
+}
+
+.login #header {
+  background: transparent !important;
+  border: 0 !important;
+  margin-bottom: 32px !important;
+  text-align: center !important;
+}
+
+.login #branding h1 {
+  font-size: 28px !important;
+  font-weight: 600 !important;
+}
+
+.login .form-row {
+  border: 0 !important;
+  padding: 12px 0 !important;
+}
+
+.login .form-row label {
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  color: var(--text-secondary) !important;
+  display: block !important;
+  margin-bottom: 8px !important;
+}
+
+.login input[type="text"],
+.login input[type="password"] {
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.login .submit-row {
+  padding: 24px 0 0 !important;
+  border: 0 !important;
+}
+
+.login input[type="submit"] {
+  width: 100% !important;
+  padding: 14px !important;
+}
+
+/* ===== Dashboard / Index ===== */
+#content-main > div {
+  padding: 32px !important;
+}
+
+.module h2,
+.module caption {
+  font-size: 17px !important;
+  font-weight: 600 !important;
+  color: var(--text) !important;
+  padding: 0 0 16px 0 !important;
+  margin: 0 !important;
+  border-bottom: 1px solid var(--border-subtle) !important;
+}
+
+.module table {
+  width: 100% !important;
+  margin-top: 16px !important;
+}
+
+.module th {
+  text-align: left !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.06em !important;
+  color: var(--text-secondary) !important;
+  padding: 12px 0 !important;
+}
+
+.module td {
+  padding: 12px 0 !important;
+  font-size: 13px !important;
+}
+
+/* ===== Inline Forms ===== */
+.inline-group {
+  background: transparent !important;
+  border: 0 !important;
+}
+
+.inline-related {
+  background: var(--panel) !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: var(--radius-sm) !important;
+  padding: 20px !important;
+  margin-bottom: 16px !important;
+}
+
+/* ===== Miscellaneous ===== */
+.deletelink {
+  color: var(--text) !important;
+  border: 1px solid var(--border) !important;
+  background: var(--panel) !important;
+}
+
+.deletelink:hover {
+  background: var(--text) !important;
+  color: var(--panel) !important;
+}
+
+.addlink::before,
+.changelink::before,
+.deletelink::before {
+  font-weight: 600 !important;
+}
+
+/* Admin home quick links */
+.app-index .module {
+  margin-bottom: 24px !important;
+}
+
+.app-index .module a {
+  padding: 12px 0 !important;
+  display: block !important;
+  border-bottom: 1px solid var(--border-subtle) !important;
+}
+
+.app-index .module a:last-child {
+  border-bottom: 0 !important;
+}
+
+/* ===== Responsive tweaks ===== */
+@media (max-width: 1024px) {
+  #content,
+  .module,
+  #content-main {
+    margin: 0 20px 20px !important;
+  }
+  
+  .object-tools,
+  #changelist-search,
+  .actions {
+    padding-left: 20px !important;
+    padding-right: 20px !important;
+  }
+  
+  #changelist-form {
+    margin: 0 20px !important;
+  }
+}

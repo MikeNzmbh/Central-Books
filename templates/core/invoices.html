@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+
+{% block title %} · Invoices{% endblock %}
+
+{% block content %}
+<div class="app-page-shell invoices-page">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Invoices</h1>
+      <p class="page-subtitle">
+        See what you've billed and what's still unpaid.
+      </p>
+    </div>
+    <div class="page-header-actions">
+      <a href="{% url 'invoice_create' %}" class="btn-pill-primary">+ New invoice</a>
+    </div>
+  </div>
+
+  <section class="page-kpi-grid invoices-kpis">
+    <div class="kpi-card">
+      <div class="kpi-label">Open balance</div>
+      <div class="kpi-value">
+        {{ open_balance_total|floatformat:2 }} {{ business.currency|default:"" }}
+      </div>
+      <p class="kpi-help">Unpaid invoices across customers.</p>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Revenue (YTD)</div>
+      <div class="kpi-value">
+        {{ revenue_ytd|floatformat:2 }} {{ business.currency|default:"" }}
+      </div>
+      <p class="kpi-help">Paid invoices so far this year.</p>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Total invoices</div>
+      <div class="kpi-value">{{ total_invoices }}</div>
+      <p class="kpi-help">All invoices in your business.</p>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Avg invoice value</div>
+      <div class="kpi-value">
+        {{ avg_invoice_value|floatformat:2 }} {{ business.currency|default:"" }}
+      </div>
+      <p class="kpi-help">Average amount per invoice.</p>
+    </div>
+  </section>
+
+  <section class="invoices-filter-card">
+    <div class="pill-tabs">
+      <a href="{% url 'invoice_list' %}?status=all"
+         class="pill-tab {% if status_filter == 'all' %}is-active{% endif %}">All</a>
+      <a href="{% url 'invoice_list' %}?status=overdue"
+         class="pill-tab {% if status_filter == 'overdue' %}is-active{% endif %}">Overdue</a>
+      <a href="{% url 'invoice_list' %}?status=sent"
+         class="pill-tab {% if status_filter == 'sent' %}is-active{% endif %}">Sent</a>
+      <a href="{% url 'invoice_list' %}?status=draft"
+         class="pill-tab {% if status_filter == 'draft' %}is-active{% endif %}">Draft</a>
+      <a href="{% url 'invoice_list' %}?status=paid"
+         class="pill-tab {% if status_filter == 'paid' %}is-active{% endif %}">Paid</a>
+      <a href="{% url 'invoice_list' %}?status=void"
+         class="pill-tab {% if status_filter == 'void' %}is-active{% endif %}">Void</a>
+    </div>
+    <form method="get" class="invoices-filter-form">
+      <input type="hidden" name="status" value="{{ status_filter }}">
+      <div class="input-search-pill">
+        <input type="text" name="q" placeholder="Search invoices" disabled>
+        <span>⌕</span>
+      </div>
+    </form>
+  </section>
+
+  <section class="invoices-layout">
+    <div class="card invoices-table">
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Invoice #</th>
+              <th>Customer</th>
+              <th class="hidden-sm">Issue date</th>
+              <th class="hidden-sm">Due date</th>
+              <th class="hidden-md text-right">Status</th>
+              <th class="text-right">Amount</th>
+              <th class="text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if invoices %}
+              {% for invoice in invoices %}
+                <tr class="table-row {% if selected_invoice and invoice.pk == selected_invoice.pk %}table-row-selected{% endif %}"
+                    onclick="window.location='{% url 'invoice_list' %}?status={{ status_filter }}&invoice={{ invoice.pk }}'">
+                  <td>#{{ invoice.invoice_number }}</td>
+                  <td>{{ invoice.customer.name }}</td>
+                  <td class="hidden-sm">{{ invoice.issue_date|date:"M j, Y" }}</td>
+                  <td class="hidden-sm">
+                    {% if invoice.due_date %}{{ invoice.due_date|date:"M j, Y" }}{% else %}—{% endif %}
+                  </td>
+                  <td class="hidden-md text-right">
+                    {% if invoice.status == 'PAID' %}
+                      <span class="badge badge--success">Paid</span>
+                    {% elif invoice.status == 'DRAFT' %}
+                      <span class="badge badge--muted">Draft</span>
+                    {% elif invoice.status == 'VOID' %}
+                      <span class="badge badge--muted">Void</span>
+                    {% else %}
+                      {% if invoice.due_date and invoice.due_date < today %}
+                        <span class="badge badge--danger">Overdue</span>
+                      {% else %}
+                        <span class="badge badge--warning">Sent</span>
+                      {% endif %}
+                    {% endif %}
+                  </td>
+                  <td class="text-right">{{ invoice.grand_total|floatformat:2 }} {{ business.currency|default:"" }}</td>
+                  <td class="text-right" onclick="event.stopPropagation();">
+                    <a href="{% url 'invoice_update' invoice.pk %}" class="link-inline">Edit</a>
+                    <span class="dot-separator">·</span>
+                    <a href="{% url 'invoice_delete' invoice.pk %}" class="link-inline link-inline--danger">Delete</a>
+                  </td>
+                </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td colspan="7" class="empty-row">
+                  No invoices yet. <a href="{% url 'invoice_create' %}" class="btn-link">Create your first invoice</a>.
+                </td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <aside class="card invoices-detail">
+      {% if selected_invoice %}
+        <div class="detail-header">
+          <div>
+            <h2 class="detail-title">Invoice #{{ selected_invoice.invoice_number }}</h2>
+            <p class="detail-subtitle">{{ selected_invoice.customer.name }}</p>
+          </div>
+          <div class="detail-actions">
+            <form method="post"
+                  action="{% url 'invoice_status_update' selected_invoice.pk %}"
+                  class="status-update-form"
+                  style="display:flex; gap:12px; align-items:center;">
+              {% csrf_token %}
+              <input type="hidden" name="redirect_url" value="{{ request.get_full_path }}">
+              <select name="status"
+                      style="
+                        border-radius:999px;
+                        border:1px solid #cdd9ff;
+                        background:#f8faff;
+                        padding:6px 32px 6px 14px;
+                        font-size:13px;
+                        font-weight:600;
+                        color:#0f172a;
+                        box-shadow:0 10px 25px rgba(15,23,42,0.08);
+                        appearance:none;
+                        background-image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2210%22 height=%227%22 viewBox=%220 0 10 7%22><path fill=%22%236273b3%22 d=%22M1 1l4 4 4-4%22 stroke=%22%236273b3%22 stroke-width=%221.2%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22/></svg>');
+                        background-repeat:no-repeat;
+                        background-position:right 12px center;
+                        background-size:12px;
+                      ">
+                {% for value, label in invoice_status_choices %}
+                  <option value="{{ value }}"
+                          {% if selected_invoice.status == value %}selected{% endif %}>
+                    {{ label }}
+                  </option>
+                {% endfor %}
+              </select>
+              <button type="submit"
+                      style="
+                        border:none;
+                        border-radius:999px;
+                        padding:8px 24px;
+                        font-size:13px;
+                        font-weight:600;
+                        color:#fff;
+                        background:linear-gradient(135deg,#2563eb,#1d4ed8);
+                        box-shadow:none;
+                        cursor:pointer;
+                        transition:opacity 0.15s ease;
+                      "
+                      onmouseover="this.style.opacity='0.9';"
+                      onmouseout="this.style.opacity='1';">
+                Save
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <div class="mini-stat-grid">
+          <div class="mini-stat">
+            <div class="mini-stat-label">Amount</div>
+            <div class="mini-stat-value">
+              {{ selected_invoice.grand_total|floatformat:2 }} {{ business.currency|default:"" }}
+            </div>
+            <div class="mini-stat-meta">Invoice total</div>
+          </div>
+          <div class="mini-stat">
+            <div class="mini-stat-label">Issue date</div>
+            <div class="mini-stat-value">
+              {{ selected_invoice.issue_date|date:"M j, Y" }}
+            </div>
+            <div class="mini-stat-meta">When it went out</div>
+          </div>
+          <div class="mini-stat">
+            <div class="mini-stat-label">Due date</div>
+            <div class="mini-stat-value">
+              {% if selected_invoice.due_date %}
+                {{ selected_invoice.due_date|date:"M j, Y" }}
+              {% else %}
+                —
+              {% endif %}
+            </div>
+            <div class="mini-stat-meta">When payment is expected</div>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <h3>Customer</h3>
+          <p class="detail-text">{{ selected_invoice.customer.name }}</p>
+          {% if selected_invoice.customer.email %}
+            <p class="detail-subtext">{{ selected_invoice.customer.email }}</p>
+          {% else %}
+            <p class="detail-subtext muted">No email on file</p>
+          {% endif %}
+        </div>
+
+        <div class="detail-section">
+          <h3>Description</h3>
+          <p class="detail-text">
+            {% if selected_invoice.description %}
+              {{ selected_invoice.description }}
+            {% else %}
+              <span class="muted">No description provided.</span>
+            {% endif %}
+          </p>
+        </div>
+
+        <div class="detail-section">
+          <h3>Notes</h3>
+          <div class="notes-placeholder">
+            {% if selected_invoice.notes %}
+              {{ selected_invoice.notes }}
+            {% else %}
+              <span class="placeholder-text">No notes yet.</span>
+            {% endif %}
+          </div>
+        </div>
+      {% else %}
+        <p class="detail-empty">Select an invoice to see details.</p>
+      {% endif %}
+    </aside>
+  </section>
+</div>
+{% endblock %}

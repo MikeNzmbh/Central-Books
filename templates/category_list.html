@@ -1,0 +1,32 @@
+{% extends "base.html" %}{% block content %}
+<h2 style="margin-top:0">Categories – {{ business.name }}</h2>
+<p><a href="{% url 'category_create' %}" class="button">Add category</a></p>
+{% if categories %}
+<table class="table">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Type</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for cat in categories %}
+    <tr>
+      <td>{{ cat.name }}</td>
+      <td>{{ cat.get_type_display }}</td>
+      <td>
+        <a href="{% url 'category_update' cat.pk %}">Edit</a>
+        <form method="post" action="{% url 'category_delete' cat.pk %}" style="display:inline">
+          {% csrf_token %}
+          <button type="submit" class="button secondary">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No categories yet.</p>
+{% endif %}
+{% endblock %}
