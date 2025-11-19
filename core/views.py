@@ -370,6 +370,7 @@ def login_view(request):
     }
     context = {
         "login_payload": json.dumps(payload, cls=DjangoJSONEncoder),
+        "next_url": next_url,
     }
     return render(request, "login.html", context)
 

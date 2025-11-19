@@ -13,10 +13,46 @@
   </head>
   <body class="bg-slate-50">
     <div id="login-root"></div>
+    <div id="login-fallback" style="max-width:420px;margin:60px auto;padding:24px;border-radius:20px;background:#fff;border:1px solid #e2e8f0;">
+      <h1 style="margin-bottom:10px;font-size:22px;color:#0f172a;">Sign in to Mini-Books</h1>
+      <p style="margin-bottom:18px;font-size:13px;color:#64748b;">Temporary fallback while the new login UI loads.</p>
+      <form method="post" action="{% url 'login' %}" style="display:flex;flex-direction:column;gap:16px;">
+        {% csrf_token %}
+        {% if next_url %}
+          <input type="hidden" name="next" value="{{ next_url }}">
+        {% endif %}
+        {% for message in messages %}
+          <div style="padding:10px 14px;border-radius:14px;background:#fee2e2;color:#991b1b;font-size:13px;">
+            {{ message }}
+          </div>
+        {% endfor %}
+        <label style="display:flex;flex-direction:column;font-size:13px;color:#0f172a;">
+          Email
+          <input type="email" name="username" required style="margin-top:6px;border-radius:14px;border:1px solid #cbd5f5;padding:10px 14px;">
+        </label>
+        <label style="display:flex;flex-direction:column;font-size:13px;color:#0f172a;">
+          Password
+          <input type="password" name="password" required style="margin-top:6px;border-radius:14px;border:1px solid #cbd5f5;padding:10px 14px;">
+        </label>
+        <button type="submit" style="border:none;border-radius:999px;background:#0f172a;color:#fff;padding:10px 18px;font-weight:600;cursor:pointer;">
+          Sign in
+        </button>
+        <p style="font-size:12px;color:#475569;text-align:center;">
+          No account? <a href="{% url 'signup' %}">Create one</a>
+        </p>
+      </form>
+    </div>
     {{ login_payload|json_script:"login-data" }}
     {% vite_asset 'login' as login_js %}
     {% if login_js %}
-      <script type="module" src="{% static login_js %}"></script>
+      <script type="module">
+        import("{% static login_js %}").then(() => {
+          const fallback = document.getElementById("login-fallback");
+          if (fallback) {
+            fallback.style.display = "none";
+          }
+        });
+      </script>
     {% endif %}
   </body>
 </html>
