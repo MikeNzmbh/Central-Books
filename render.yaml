@@ -4,11 +4,13 @@ services:
     env: python
     plan: starter
     buildCommand: |
-      pip install --upgrade pip
       pip install -r requirements.txt
       cd frontend && npm install && npm run build
-      python manage.py collectstatic --noinput
+      cd .. && python manage.py collectstatic --noinput
     startCommand: gunicorn minibooks_project.wsgi:application
+    postdeploy: |
+      python manage.py migrate
+      python manage.py createsuperuser --noinput || true
     envVars:
       - key: DATABASE_URL
         fromDatabase:

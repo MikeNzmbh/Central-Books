@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% load static mb_extras %}
+
+{% block title %} · Account settings{% endblock %}
+
+{% block content %}
+  <div id="account-settings-root"></div>
+  {{ account_settings_payload|json_script:"account-settings-data" }}
+  {% vite_asset 'account-settings' as settings_js %}
+  {% if settings_js %}
+    <script type="module" src="{% static settings_js %}"></script>
+  {% endif %}
+{% endblock %}

@@ -16,8 +16,23 @@ export default defineConfig({
           __dirname,
           "src/banking-accounts-feed.tsx"
         ),
-        "chart-of-accounts": path.resolve(__dirname, "src/chart-of-accounts.tsx"),
-        "coa-account-detail": path.resolve(__dirname, "src/coa-account-detail.tsx"),
+        "chart-of-accounts": path.resolve(
+          __dirname,
+          "src/chart-of-accounts.tsx"
+        ),
+        "coa-account-detail": path.resolve(
+          __dirname,
+          "src/coa-account-detail.tsx"
+        ),
+        "dashboard-welcome": path.resolve(
+          __dirname,
+          "src/entries/dashboard_welcome.tsx"
+        ),
+        login: path.resolve(__dirname, "src/auth/login-entry.tsx"),
+        "account-settings": path.resolve(
+          __dirname,
+          "src/settings/account-settings-entry.tsx"
+        ),
       },
       output: {
         assetFileNames: "assets/[name]-[hash][extname]",

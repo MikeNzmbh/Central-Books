@@ -1,9 +1,23 @@
 {% extends "base.html" %}
+{% load static mb_extras %}
 
 {% block title %} · Dashboard{% endblock %}
 
 {% block content %}
-{% if not has_any_data %}
+{% vite_asset 'dashboard-welcome' as dashboard_welcome_js %}
+{% if empty_workspace %}
+  <div
+    id="welcome-onboarding-root"
+    data-start-books-url="{{ start_books_url }}"
+    data-create-bank-url="{{ create_bank_url }}"
+    data-import-csv-url="{{ import_csv_url }}"
+    data-has-bank="{% if has_bank %}true{% else %}false{% endif %}"
+    style="min-height:70vh;"
+  ></div>
+  {% if dashboard_welcome_js %}
+    <script type="module" src="{% static dashboard_welcome_js %}"></script>
+  {% endif %}
+{% elif not has_any_data %}
   <section class="card" style="max-width:720px;margin:32px auto;">
     <h1 class="app-page-title">
       Welcome to Mini-Books{% if request.user.first_name %}, {{ request.user.first_name }}{% endif %} 👋
@@ -315,8 +329,8 @@
       Income {{ metrics.total_income_month|default:0|floatformat:2 }} − Expenses {{ metrics.total_expenses_month|default:0|floatformat:2 }}
     </p>
   </div>
-</section>
-{% endif %}
+  </section>
+{% else %}
 
 <script>
   (function() {
@@ -396,4 +410,5 @@
   })();
 </script>
 
+{% endif %}
 {% endblock %}

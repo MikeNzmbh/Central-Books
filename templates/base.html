@@ -183,6 +183,9 @@
           </div>
 
           {% if request.user.is_authenticated %}
+          <a href="{% url 'account_settings' %}" class="sidebar-settings-link">
+            ⚙ Account settings
+          </a>
           <form method="post" action="{% url 'logout' %}">
             {% csrf_token %}
             <button class="sidebar-logout-btn" type="submit">Logout</button>

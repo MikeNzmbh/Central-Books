@@ -1,9 +1,22 @@
-{% extends "base.html" %}{% block content %}
-<h2 style="margin-top:0">Log in</h2>
-<form method="post" class="row">{% csrf_token %}
-  <p><label>Username <input name="username" required></label></p>
-  <p><label>Password <input name="password" type="password" required></label></p>
-  <button class="button">Log in</button>
-</form>
-<p class="help">No account? <a href="{% url 'signup' %}">Create one</a>.</p>
-{% endblock %}
+{% load static mb_extras %}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Mini-Books · Sign in</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="{% static 'css/app.css' %}">
+    {% vite_asset 'index' 'css' as css_path %}
+    {% if css_path %}
+      <link rel="stylesheet" href="{% static css_path %}">
+    {% endif %}
+  </head>
+  <body class="bg-slate-50">
+    <div id="login-root"></div>
+    {{ login_payload|json_script:"login-data" }}
+    {% vite_asset 'login' as login_js %}
+    {% if login_js %}
+      <script type="module" src="{% static login_js %}"></script>
+    {% endif %}
+  </body>
+</html>

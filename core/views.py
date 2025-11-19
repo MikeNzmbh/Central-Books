@@ -6,8 +6,10 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from urllib.parse import urlencode
 
+from django.conf import settings
 from django.contrib import messages
-from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
+from django.contrib.auth.forms import PasswordChangeForm
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.models import User
@@ -16,10 +18,12 @@ from django.core.serializers.json import DjangoJSONEncoder
 from django.db import transaction as db_transaction
 from django.db.models import Count, Max, Q, Sum, Avg
 from django.http import HttpResponse, JsonResponse
+from django.middleware.csrf import get_token
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.forms import ModelChoiceField
 from typing import cast
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 from django.views.generic import ListView, TemplateView, CreateView, UpdateView, View
 from django.urls import reverse, reverse_lazy
@@ -27,12 +31,14 @@ from django.utils.dateparse import parse_date
 
 from .forms import (
     BusinessForm,
+    BusinessProfileForm,
     CategoryForm,
     CustomerForm,
     ExpenseForm,
     InvoiceForm,
     SignupForm,
     SupplierForm,
+    UserProfileForm,
     ItemForm,
     BankStatementImportForm,
     BankQuickExpenseForm,
@@ -55,7 +61,60 @@ from .models import (
 )
 from .ledger_services import compute_ledger_pl
 from .ledger_reports import account_balances_for_business
-from .utils import get_current_business
+from .utils import get_current_business, is_empty_workspace
+
+def _messages_payload(request):
+    storage = messages.get_messages(request)
+    return [{"level": m.level_tag, "message": str(m)} for m in storage]
+
+
+def _serialize_form(form, form_name: str | None = None):
+    if form is None:
+        return None
+    fields = []
+    for bound_field in form:
+        widget = bound_field.field.widget
+        widget_name = widget.__class__.__name__.lower()
+        input_type = getattr(widget, "input_type", None)
+        if not input_type:
+            if "select" in widget_name:
+                input_type = "select"
+            elif "textarea" in widget_name:
+                input_type = "textarea"
+            else:
+                input_type = "text"
+        value = bound_field.value()
+        if isinstance(value, (list, tuple)):
+            value = value[0] if value else ""
+        if value is None:
+            value = ""
+        value = str(value)
+        choices = None
+        widget_choices = getattr(widget, "choices", None)
+        if widget_choices:
+            choices = [
+                {"value": str(choice_value), "label": str(choice_label)}
+                for choice_value, choice_label in widget_choices
+            ]
+        fields.append(
+            {
+                "name": bound_field.html_name,
+                "id": bound_field.auto_id or bound_field.id_for_label or bound_field.html_name,
+                "label": bound_field.label,
+                "value": value,
+                "errors": list(bound_field.errors),
+                "type": input_type,
+                "choices": choices,
+                "required": bound_field.field.required,
+                "help_text": bound_field.help_text or "",
+                "attrs": bound_field.field.widget.attrs,
+            }
+        )
+    return {
+        "form": form_name,
+        "fields": fields,
+        "non_field_errors": list(form.non_field_errors()),
+    }
 from .accounting_posting_expenses import post_expense_paid
 from .accounting_defaults import ensure_default_accounts
 from .reconciliation import (
@@ -285,6 +344,7 @@ def signup_view(request):
 
 
 def login_view(request):
+    next_url = request.GET.get("next") or request.POST.get("next") or ""
     if request.method == "POST":
         user = authenticate(
             request,
@@ -295,9 +355,23 @@ def login_view(request):
             login(request, user)
             if get_current_business(user) is None:
                 return redirect("business_setup")
+            if next_url and url_has_allowed_host_and_scheme(next_url, {request.get_host()}, allowed_schemes={"http", "https"}):
+                return redirect(next_url)
             return redirect("dashboard")
-        messages.error(request, "Invalid credentials")
-    return render(request, "login.html")
+        messages.error(request, "Invalid username or password.")
+
+    payload = {
+        "action": reverse("login"),
+        "csrfToken": get_token(request),
+        "next": next_url,
+        "signupUrl": reverse("signup"),
+        "forgotUrl": "#",
+        "messages": _messages_payload(request),
+    }
+    context = {
+        "login_payload": json.dumps(payload, cls=DjangoJSONEncoder),
+    }
+    return render(request, "login.html", context)
 
 
 @require_POST
@@ -325,10 +399,83 @@ def business_setup(request):
 
 
 @login_required
+def account_settings(request):
+    business = get_current_business(request.user)
+    user_form = UserProfileForm(instance=request.user, prefix="user")
+    business_form = BusinessProfileForm(instance=business, prefix="business") if business else None
+    password_form = PasswordChangeForm(request.user, prefix="password")
+
+    if request.method == "POST":
+        form_name = request.POST.get("form")
+        if form_name == "profile":
+            user_form = UserProfileForm(request.POST, instance=request.user, prefix="user")
+            if user_form.is_valid():
+                user_form.save()
+                messages.success(request, "Your profile details were updated.")
+                return redirect("account_settings")
+        elif form_name == "business" and business:
+            business_form = BusinessProfileForm(request.POST, instance=business, prefix="business")
+            if business_form.is_valid():
+                business_form.save()
+                messages.success(request, "Business settings updated.")
+                return redirect("account_settings")
+        elif form_name == "password":
+            password_form = PasswordChangeForm(request.user, request.POST, prefix="password")
+            if password_form.is_valid():
+                password_form.save()
+                update_session_auth_hash(request, password_form.user)
+                messages.success(request, "Password updated successfully.")
+                return redirect("account_settings")
+    context = {
+        "user_form": user_form,
+        "business_form": business_form,
+        "password_form": password_form,
+        "business": business,
+        "account_settings_payload": json.dumps(
+            {
+                "csrfToken": get_token(request),
+                "postUrl": reverse("account_settings"),
+                "logoutUrl": reverse("logout"),
+                "profileForm": _serialize_form(user_form, "profile"),
+                "businessForm": _serialize_form(business_form, "business"),
+                "passwordForm": _serialize_form(password_form, "password"),
+                "messages": _messages_payload(request),
+                "user": {
+                    "email": request.user.email or "",
+                    "name": request.user.get_full_name() or request.user.username,
+                },
+                "session": {
+                    "device": request.META.get("HTTP_USER_AGENT", "Current session"),
+                    "location": request.META.get("GEOIP_CITY", "") or "",
+                },
+            },
+            cls=DjangoJSONEncoder,
+        ),
+    }
+    return render(request, "account_settings.html", context)
+
+
+@login_required
 def dashboard(request):
     business = get_current_business(request.user)
     if business is None:
         return redirect("business_setup")
+
+    has_bank = BankAccount.objects.filter(business=business).exists()
+    has_customer = Customer.objects.filter(business=business).exists()
+    empty_workspace = not has_bank and not has_customer
+
+    if empty_workspace:
+        context = {
+            "business": business,
+            "empty_workspace": True,
+            "has_bank": has_bank,
+            "start_books_url": reverse("customer_create"),
+            "create_bank_url": reverse("bank_account_create"),
+            "import_csv_url": reverse("bank_import"),
+        }
+        return render(request, "dashboard.html", context)
+
     today = timezone.now().date()
     thirty_days_ago = today - timedelta(days=30)
 
@@ -483,6 +630,12 @@ def dashboard(request):
 
     context = {
         "business": business,
+        "empty_workspace": False,
+        "has_bank": has_bank,
+        "has_customer": has_customer,
+        "start_books_url": reverse("customer_create"),
+        "create_bank_url": reverse("bank_account_create"),
+        "import_csv_url": reverse("bank_import"),
         "has_any_data": has_any_data,
         "has_any_invoices": has_any_invoices,
         "has_any_expenses": has_any_expenses,

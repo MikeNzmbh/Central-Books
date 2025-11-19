@@ -25,6 +25,7 @@ urlpatterns = [
     path("login/", views.login_view, name="login"),
     path("logout/", views.logout_view, name="logout"),
     path("business/setup/", views.business_setup, name="business_setup"),
+    path("settings/account/", views.account_settings, name="account_settings"),
     path("dashboard/", views.dashboard, name="dashboard"),
     # Customers
     path("customers/", CustomerListView.as_view(), name="customer_list"),

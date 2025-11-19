@@ -50,6 +50,11 @@ def _parse_hosts(value: str | None) -> list[str]:
 allowed_hosts = _parse_hosts(os.getenv("DJANGO_ALLOWED_HOSTS") or os.getenv("ALLOWED_HOSTS"))
 ALLOWED_HOSTS: list[str] = allowed_hosts or ["127.0.0.1", "localhost"]
 
+# Trust deployment hosts for CSRF-protected POSTs (Render + optional overrides)
+CSRF_TRUSTED_ORIGINS = [
+    "https://central-books-web.onrender.com",
+]
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",

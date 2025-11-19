@@ -54,6 +54,23 @@ class SignupForm(forms.ModelForm):
         return cleaned
 
 
+class UserProfileForm(forms.ModelForm):
+    class Meta:
+        model = User
+        fields = ["first_name", "last_name", "email"]
+
+    def clean_email(self):
+        email = (self.cleaned_data.get("email") or "").strip()
+        if not email:
+            raise ValidationError("Email is required.")
+        qs = User.objects.filter(email__iexact=email)
+        if self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise ValidationError("Another user already uses this email.")
+        return email
+
+
 class BusinessForm(forms.ModelForm):
     currency = forms.ChoiceField(choices=CURRENCY_CHOICES)
 
@@ -89,6 +106,25 @@ class BusinessForm(forms.ModelForm):
                     "A business with this name already exists. Please choose a different name."
                 )
         return cleaned_data
+
+
+class BusinessProfileForm(forms.ModelForm):
+    currency = forms.ChoiceField(choices=CURRENCY_CHOICES)
+
+    class Meta:
+        model = Business
+        fields = ["name", "currency"]
+
+    def clean_name(self):
+        name = (self.cleaned_data.get("name") or "").strip()
+        if not name:
+            raise ValidationError("Business name is required.")
+        qs = Business.objects.filter(name__iexact=name)
+        if self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise ValidationError("Another business already uses this name.")
+        return name
 
 
 class CustomerForm(forms.ModelForm):

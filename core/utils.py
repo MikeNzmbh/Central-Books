@@ -65,3 +65,13 @@ def get_business_initials(name: str) -> str:
     if len(parts) == 1:
         return parts[0][0].upper()
     return f"{parts[0][0].upper()}{parts[1][0].upper()}"
+
+
+def is_empty_workspace(business) -> bool:
+    if not business:
+        return True
+    from .models import Customer, BankAccount
+
+    has_customer = Customer.objects.filter(business=business).exists()
+    has_bank = BankAccount.objects.filter(business=business).exists()
+    return not has_customer and not has_bank

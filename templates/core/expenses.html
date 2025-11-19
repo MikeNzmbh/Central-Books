@@ -46,7 +46,8 @@
   </section>
 
   <section class="expenses-filter-card">
-    <div class="pill-tabs">
+    <div class="expenses-filter-top">
+      <div class="pill-tabs">
       <a href="{% url 'expense_list' %}?period=this_month{% if category_filter %}&category={{ category_filter }}{% endif %}{% if status_filter != 'all' %}&status={{ status_filter }}{% endif %}"
          class="pill-tab {% if period == 'this_month' %}is-active{% endif %}">This month</a>
       <a href="{% url 'expense_list' %}?period=last_month{% if category_filter %}&category={{ category_filter }}{% endif %}{% if status_filter != 'all' %}&status={{ status_filter }}{% endif %}"
@@ -57,14 +58,15 @@
          class="pill-tab {% if period == 'last_year' %}is-active{% endif %}">Last year</a>
       <a href="{% url 'expense_list' %}?period=all{% if category_filter %}&category={{ category_filter }}{% endif %}{% if status_filter != 'all' %}&status={{ status_filter }}{% endif %}"
          class="pill-tab {% if period == 'all' %}is-active{% endif %}">All time</a>
-    </div>
-    <div class="pill-tabs" style="margin-top:10px;">
+      </div>
+      <div class="pill-tabs expenses-status-tabs">
       <a href="{% url 'expense_list' %}?period={{ period }}{% if category_filter %}&category={{ category_filter }}{% endif %}"
          class="pill-tab {% if status_filter == 'all' %}is-active{% endif %}">All</a>
       <a href="{% url 'expense_list' %}?period={{ period }}{% if category_filter %}&category={{ category_filter }}{% endif %}&status=unpaid"
          class="pill-tab {% if status_filter == 'unpaid' %}is-active{% endif %}">Unpaid</a>
       <a href="{% url 'expense_list' %}?period={{ period }}{% if category_filter %}&category={{ category_filter }}{% endif %}&status=paid"
          class="pill-tab {% if status_filter == 'paid' %}is-active{% endif %}">Paid</a>
+      </div>
     </div>
     <div class="expenses-filter-form">
       <select
