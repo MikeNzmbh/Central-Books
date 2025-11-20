@@ -153,12 +153,12 @@ const LoginPage: React.FC<{ data: LoginPayload }> = ({ data }) => (
       {data.next && <input type="hidden" name="next" value={data.next} />}
       <div className="space-y-1.5 text-sm">
         <label className="block text-slate-700" htmlFor="id_username">
-          Email
+          Email or username
         </label>
         <input
           id="id_username"
           name="username"
-          type="email"
+          type="text"
           autoComplete="username"
           required
           className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/80 focus:ring-offset-1 focus:ring-offset-slate-50"

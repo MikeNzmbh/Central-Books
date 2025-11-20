@@ -22,6 +22,6 @@ if (el) {
   if (payload) {
     const root = createRoot(el);
     root.render(<LoginPage data={payload} />);
-    document.dispatchEvent(new CustomEvent("login-app-mounted"));
+    window.dispatchEvent(new CustomEvent("login-app-mounted"));
   }
 }
