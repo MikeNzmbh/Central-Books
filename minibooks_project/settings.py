@@ -1,6 +1,10 @@
 from pathlib import Path
 import os
 
+import sentry_sdk
+from sentry_sdk.integrations.django import DjangoIntegration
+
+
 try:
     from dotenv import load_dotenv
 except ImportError:  # pragma: no cover - fallback when dependency missing
@@ -143,3 +147,39 @@ SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# --- Sentry & production security hardening ---
+
+SENTRY_DSN = os.getenv("SENTRY_DSN", "")
+
+if not DEBUG:
+    # Error monitoring (Sentry)
+    if SENTRY_DSN:
+        sentry_sdk.init(
+            dsn=SENTRY_DSN,
+            integrations=[DjangoIntegration()],
+            traces_sample_rate=0.1,   # sample 10% of requests for performance traces
+            send_default_pii=False,   # keep it privacy-friendly
+            environment="production",
+        )
+
+    # Trust Render's HTTPS proxy headers
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SECURE_SSL_REDIRECT = True
+
+    # HSTS: tell browsers to always use HTTPS
+    SECURE_HSTS_SECONDS = 31536000  # 1 year
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+
+    # Cookies
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    CSRF_COOKIE_HTTPONLY = True
+    CSRF_COOKIE_SAMESITE = "Lax"
+    SESSION_COOKIE_SAMESITE = "Lax"
+
+    # Browser safety
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_BROWSER_XSS_FILTER = True
+    X_FRAME_OPTIONS = "DENY"
