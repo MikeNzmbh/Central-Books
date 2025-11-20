@@ -1,27 +1,49 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
-import LoginPage, { LoginPayload } from "./LoginPage";
+import CentralBooksLoginPage from "./LoginPage";
+import "../index.css";
 
-const el = document.getElementById("login-root");
+type Payload = {
+  action?: string;
+  csrfToken?: string;
+  nextUrl?: string;
+  next?: string;
+  errors?: string[];
+};
 
-function parsePayload(): LoginPayload | null {
+function readPayload(): Payload | null {
   const script = document.getElementById("login-data");
   if (!script || !script.textContent) {
     return null;
   }
   try {
-    return JSON.parse(script.textContent) as LoginPayload;
-  } catch (err) {
-    console.error("Unable to parse login payload", err);
+    return JSON.parse(script.textContent) as Payload;
+  } catch (error) {
+    console.error("Failed to parse login payload", error);
     return null;
   }
 }
 
-if (el) {
-  const payload = parsePayload();
-  if (payload) {
-    const root = createRoot(el);
-    root.render(<LoginPage data={payload} />);
-    window.dispatchEvent(new CustomEvent("login-app-mounted"));
+document.addEventListener("DOMContentLoaded", () => {
+  const container = document.getElementById("login-root");
+  if (!container) {
+    return;
   }
-}
+
+  const payload = readPayload();
+  if (!payload) {
+    return;
+  }
+
+  const root = createRoot(container);
+  root.render(
+    <CentralBooksLoginPage
+      action={payload.action}
+      csrfToken={payload.csrfToken}
+      nextUrl={payload.nextUrl || payload.next}
+      errors={payload.errors || []}
+    />
+  );
+
+  window.dispatchEvent(new Event("login-app-mounted"));
+});

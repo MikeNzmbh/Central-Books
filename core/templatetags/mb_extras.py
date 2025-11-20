@@ -61,6 +61,10 @@ def _find_entry(name: str, manifest: dict) -> tuple[str, dict] | tuple[None, Non
         entry = manifest.get(key)
         if entry:
             return key, entry
+    # fall back to matching by Rollup/Vite entry "name" field
+    for key, entry in manifest.items():
+        if isinstance(entry, dict) and entry.get("name") == name:
+            return key, entry
     return None, None
 
 

@@ -62,6 +62,7 @@ urlpatterns = [
     path("items/<int:pk>/edit/", ItemUpdateView.as_view(), name="item_update"),
     # Reports
     path("profit-loss/", views.report_pnl, name="report_pnl"),
+    path("reports/cashflow/", views.cashflow_report_view, name="cashflow_report"),
     path("reports/pl-shadow/", views.pl_shadow_view, name="pl_shadow"),
     path("reports/pl-export/", views.pl_export_csv, name="pl_export_csv"),
     path("bank-accounts/", views.bank_account_list, name="bank_account_list"),

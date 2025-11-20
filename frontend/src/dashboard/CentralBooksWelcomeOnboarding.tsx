@@ -1,27 +1,36 @@
 import React from "react";
 
-export interface CentralBooksWelcomeOnboardingProps {
+interface CentralBooksWelcomeOnboardingProps {
   onStartBooks?: () => void;
   onUploadSampleCsv?: () => void;
 }
 
-const CentralBooksWelcomeOnboarding: React.FC<
-  CentralBooksWelcomeOnboardingProps
-> = ({ onStartBooks, onUploadSampleCsv }) => {
+const CentralBooksWelcomeOnboarding: React.FC<CentralBooksWelcomeOnboardingProps> = ({
+  onStartBooks,
+  onUploadSampleCsv,
+}) => {
   return (
     <div className="min-h-screen w-full bg-slate-50 text-slate-900 flex items-center justify-center px-4 py-10">
       <div className="max-w-6xl w-full grid gap-10 lg:grid-cols-[1.1fr,0.9fr] items-stretch">
+        {/* Left: copy + actions */}
         <section className="bg-white/90 backdrop-blur rounded-3xl shadow-lg border border-slate-100 px-7 sm:px-9 py-8 sm:py-10 flex flex-col gap-8">
-          <div className="space-y-3">
-            <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight text-slate-900">
-              Welcome to Mini-Books.
-            </h1>
-            <p className="text-sm sm:text-base text-slate-600 max-w-xl">
-              Calm accounting for real-world money. Connect a bank, import a CSV,
-              and let Mini-Books keep your invoices, expenses, and ledger in sync.
-            </p>
+          {/* Badge & title */}
+          <div className="space-y-4">
+            <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              <span>Central-Books · Welcome</span>
+            </div>
+            <div className="space-y-3">
+              <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight text-slate-900">
+                Welcome to your new finance workspace.
+              </h1>
+              <p className="text-sm sm:text-base text-slate-600 max-w-xl">
+                Start by connecting a bank, importing a CSV, or exploring with sample data. Central-Books keeps your invoices, expenses, and ledger in sync so you always see a clean picture of your business.
+              </p>
+            </div>
           </div>
 
+          {/* Steps */}
           <div className="grid gap-4 sm:grid-cols-3 text-sm">
             <div className="rounded-2xl border border-slate-100 bg-slate-50/60 px-4 py-3 flex flex-col gap-1.5">
               <div className="inline-flex items-center gap-2 text-xs font-medium text-sky-700">
@@ -31,8 +40,7 @@ const CentralBooksWelcomeOnboarding: React.FC<
                 Basics
               </div>
               <p className="text-xs text-slate-600">
-                Name your workspace, pick currency, and we’ll scaffold a clean chart
-                of accounts and tax defaults.
+                Confirm your workspace name, choose your home currency (CAD / USD), and we’ll scaffold a clean chart of accounts and tax defaults.
               </p>
             </div>
 
@@ -44,8 +52,7 @@ const CentralBooksWelcomeOnboarding: React.FC<
                 Connect money
               </div>
               <p className="text-xs text-slate-600">
-                Start with a bank CSV or provider export. Our reconciliation engine
-                helps you match movements to invoices, expenses, and ledger entries.
+                Start with a bank CSV or provider export. Our reconciliation engine helps you match movements to invoices, expenses, and ledger entries.
               </p>
             </div>
 
@@ -57,12 +64,12 @@ const CentralBooksWelcomeOnboarding: React.FC<
                 Stay in control
               </div>
               <p className="text-xs text-slate-600">
-                Live balances on the dashboard, clean P&amp;L, and invoice status at a
-                glance, plus gentle AI suggestions you can accept or ignore.
+                Live balances on the dashboard, clean P&amp;L and invoice status at a glance, plus gentle AI suggestions you can accept or ignore.
               </p>
             </div>
           </div>
 
+          {/* Actions */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
             <button
               type="button"
@@ -80,11 +87,18 @@ const CentralBooksWelcomeOnboarding: React.FC<
             >
               Upload a sample bank CSV
             </button>
+
+            <p className="text-xs text-slate-500 sm:ml-auto">
+              You can configure banks, tax defaults, and more from
+              <span className="font-medium"> Settings → Workspace</span> any time.
+            </p>
           </div>
         </section>
 
+        {/* Right: "sketch" illustration */}
         <aside className="relative">
           <div className="relative h-full rounded-3xl border border-slate-100 bg-gradient-to-br from-sky-50 via-white to-indigo-50 shadow-sm p-6 sm:p-7 flex flex-col justify-between overflow-hidden">
+            {/* Top faux app chrome */}
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-1.5">
                 <span className="h-2.5 w-2.5 rounded-full bg-slate-300" />
@@ -100,20 +114,28 @@ const CentralBooksWelcomeOnboarding: React.FC<
               </div>
             </div>
 
+            {/* Main sketch card */}
             <div className="flex-1 flex flex-col gap-4">
               <div className="rounded-2xl bg-white/90 border border-slate-100 shadow-sm p-4 flex flex-col gap-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs uppercase tracking-wide text-slate-500">Cash position</p>
-                    <p className="mt-1 text-xl font-semibold text-slate-900">$24,380.12</p>
+                    <p className="text-xs uppercase tracking-wide text-slate-500">
+                      Cash position
+                    </p>
+                    <p className="mt-1 text-xl font-semibold text-slate-900">
+                      $24,380.12
+                    </p>
                   </div>
                   <div className="flex items-center gap-1.5 text-[11px] text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                     <span>+12.4% this month</span>
                   </div>
                 </div>
+
+                {/* Simple line chart sketch */}
                 <div className="relative mt-1 h-28 rounded-xl bg-slate-50 overflow-hidden">
                   <div className="absolute inset-x-3 bottom-4 top-5 flex items-end gap-2">
+                    {/* Bars / line illusion */}
                     <div className="flex-1 rounded-full bg-sky-100 h-6" />
                     <div className="flex-1 rounded-full bg-sky-200 h-10" />
                     <div className="flex-1 rounded-full bg-sky-300 h-16" />
@@ -125,6 +147,7 @@ const CentralBooksWelcomeOnboarding: React.FC<
                 </div>
               </div>
 
+              {/* Two smaller cards: invoice + bank match */}
               <div className="grid sm:grid-cols-2 gap-3">
                 <div className="rounded-2xl bg-white/90 border border-slate-100 shadow-sm p-3 flex flex-col gap-2">
                   <div className="flex items-center justify-between text-xs">
@@ -135,7 +158,9 @@ const CentralBooksWelcomeOnboarding: React.FC<
                   </div>
                   <p className="text-xs text-slate-500">Studio design retainer</p>
                   <div className="flex items-center justify-between mt-1">
-                    <span className="text-sm font-semibold text-slate-900">$1,800.00</span>
+                    <span className="text-sm font-semibold text-slate-900">
+                      $1,800.00
+                    </span>
                     <span className="text-[11px] text-slate-500">via TD • 2d ago</span>
                   </div>
                 </div>
@@ -165,6 +190,7 @@ const CentralBooksWelcomeOnboarding: React.FC<
               </div>
             </div>
 
+            {/* Floating labels to feel "sketchy" / illustrative */}
             <div className="pointer-events-none select-none">
               <div className="absolute -left-2 top-10 hidden md:flex items-center gap-2 rounded-full border border-slate-200 bg-white/90 px-3 py-1.5 text-[11px] text-slate-700 shadow-sm">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />

@@ -1,4 +1,5 @@
 from decimal import Decimal
+from datetime import datetime
 
 from django import forms
 from django.contrib.auth.models import User
@@ -76,7 +77,7 @@ class BusinessForm(forms.ModelForm):
 
     class Meta:
         model = Business
-        fields = ["name", "currency"]
+        fields = ["name", "currency", "fiscal_year_start"]
 
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop("user", None)
@@ -87,6 +88,16 @@ class BusinessForm(forms.ModelForm):
         if not name:
             raise ValidationError("Business name is required.")
         return name
+
+    def clean_fiscal_year_start(self):
+        value = (self.cleaned_data.get("fiscal_year_start") or "").strip()
+        if not value:
+            raise ValidationError("Financial year start is required.")
+        try:
+            datetime.strptime(value, "%m-%d")
+        except ValueError:
+            raise ValidationError("Use MM-DD format, e.g. 01-01 for January 1.")
+        return value
 
     def clean(self):
         cleaned_data = super().clean()
@@ -113,7 +124,7 @@ class BusinessProfileForm(forms.ModelForm):
 
     class Meta:
         model = Business
-        fields = ["name", "currency"]
+        fields = ["name", "currency", "fiscal_year_start"]
 
     def clean_name(self):
         name = (self.cleaned_data.get("name") or "").strip()
@@ -125,6 +136,16 @@ class BusinessProfileForm(forms.ModelForm):
         if qs.exists():
             raise ValidationError("Another business already uses this name.")
         return name
+
+    def clean_fiscal_year_start(self):
+        value = (self.cleaned_data.get("fiscal_year_start") or "").strip()
+        if not value:
+            raise ValidationError("Financial year start is required.")
+        try:
+            datetime.strptime(value, "%m-%d")
+        except ValueError:
+            raise ValidationError("Use MM-DD format, e.g. 01-01 for January 1.")
+        return value
 
 
 class CustomerForm(forms.ModelForm):

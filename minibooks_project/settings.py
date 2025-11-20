@@ -39,6 +39,7 @@ def _get_bool_env(name: str, default: bool) -> bool:
 
 
 DEBUG = _get_bool_env("DJANGO_DEBUG", _get_bool_env("DEBUG", True))
+SHOW_LOGIN_FALLBACK = os.getenv("SHOW_LOGIN_FALLBACK", "true").lower() == "true"
 
 
 def _parse_hosts(value: str | None) -> list[str]:
@@ -51,9 +52,11 @@ allowed_hosts = _parse_hosts(os.getenv("DJANGO_ALLOWED_HOSTS") or os.getenv("ALL
 ALLOWED_HOSTS: list[str] = allowed_hosts or ["127.0.0.1", "localhost"]
 
 # Trust deployment hosts for CSRF-protected POSTs (Render + optional overrides)
-CSRF_TRUSTED_ORIGINS = [
-    "https://central-books-web.onrender.com",
-]
+if not DEBUG:
+    CSRF_TRUSTED_ORIGINS = [
+        "https://central-books-web.onrender.com",
+        "https://central-books.onrender.com",
+    ]
 
 INSTALLED_APPS = [
     "django.contrib.admin",

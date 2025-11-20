@@ -95,6 +95,15 @@ def account_detail_view(request, account_id):
         if bank_account
         else 0
     )
+    
+    # Compute bank feed balance as sum of all bank transactions
+    bank_feed_balance = Decimal("0.00")
+    if bank_account:
+        bank_tx_sum = BankTransaction.objects.filter(
+            bank_account=bank_account
+        ).aggregate(total=Sum("amount"))["total"]
+        bank_feed_balance = bank_tx_sum or Decimal("0.00")
+    
     link_bank_feed_url = (
         reverse("bank_feed_review", args=[bank_account.id]) if bank_account else ""
     )
@@ -112,6 +121,7 @@ def account_detail_view(request, account_id):
         "bank_last4": bank_account.account_number_mask if bank_account else "",
         "bank_display_name": bank_account.name if bank_account else "",
         "balance": float(balance),
+        "bank_feed_balance": float(bank_feed_balance),
         "period_deposits": float(period_deposits),
         "period_withdrawals": float(period_withdrawals),
         "period_count": period_count,

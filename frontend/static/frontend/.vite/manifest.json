@@ -1,85 +1,94 @@
 {
-  "_client-CnuwemY9.js": {
-    "file": "assets/client-CnuwemY9.js",
-    "name": "client"
+  "_index-!~{00a}~.js": {
+    "file": "assets/index-R1WpMQ00.css",
+    "src": "_index-!~{00a}~.js"
   },
-  "_index-!~{009}~.js": {
-    "file": "assets/index-B8YPi2b9.css",
-    "src": "_index-!~{009}~.js"
+  "_index-C2jKEstN.js": {
+    "file": "assets/index-C2jKEstN.js",
+    "name": "index",
+    "css": [
+      "assets/index-R1WpMQ00.css"
+    ]
   },
   "auth/login-entry.tsx": {
-    "file": "assets/login-DUkLxXzs.js",
+    "file": "assets/login-C4aIRVis.js",
     "name": "login",
     "src": "auth/login-entry.tsx",
     "isEntry": true,
     "imports": [
-      "_client-CnuwemY9.js"
+      "_index-C2jKEstN.js"
+    ]
+  },
+  "auth/signup-entry.tsx": {
+    "file": "assets/signup-Cq5Oc6Ov.js",
+    "name": "signup",
+    "src": "auth/signup-entry.tsx",
+    "isEntry": true,
+    "imports": [
+      "_index-C2jKEstN.js"
     ]
   },
   "bank-feed.tsx": {
-    "file": "assets/bank-feed-BI3KMx3F.js",
+    "file": "assets/bank-feed-DdeToyEI.js",
     "name": "bank-feed",
     "src": "bank-feed.tsx",
     "isEntry": true,
     "imports": [
-      "_client-CnuwemY9.js"
-    ],
-    "css": [
-      "assets/index-B8YPi2b9.css"
+      "_index-C2jKEstN.js"
     ]
   },
   "banking-accounts-feed.tsx": {
-    "file": "assets/banking-accounts-feed-DY2SV4kv.js",
+    "file": "assets/banking-accounts-feed-DS-xPtal.js",
     "name": "banking-accounts-feed",
     "src": "banking-accounts-feed.tsx",
     "isEntry": true,
     "imports": [
-      "_client-CnuwemY9.js"
-    ],
-    "css": [
-      "assets/index-B8YPi2b9.css"
+      "_index-C2jKEstN.js"
     ]
   },
   "chart-of-accounts.tsx": {
-    "file": "assets/chart-of-accounts-D3tOnkl_.js",
+    "file": "assets/chart-of-accounts-CShlDI6T.js",
     "name": "chart-of-accounts",
     "src": "chart-of-accounts.tsx",
     "isEntry": true,
     "imports": [
-      "_client-CnuwemY9.js"
-    ],
-    "css": [
-      "assets/index-B8YPi2b9.css"
+      "_index-C2jKEstN.js"
     ]
   },
   "coa-account-detail.tsx": {
-    "file": "assets/coa-account-detail-BehYHvlU.js",
+    "file": "assets/coa-account-detail-zkVC7JdV.js",
     "name": "coa-account-detail",
     "src": "coa-account-detail.tsx",
     "isEntry": true,
     "imports": [
-      "_client-CnuwemY9.js"
-    ],
-    "css": [
-      "assets/index-B8YPi2b9.css"
+      "_index-C2jKEstN.js"
     ]
   },
-  "entries/dashboard_welcome.tsx": {
-    "file": "assets/dashboard-welcome-D56Wm7fQ.js",
-    "name": "dashboard-welcome",
-    "src": "entries/dashboard_welcome.tsx",
+  "dashboard/dashboard-entry.tsx": {
+    "file": "assets/dashboard-CnjPGqq_.js",
+    "name": "dashboard",
+    "src": "dashboard/dashboard-entry.tsx",
     "isEntry": true,
     "imports": [
-      "_client-CnuwemY9.js"
+      "_index-C2jKEstN.js"
+    ]
+  },
+  "reports/cashflow-report-entry.tsx": {
+    "file": "assets/cashflow-report-n_n96Hc6.js",
+    "name": "cashflow-report",
+    "src": "reports/cashflow-report-entry.tsx",
+    "isEntry": true,
+    "imports": [
+      "_index-C2jKEstN.js"
     ]
   },
   "settings/account-settings-entry.tsx": {
-    "file": "assets/account-settings-CiCjz-Kc.js",
+    "file": "assets/account-settings-B_-rAlds.js",
     "name": "account-settings",
     "src": "settings/account-settings-entry.tsx",
     "isEntry": true,
     "imports": [
-      "_client-CnuwemY9.js"
+      "_index-C2jKEstN.js"
     ]
   }
 }

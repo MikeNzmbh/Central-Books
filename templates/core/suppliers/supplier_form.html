@@ -133,6 +133,7 @@
     .mb-form-grid {
       grid-template-columns: minmax(0, 1fr);
     }
+
     .mb-form-grid-full {
       grid-column: auto;
     }
@@ -158,6 +159,7 @@
 <div class="mb-page">
   <form method="post" novalidate>
     {% csrf_token %}
+    {% if request.GET.next %}<input type="hidden" name="next" value="{{ request.GET.next }}">{% endif %}
 
     <header class="mb-header">
       <div>
@@ -182,138 +184,138 @@
     </header>
 
     {% if form.non_field_errors %}
-      <div class="mb-nonfield-errors">
-        {% for error in form.non_field_errors %}
-          <div>{{ error }}</div>
-        {% endfor %}
-      </div>
+    <div class="mb-nonfield-errors">
+      {% for error in form.non_field_errors %}
+      <div>{{ error }}</div>
+      {% endfor %}
+    </div>
     {% endif %}
 
     <div class="mb-page-body">
       <div class="mb-layout">
         <div class="mb-main">
           <section class="mb-card">
-          <div class="mb-card-header">
-            <div>
-              <h2 class="mb-card-title">Supplier details</h2>
-              <p class="mb-card-subtitle">
-                Basic info used on expenses and reports.
-              </p>
+            <div class="mb-card-header">
+              <div>
+                <h2 class="mb-card-title">Supplier details</h2>
+                <p class="mb-card-subtitle">
+                  Basic info used on expenses and reports.
+                </p>
+              </div>
+              <span class="mb-card-helper">
+                Required fields are marked with <span style="color:#ff3b30">*</span>.
+              </span>
             </div>
-            <span class="mb-card-helper">
-              Required fields are marked with <span style="color:#ff3b30">*</span>.
-            </span>
-          </div>
 
-          <div class="mb-form-grid">
-            <div class="mb-field">
-              <label class="mb-label">
-                Supplier name
-                {% if form.name.field.required %}<span class="required">*</span>{% endif %}
-              </label>
-              {{ form.name }}
-              {% for error in form.name.errors %}
+            <div class="mb-form-grid">
+              <div class="mb-field">
+                <label class="mb-label">
+                  Supplier name
+                  {% if form.name.field.required %}<span class="required">*</span>{% endif %}
+                </label>
+                {{ form.name }}
+                {% for error in form.name.errors %}
                 <div class="mb-error">{{ error }}</div>
-              {% endfor %}
-            </div>
+                {% endfor %}
+              </div>
 
-            {% if form.contact_name %}
+              {% if form.contact_name %}
               <div class="mb-field">
                 <label class="mb-label">Contact name</label>
                 {{ form.contact_name }}
                 {% for error in form.contact_name.errors %}
-                  <div class="mb-error">{{ error }}</div>
+                <div class="mb-error">{{ error }}</div>
                 {% endfor %}
               </div>
-            {% endif %}
-          </div>
+              {% endif %}
+            </div>
 
-          <div class="mb-contact-pair">
-            {% if form.email %}
+            <div class="mb-contact-pair">
+              {% if form.email %}
               <div class="mb-field">
                 <label class="mb-label">Email</label>
                 {{ form.email }}
                 {% for error in form.email.errors %}
-                  <div class="mb-error">{{ error }}</div>
+                <div class="mb-error">{{ error }}</div>
                 {% endfor %}
               </div>
-            {% endif %}
+              {% endif %}
 
-            {% if form.phone %}
+              {% if form.phone %}
               <div class="mb-field">
                 <label class="mb-label">Phone</label>
                 {{ form.phone }}
                 {% for error in form.phone.errors %}
-                  <div class="mb-error">{{ error }}</div>
+                <div class="mb-error">{{ error }}</div>
                 {% endfor %}
               </div>
-            {% endif %}
-          </div>
+              {% endif %}
+            </div>
 
-          {% if form.default_category %}
+            {% if form.default_category %}
             <div class="mb-form-grid mb-form-grid-full" style="margin-top: 12px;">
               <div class="mb-field">
                 <label class="mb-label">Default expense category</label>
                 {{ form.default_category }}
                 {% for error in form.default_category.errors %}
-                  <div class="mb-error">{{ error }}</div>
+                <div class="mb-error">{{ error }}</div>
                 {% endfor %}
               </div>
             </div>
-          {% endif %}
-        </section>
+            {% endif %}
+          </section>
 
-        <section class="mb-card">
-          <h2 class="mb-card-title" style="margin-bottom: 6px;">Notes &amp; recurring info</h2>
-          <p class="mb-card-subtitle" style="margin-bottom: 10px;">
-            Use this space to track recurring payments, account numbers, or next payment dates.
-          </p>
+          <section class="mb-card">
+            <h2 class="mb-card-title" style="margin-bottom: 6px;">Notes &amp; recurring info</h2>
+            <p class="mb-card-subtitle" style="margin-bottom: 10px;">
+              Use this space to track recurring payments, account numbers, or next payment dates.
+            </p>
 
-          {% if form.notes %}
+            {% if form.notes %}
             <div class="mb-field">
               {{ form.notes }}
               {% for error in form.notes.errors %}
-                <div class="mb-error">{{ error }}</div>
+              <div class="mb-error">{{ error }}</div>
               {% endfor %}
             </div>
-          {% endif %}
-        </section>
+            {% endif %}
+          </section>
+        </div>
+
+        <aside class="mb-aside">
+          <section class="mb-card">
+            <h2 class="mb-card-title" style="margin-bottom: 6px;">Supplier overview</h2>
+            <p class="mb-card-subtitle" style="margin-bottom: 12px;">
+              Once you start recording expenses, you’ll see total spend and trends here.
+            </p>
+
+            <div style="display:flex; flex-direction:column; gap:8px; font-size:13px;">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="color:#6e6e73;">Total spend</span>
+                <span style="font-weight:600; color:#b0b0b5;">0.00 {{ business.currency }}</span>
+              </div>
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="color:#6e6e73;">This year</span>
+                <span style="font-weight:600; color:#b0b0b5;">0.00 {{ business.currency }}</span>
+              </div>
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="color:#6e6e73;">Average monthly spend</span>
+                <span style="font-weight:600; color:#b0b0b5;">—</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="mb-card mb-card-ghost">
+            <p class="mb-card-helper" style="font-weight:600; margin-bottom:4px;">
+              Tip for recurring bills
+            </p>
+            <p class="mb-card-helper">
+              Use the notes area to track subscriptions and expected charge dates. It’s a zero-setup way
+              to keep an eye on recurring costs.
+            </p>
+          </section>
+        </aside>
       </div>
-
-      <aside class="mb-aside">
-        <section class="mb-card">
-          <h2 class="mb-card-title" style="margin-bottom: 6px;">Supplier overview</h2>
-          <p class="mb-card-subtitle" style="margin-bottom: 12px;">
-            Once you start recording expenses, you’ll see total spend and trends here.
-          </p>
-
-          <div style="display:flex; flex-direction:column; gap:8px; font-size:13px;">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-              <span style="color:#6e6e73;">Total spend</span>
-              <span style="font-weight:600; color:#b0b0b5;">0.00 {{ business.currency }}</span>
-            </div>
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-              <span style="color:#6e6e73;">This year</span>
-              <span style="font-weight:600; color:#b0b0b5;">0.00 {{ business.currency }}</span>
-            </div>
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-              <span style="color:#6e6e73;">Average monthly spend</span>
-              <span style="font-weight:600; color:#b0b0b5;">—</span>
-            </div>
-          </div>
-        </section>
-
-        <section class="mb-card mb-card-ghost">
-          <p class="mb-card-helper" style="font-weight:600; margin-bottom:4px;">
-            Tip for recurring bills
-          </p>
-          <p class="mb-card-helper">
-            Use the notes area to track subscriptions and expected charge dates. It’s a zero-setup way
-            to keep an eye on recurring costs.
-          </p>
-        </section>
-      </aside>
-    </div>
   </form>
 </div>
 

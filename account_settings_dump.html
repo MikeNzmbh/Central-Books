@@ -1,0 +1,240 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Mini-Books</title>
+    <link rel="stylesheet" href="/static/css/app.css">
+    
+    
+    <style>
+      .mb-page-shell{min-height:100vh;background:#f8fafc;color:#0f172a;font-family:system-ui,-apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif;padding:40px 48px;}
+      .mb-page-header{display:flex;flex-wrap:wrap;justify-content:space-between;gap:24px;margin-bottom:32px;}
+      .mb-kicker{font-size:11px;font-weight:600;letter-spacing:0.18em;text-transform:uppercase;color:#94a3b8;margin-bottom:6px;}
+      .mb-page-title{margin:0;font-size:28px;font-weight:600;letter-spacing:-0.01em;}
+      .mb-page-subtitle{font-size:13px;color:#64748b;max-width:460px;margin-top:4px;}
+      .mb-page-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+      .mb-btn{border-radius:999px;border:1px solid transparent;font-size:13px;font-weight:600;padding:6px 18px;cursor:pointer;transition:.15s;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;}
+      .mb-btn-primary{background:#0ea5e9;border-color:#0ea5e9;color:#fff;}
+      .mb-btn-primary:hover{background:#0284c7;border-color:#0284c7;}
+      .mb-btn-secondary{background:#fff;border-color:#e2e8f0;color:#0f172a;}
+      .mb-page-grid{display:grid;gap:24px;grid-template-columns:minmax(0,3fr) minmax(0,2fr);}
+      .mb-card{border-radius:24px;background:#fff;border:1px solid #e2e8f0;box-shadow:0 18px 45px rgba(15,23,42,.06);}
+      .mb-card-header{display:flex;justify-content:space-between;gap:16px;padding:18px 24px;border-bottom:1px solid #e2e8f0;}
+      .mb-card-title{margin:0;font-size:14px;font-weight:600;}
+      .mb-card-subtitle{margin:0;font-size:12px;color:#64748b;}
+      .mb-card-meta{font-size:11px;color:#94a3b8;white-space:nowrap;}
+      .mb-card-body{padding:18px 24px;}
+      .mb-field{margin-bottom:18px;}
+      .mb-label{display:block;font-size:12px;font-weight:500;color:#475569;margin-bottom:4px;}
+      .mb-text-required{color:#fb7185;}
+      .mb-input{width:100%;height:40px;border-radius:20px;border:1px solid #e2e8f0;background:#f8fafc;padding:0 14px;font-size:13px;color:#0f172a;outline:none;transition:.15s;}
+      .mb-input:focus{background:#fff;border-color:#0ea5e9;box-shadow:0 0 0 2px rgba(14,165,233,.12);}
+      .mb-input[type="file"]{padding:6px 14px;height:auto;background:#fff;display:flex;align-items:center;gap:12px;}
+      .mb-input[type="file"]::file-selector-button{margin-right:12px;border:1px solid #bae6fd;background:#e0f2fe;color:#0f172a;border-radius:999px;padding:6px 14px;font-weight:600;font-size:12px;cursor:pointer;transition:.15s;}
+      .mb-input[type="file"]::file-selector-button:hover{background:#bae6fd;border-color:#7dd3fc;}
+      .mb-input[type="file"]::-webkit-file-upload-button{margin-right:12px;border:1px solid #bae6fd;background:#e0f2fe;color:#0f172a;border-radius:999px;padding:6px 14px;font-weight:600;font-size:12px;cursor:pointer;transition:.15s;}
+      .mb-input[type="file"]::-webkit-file-upload-button:hover{background:#bae6fd;border-color:#7dd3fc;}
+      .mb-textarea{width:100%;border-radius:20px;border:1px solid #e2e8f0;background:#f8fafc;padding:10px 14px;font-size:13px;color:#0f172a;outline:none;transition:.15s;min-height:96px;}
+      .mb-textarea:focus{background:#fff;border-color:#0ea5e9;box-shadow:0 0 0 2px rgba(14,165,233,.12);}
+      .mb-hint{font-size:11px;color:#94a3b8;margin-top:4px;}
+      .mb-error{font-size:11px;color:#b91c1c;margin-top:4px;}
+      .mb-overview-label{font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.08em;}
+      .mb-overview-value{font-size:13px;font-weight:600;color:#0f172a;}
+      .mb-pill-toggle{display:inline-flex;gap:6px;padding:4px;border-radius:999px;background:#f1f5f9;}
+      .mb-pill-toggle input{display:none;}
+      .mb-pill-option{display:inline-flex;}
+  .mb-pill-option span{padding:6px 18px;border-radius:999px;font-size:12px;font-weight:600;color:#475569;}
+  .mb-pill-option input:checked + span{background:#fff;box-shadow:0 6px 16px rgba(15,23,42,.15);color:#0f172a;}
+  @media (max-width:960px){.mb-page-shell{padding:32px 20px;}.mb-page-grid{grid-template-columns:1fr;}}
+  .mb-status-pill{display:inline-flex;align-items:center;gap:6px;padding:4px 14px;border-radius:999px;background:#ecfdf5;border:1px solid #bbf7d0;font-size:11px;font-weight:600;color:#047857;}
+  .mb-status-dot{width:8px;height:8px;border-radius:999px;background:#22c55e;box-shadow:0 0 0 4px rgba(34,197,94,.18);}
+  .mb-status-dot--tiny{width:6px;height:6px;box-shadow:none;margin-right:2px;}
+  .mb-status-text{letter-spacing:.02em;}
+  .mb-page-side{display:flex;flex-direction:column;gap:16px;}
+  .mb-card-side{box-shadow:0 16px 36px rgba(15,23,42,.05);}
+  .mb-card-body-muted{font-size:11px;color:#61708d;line-height:1.6;}
+  .mb-card-tip{background:linear-gradient(135deg,#f8fafc,#eef2ff);border-bottom-left-radius:24px;border-bottom-right-radius:24px;}
+  .mb-overview-row{margin-bottom:12px;}
+  .mb-overview-row:last-child{margin-bottom:0;}
+  .mb-overview-value-active{display:inline-flex;align-items:center;gap:6px;color:#047857;font-weight:600;}
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="app-sidebar">
+        <div>
+          <div class="sidebar-header">
+            <a href="/dashboard/" class="sidebar-brand">
+              <div class="sidebar-logo-circle">
+                
+                  MB
+                
+              </div>
+              <div class="sidebar-brand-text">
+                <div class="sidebar-app-name">Mini-Books</div>
+                <div class="sidebar-business-name">
+                  Your business
+                </div>
+              </div>
+            </a>
+
+            <button class="sidebar-logo-cta" type="button">
+              <span>＋ Upload business logo</span>
+            </button>
+
+            <div class="sidebar-new-wrapper">
+              <button id="globalNewButton" class="sidebar-new-btn" type="button">
+                <span class="sidebar-new-plus">+</span>
+                <span class="sidebar-new-label">New</span>
+                <span class="sidebar-new-caret">⌄</span>
+              </button>
+              <div id="globalNewMenu" class="sidebar-new-menu">
+                <a href="/invoices/new/" class="sidebar-new-item">Invoice</a>
+                <a href="/expenses/new/" class="sidebar-new-item">Expense</a>
+                <div class="sidebar-new-separator"></div>
+                <a href="/customers/new/" class="sidebar-new-item">Customer</a>
+                <a href="/suppliers/new/" class="sidebar-new-item">Supplier</a>
+              </div>
+            </div>
+          </div>
+
+          <nav>
+            <div class="sidebar-nav-section-label">Main</div>
+            <a href="/dashboard/"
+               class="sidebar-link">
+              <span class="sidebar-link-dot"></span> Dashboard
+            </a>
+
+            <div class="sidebar-nav-section-label">Sales</div>
+            <a href="/customers/"
+               class="sidebar-link">
+              <span class="sidebar-link-dot"></span> Customers
+            </a>
+            <a href="/products/"
+               class="sidebar-link">
+              <span class="sidebar-link-dot"></span> Products &amp; Services
+            </a>
+            <a href="/invoices/"
+               class="sidebar-link">
+              <span class="sidebar-link-dot"></span> Invoices
+            </a>
+
+            <div class="sidebar-nav-section-label">Expenses</div>
+            <a href="/suppliers/"
+               class="sidebar-link">
+              <span class="sidebar-link-dot"></span> Suppliers
+            </a>
+            <a href="/expenses/"
+               class="sidebar-link">
+              <span class="sidebar-link-dot"></span> Expenses
+            </a>
+            <a href="/categories/"
+               class="sidebar-link">
+              <span class="sidebar-link-dot"></span> Categories
+            </a>
+
+            <div class="sidebar-nav-section-label">Banking</div>
+            
+            <a href="/banking/"
+               class="sidebar-link">
+              <span class="sidebar-link-dot"></span> Banking
+            </a>
+            
+
+            <div class="sidebar-nav-section-label">Reports</div>
+            <a href="/profit-loss/"
+               class="sidebar-link">
+              <span class="sidebar-link-dot"></span> Profit &amp; Loss
+            </a>
+            <a href="/accounts/"
+               class="sidebar-link">
+              <span class="sidebar-link-dot"></span> Chart of Accounts
+            </a>
+          </nav>
+        </div>
+
+        <div class="sidebar-footer">
+          <div class="sidebar-user-row">
+            <div class="sidebar-user-avatar">
+              
+                A
+              
+            </div>
+            <div>
+              <div class="sidebar-user-name">
+                
+                  accounttest
+                
+              </div>
+              <div class="sidebar-user-caption">
+                Signed in
+              </div>
+            </div>
+          </div>
+
+          
+          <a href="/settings/account/" class="sidebar-settings-link">
+            ⚙ Account settings
+          </a>
+          <form method="post" action="/logout/">
+            <input type="hidden" name="csrfmiddlewaretoken" value="XBsPgvcOtqEsJvQfSAzdCQdUMTpAQeVod1vIYLw0auVVIB2mi9LBH0SRuEIDiP2g">
+            <button class="sidebar-logout-btn" type="submit">Logout</button>
+          </form>
+          
+        </div>
+      </aside>
+
+      <main class="app-main">
+        <div class="app-main-inner">
+          
+  <div id="account-settings-root"></div>
+  <script id="account-settings-data" type="application/json">
+    {"csrfToken": "qtKpvi2xHpZNaNGBYTenpZypwfiWqDY5GTNidymJotgg9TSIosqLu9dme0BZSe5X", "profileForm": {"form_id": "profile", "action": "/settings/account/", "method": "post", "fields": [{"name": "user-first_name", "id": "id_user-first_name", "label": "First name", "value": "", "errors": [], "type": "text", "choices": null, "required": false, "help_text": ""}, {"name": "user-last_name", "id": "id_user-last_name", "label": "Last name", "value": "", "errors": [], "type": "text", "choices": null, "required": false, "help_text": ""}, {"name": "user-email", "id": "id_user-email", "label": "Email address", "value": "account@example.com", "errors": [], "type": "email", "choices": null, "required": false, "help_text": ""}], "non_field_errors": [], "hidden_fields": []}, "businessForm": null, "passwordForm": {"form_id": "password", "action": "/settings/account/", "method": "post", "fields": [{"name": "password-old_password", "id": "id_password-old_password", "label": "Old password", "value": "", "errors": [], "type": "password", "choices": null, "required": true, "help_text": ""}, {"name": "password-new_password1", "id": "id_password-new_password1", "label": "New password", "value": "", "errors": [], "type": "password", "choices": null, "required": true, "help_text": ""}, {"name": "password-new_password2", "id": "id_password-new_password2", "label": "New password confirmation", "value": "", "errors": [], "type": "password", "choices": null, "required": true, "help_text": "Enter the same password as before, for verification."}], "non_field_errors": [], "hidden_fields": []}, "sessions": {"current_ip": "127.0.0.1", "user_agent": ""}, "postUrls": {"profile": "/settings/account/", "business": "/settings/account/", "password": "/settings/account/", "logoutAll": "#"}, "messages": []}
+  </script>
+  
+  
+    <link rel="stylesheet" href="/static/frontend/assets/index-zrUzx6WS.css">
+  
+  
+  
+    <script type="module" src="/static/frontend/assets/account-settings-UuPOZMlc.js"></script>
+  
+
+        </div>
+      </main>
+    </div>
+    <script>
+      document.addEventListener('DOMContentLoaded', function () {
+        var btn = document.getElementById('globalNewButton');
+        var menu = document.getElementById('globalNewMenu');
+        if (!btn || !menu) return;
+
+        function closeMenu() {
+          menu.classList.remove('is-open');
+        }
+
+        function toggleMenu() {
+          menu.classList.toggle('is-open');
+        }
+
+        btn.addEventListener('click', function (event) {
+          event.preventDefault();
+          event.stopPropagation();
+          toggleMenu();
+        });
+
+        document.addEventListener('click', function () {
+          closeMenu();
+        });
+
+        document.addEventListener('keydown', function (e) {
+          if (e.key === 'Escape') {
+            closeMenu();
+          }
+        });
+      });
+    </script>
+  </body>
+</html>

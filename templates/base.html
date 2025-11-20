@@ -152,10 +152,21 @@
                class="sidebar-link{% if request.resolver_match.url_name == 'report_pnl' %} active{% endif %}">
               <span class="sidebar-link-dot"></span> Profit &amp; Loss
             </a>
+            <a href="{% url 'cashflow_report' %}"
+               class="sidebar-link{% if request.resolver_match.url_name == 'cashflow_report' %} active{% endif %}">
+              <span class="sidebar-link-dot"></span> Cashflow
+            </a>
             <a href="{% url 'account_list' %}"
                class="sidebar-link{% if request.resolver_match.url_name == 'account_list' %} active{% endif %}">
               <span class="sidebar-link-dot"></span> Chart of Accounts
             </a>
+            <div class="sidebar-nav-section-label">Account</div>
+            {% if request.user.is_authenticated %}
+              <a href="{% url 'account_settings' %}"
+                 class="sidebar-link{% if request.resolver_match.url_name == 'account_settings' %} active{% endif %}">
+                <span class="sidebar-link-dot"></span> Account settings
+              </a>
+            {% endif %}
           </nav>
         </div>
 
@@ -183,9 +194,6 @@
           </div>
 
           {% if request.user.is_authenticated %}
-          <a href="{% url 'account_settings' %}" class="sidebar-settings-link">
-            ⚙ Account settings
-          </a>
           <form method="post" action="{% url 'logout' %}">
             {% csrf_token %}
             <button class="sidebar-logout-btn" type="submit">Logout</button>

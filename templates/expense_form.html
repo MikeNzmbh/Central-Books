@@ -4,48 +4,234 @@
 
 {% block content %}
 <style>
-  .mb-shell { min-height: 100vh; background: #f8fafc; font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif; color: #0f172a; padding: 32px 24px 40px; }
-  .mb-shell-inner { max-width: 1120px; margin: 0 auto; }
-  .mb-header { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:24px; }
-  .mb-kicker { text-transform:uppercase; letter-spacing:0.18em; font-size:11px; font-weight:600; color:#94a3b8; margin-bottom:6px; }
-  .mb-title { font-size:24px; font-weight:600; letter-spacing:-0.02em; margin-bottom:4px; }
-  .mb-subtitle { font-size:13px; color:#64748b; max-width:520px; margin:0; }
-  .mb-header-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-  .mb-chip { border-radius:999px; border:1px solid #e2e8f0; background:#fff; padding:4px 10px; font-size:11px; font-weight:500; color:#64748b; }
-  .mb-btn { border-radius:999px; border:1px solid #e2e8f0; background:#fff; padding:6px 14px; font-size:13px; font-weight:500; color:#0f172a; text-decoration:none; }
-  .mb-btn-primary { border-color:transparent; background:#0284c7; color:#fff; box-shadow:0 10px 25px rgba(37,99,235,0.25); }
-  .mb-grid { display:grid; gap:24px; }
-  @media (min-width:1024px) { .mb-grid { grid-template-columns:minmax(0,3fr) minmax(0,2fr); } }
-  .mb-card { border-radius:24px; background:#fff; border:1px solid #e2e8f0; box-shadow:0 18px 45px rgba(15,23,42,0.06); overflow:hidden; }
-  .mb-card-header { display:flex; justify-content:space-between; gap:16px; padding:18px 24px; border-bottom:1px solid #e2e8f0; }
-  .mb-card-title { font-size:14px; font-weight:600; margin-bottom:4px; }
-  .mb-card-subtitle { font-size:12px; color:#64748b; }
-  .mb-card-meta { font-size:11px; color:#94a3b8; white-space:nowrap; }
-  .mb-card-body { padding:18px 24px 20px; }
-  .mb-field { margin-bottom:14px; }
-  .mb-label { display:block; font-size:11px; font-weight:500; color:#475569; margin-bottom:4px; }
-  .mb-label span.req { color:#f97373; margin-left:3px; }
-  .mb-hint { margin-top:2px; font-size:11px; color:#94a3b8; }
-  .mb-error { margin-top:2px; font-size:11px; color:#b91c1c; }
-  .mb-row-2 { display:grid; gap:48px; }
-  .mb-row-2 + .mb-row-2 { margin-top:14px; }
-  @media (min-width:640px) { .mb-row-2 { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+  .mb-shell {
+    min-height: 100vh;
+    background: #f8fafc;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+    color: #0f172a;
+    padding: 32px 24px 40px;
+  }
+
+  .mb-shell-inner {
+    max-width: 1120px;
+    margin: 0 auto;
+  }
+
+  .mb-header {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .mb-kicker {
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    font-size: 11px;
+    font-weight: 600;
+    color: #94a3b8;
+    margin-bottom: 6px;
+  }
+
+  .mb-title {
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    margin-bottom: 4px;
+  }
+
+  .mb-subtitle {
+    font-size: 13px;
+    color: #64748b;
+    max-width: 520px;
+    margin: 0;
+  }
+
+  .mb-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .mb-chip {
+    border-radius: 999px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 500;
+    color: #64748b;
+  }
+
+  .mb-btn {
+    border-radius: 999px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #0f172a;
+    text-decoration: none;
+  }
+
+  .mb-btn-primary {
+    border-color: transparent;
+    background: #0284c7;
+    color: #fff;
+    box-shadow: 0 10px 25px rgba(37, 99, 235, 0.25);
+  }
+
+  .mb-grid {
+    display: grid;
+    gap: 24px;
+  }
+
+  @media (min-width:1024px) {
+    .mb-grid {
+      grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    }
+  }
+
+  .mb-card {
+    border-radius: 24px;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 18px 45px rgba(15, 23, 42, 0.06);
+    overflow: hidden;
+  }
+
+  .mb-card-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 18px 24px;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .mb-card-title {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .mb-card-subtitle {
+    font-size: 12px;
+    color: #64748b;
+  }
+
+  .mb-card-meta {
+    font-size: 11px;
+    color: #94a3b8;
+    white-space: nowrap;
+  }
+
+  .mb-card-body {
+    padding: 18px 24px 20px;
+  }
+
+  .mb-field {
+    margin-bottom: 14px;
+  }
+
+  .mb-label {
+    display: block;
+    font-size: 11px;
+    font-weight: 500;
+    color: #475569;
+    margin-bottom: 4px;
+  }
+
+  .mb-label span.req {
+    color: #f97373;
+    margin-left: 3px;
+  }
+
+  .mb-hint {
+    margin-top: 2px;
+    font-size: 11px;
+    color: #94a3b8;
+  }
+
+  .mb-error {
+    margin-top: 2px;
+    font-size: 11px;
+    color: #b91c1c;
+  }
+
+  .mb-row-2 {
+    display: grid;
+    gap: 48px;
+  }
+
+  .mb-row-2+.mb-row-2 {
+    margin-top: 14px;
+  }
+
+  @media (min-width:640px) {
+    .mb-row-2 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
   .mb-card-body input,
   .mb-card-body select,
   .mb-card-body textarea {
-    width:100%; border-radius:16px; border:1px solid #e2e8f0; background:#f8fafc;
-    padding:7px 10px; font-size:13px; color:#0f172a; outline:none;
-    transition:border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+    width: 100%;
+    border-radius: 16px;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    padding: 7px 10px;
+    font-size: 13px;
+    color: #0f172a;
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
   }
-  .mb-card-body textarea { min-height:70px; resize:vertical; }
+
+  .mb-card-body textarea {
+    min-height: 70px;
+    resize: vertical;
+  }
+
   .mb-card-body input:focus,
   .mb-card-body select:focus,
-  .mb-card-body textarea:focus { border-color:#0ea5e9; background:#fff; box-shadow:0 0 0 2px #e0f2fe; }
-  .mb-side-card dl { font-size:12px; color:#64748b; }
-  .mb-side-row { display:flex; justify-content:space-between; margin-bottom:6px; }
-  .mb-side-row dd { font-weight:500; color:#0f172a; }
-  .mb-side-row dd.amount { color:#e11d48; font-weight:600; }
-  .mb-side-note { margin-top:10px; border-radius:16px; background:#f8fafc; padding:8px 10px; font-size:11px; color:#64748b; }
+  .mb-card-body textarea:focus {
+    border-color: #0ea5e9;
+    background: #fff;
+    box-shadow: 0 0 0 2px #e0f2fe;
+  }
+
+  .mb-side-card dl {
+    font-size: 12px;
+    color: #64748b;
+  }
+
+  .mb-side-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 6px;
+  }
+
+  .mb-side-row dd {
+    font-weight: 500;
+    color: #0f172a;
+  }
+
+  .mb-side-row dd.amount {
+    color: #e11d48;
+    font-weight: 600;
+  }
+
+  .mb-side-note {
+    margin-top: 10px;
+    border-radius: 16px;
+    background: #f8fafc;
+    padding: 8px 10px;
+    font-size: 11px;
+    color: #64748b;
+  }
 </style>
 
 <div class="mb-shell">
@@ -111,12 +297,24 @@
               <div class="mb-row-2">
                 <div class="mb-field">
                   <label class="mb-label">Supplier</label>
-                  {{ form.supplier }}
+                  <div style="display: flex; align-items: start; gap: 8px;">
+                    <div style="flex: 1;">{{ form.supplier }}</div>
+                    <a href="{% url 'supplier_create' %}?next={{ request.get_full_path|urlencode }}" class="mb-btn"
+                      style="white-space: nowrap; font-size: 11px; padding: 7px 12px; margin-top: 0;">
+                      + New
+                    </a>
+                  </div>
                   {% for error in form.supplier.errors %}<p class="mb-error">{{ error }}</p>{% endfor %}
                 </div>
                 <div class="mb-field">
                   <label class="mb-label">Category<span class="req">*</span></label>
-                  {{ form.category }}
+                  <div style="display: flex; align-items: start; gap: 8px;">
+                    <div style="flex: 1;">{{ form.category }}</div>
+                    <a href="{% url 'category_create' %}?next={{ request.get_full_path|urlencode }}" class="mb-btn"
+                      style="white-space: nowrap; font-size: 11px; padding: 7px 12px; margin-top: 0;">
+                      + New
+                    </a>
+                  </div>
                   {% for error in form.category.errors %}<p class="mb-error">{{ error }}</p>{% endfor %}
                 </div>
               </div>
@@ -146,7 +344,8 @@
               </div>
             </div>
             <div class="mb-card-body">
-              <div style="border-radius:16px;border:1px dashed #e2e8f0;background:#f8fafc;padding:18px;font-size:12px;color:#94a3b8;text-align:center;">
+              <div
+                style="border-radius:16px;border:1px dashed #e2e8f0;background:#f8fafc;padding:18px;font-size:12px;color:#94a3b8;text-align:center;">
                 Drag a receipt here (coming soon)
               </div>
             </div>

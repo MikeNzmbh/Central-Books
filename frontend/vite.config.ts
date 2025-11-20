@@ -24,14 +24,19 @@ export default defineConfig({
           __dirname,
           "src/coa-account-detail.tsx"
         ),
-        "dashboard-welcome": path.resolve(
+        dashboard: path.resolve(
           __dirname,
-          "src/entries/dashboard_welcome.tsx"
+          "src/dashboard/dashboard-entry.tsx"
         ),
         login: path.resolve(__dirname, "src/auth/login-entry.tsx"),
+        signup: path.resolve(__dirname, "src/auth/signup-entry.tsx"),
         "account-settings": path.resolve(
           __dirname,
           "src/settings/account-settings-entry.tsx"
+        ),
+        "cashflow-report": path.resolve(
+          __dirname,
+          "src/reports/cashflow-report-entry.tsx"
         ),
       },
       output: {

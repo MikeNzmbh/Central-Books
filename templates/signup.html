@@ -1,7 +1,26 @@
-{% extends "base.html" %}{% block content %}
-<h2 style="margin-top:0">Create your account</h2>
-<p class="help">Password must be at least 8 characters.</p>
-{% if form.errors %}<div class="form-errors">Please fix the errors below.</div>{% endif %}
-<form method="post" class="row">{% csrf_token %}{{ form.as_p }}<button class="button">Sign up</button></form>
-<p class="help">Already have an account? <a href="{% url 'login' %}">Log in</a>.</p>
-{% endblock %}
+{% load static mb_extras %}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Create account · Mini-Books</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <link rel="stylesheet" href="{% static 'css/app.css' %}">
+    {% vite_asset 'signup' 'css' as signup_css %}
+    {% if signup_css %}
+      <link rel="stylesheet" href="{% static signup_css %}">
+    {% endif %}
+  </head>
+  <body class="bg-slate-50">
+    <div id="signup-root"></div>
+
+    <script id="signup-data" type="application/json">
+      {{ signup_payload|safe }}
+    </script>
+
+    {% vite_asset 'signup' as signup_js %}
+    {% if signup_js %}
+      <script type="module" src="{% static signup_js %}"></script>
+    {% endif %}
+  </body>
+</html>

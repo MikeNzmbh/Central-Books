@@ -2,6 +2,7 @@ import csv
 import hashlib
 import io
 import json
+from collections import OrderedDict
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from urllib.parse import urlencode
@@ -26,8 +27,9 @@ from typing import cast
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 from django.views.generic import ListView, TemplateView, CreateView, UpdateView, View
-from django.urls import reverse, reverse_lazy
+from django.urls import reverse, reverse_lazy, NoReverseMatch
 from django.utils.dateparse import parse_date
+from django.utils.text import slugify
 
 from .forms import (
     BusinessForm,
@@ -71,8 +73,10 @@ def _messages_payload(request):
 def _serialize_form(form, form_name: str | None = None):
     if form is None:
         return None
-    fields = []
-    for bound_field in form:
+
+    visible_fields = [bf for bf in form if not bf.is_hidden]
+    field_payload = []
+    for bound_field in visible_fields:
         widget = bound_field.field.widget
         widget_name = widget.__class__.__name__.lower()
         input_type = getattr(widget, "input_type", None)
@@ -96,7 +100,7 @@ def _serialize_form(form, form_name: str | None = None):
                 {"value": str(choice_value), "label": str(choice_label)}
                 for choice_value, choice_label in widget_choices
             ]
-        fields.append(
+        field_payload.append(
             {
                 "name": bound_field.html_name,
                 "id": bound_field.auto_id or bound_field.id_for_label or bound_field.html_name,
@@ -107,13 +111,15 @@ def _serialize_form(form, form_name: str | None = None):
                 "choices": choices,
                 "required": bound_field.field.required,
                 "help_text": bound_field.help_text or "",
-                "attrs": bound_field.field.widget.attrs,
             }
         )
     return {
-        "form": form_name,
-        "fields": fields,
+        "form_id": form_name or "",
+        "action": getattr(form, "action", ""),
+        "method": getattr(form, "method", "post"),
+        "fields": field_payload,
         "non_field_errors": list(form.non_field_errors()),
+        "hidden_fields": [str(hidden) for hidden in form.hidden_fields()],
     }
 from .accounting_posting_expenses import post_expense_paid
 from .accounting_defaults import ensure_default_accounts
@@ -328,49 +334,114 @@ def _expense_preview(form) -> dict:
 
 
 def signup_view(request):
+    errors: list[str] = []
+    initial_email = ""
+    initial_business_name = ""
+    form = SignupForm()
+
     if request.method == "POST":
-        f = SignupForm(request.POST)
-        if f.is_valid():
+        data = request.POST.copy()
+        initial_email = data.get("email", "").strip()
+        initial_business_name = data.get("business_name", "").strip()
+
+        if "password1" in data:
+            data["password"] = data["password1"]
+        if "password2" in data:
+            data["password_confirm"] = data["password2"]
+        if not data.get("username"):
+            data["username"] = data.get("email", "")
+
+        form = SignupForm(data)
+        accept_tos = data.get("accept_tos") in {"on", "true", "1"}
+
+        if form.is_valid() and accept_tos:
             user = User.objects.create_user(
-                username=f.cleaned_data["username"],
-                email=f.cleaned_data["email"],
-                password=f.cleaned_data["password"],
+                username=form.cleaned_data["username"],
+                email=form.cleaned_data["email"],
+                password=form.cleaned_data["password"],
             )
+            full_name = (request.POST.get("full_name") or "").strip()
+            if full_name:
+                parts = full_name.split()
+                user.first_name = parts[0]
+                user.last_name = " ".join(parts[1:]) if len(parts) > 1 else ""
+                user.save(update_fields=["first_name", "last_name"])
             login(request, user)
+            request.session["signup_business_name"] = initial_business_name
             return redirect("business_setup")
-    else:
-        f = SignupForm()
-    return render(request, "signup.html", {"form": f})
+
+        if not accept_tos:
+            errors.append("Please accept the Terms of Use and Privacy Policy.")
+        for field_errors in form.errors.values():
+            errors.extend(str(err) for err in field_errors)
+        for err in form.non_field_errors():
+            errors.append(str(err))
+
+    signup_payload = json.dumps(
+        {
+            "action": request.path,
+            "csrfToken": get_token(request),
+            "errors": errors,
+            "initialEmail": initial_email,
+            "initialBusinessName": initial_business_name,
+        },
+        cls=DjangoJSONEncoder,
+    )
+    return render(request, "signup.html", {"signup_payload": signup_payload})
+
+
+def _resolve_next_url(request):
+    candidate = request.GET.get("next") or request.POST.get("next")
+    if candidate and url_has_allowed_host_and_scheme(
+        candidate,
+        allowed_hosts={request.get_host()},
+    ):
+        return candidate
+    return reverse("dashboard")
 
 
 def login_view(request):
-    next_url = request.GET.get("next") or request.POST.get("next") or ""
-    if request.method == "POST":
-        user = authenticate(
-            request,
-            username=request.POST.get("username"),
-            password=request.POST.get("password"),
-        )
-        if user:
-            login(request, user)
-            if get_current_business(user) is None:
-                return redirect("business_setup")
-            if next_url and url_has_allowed_host_and_scheme(next_url, {request.get_host()}, allowed_schemes={"http", "https"}):
-                return redirect(next_url)
-            return redirect("dashboard")
-        messages.error(request, "Invalid username or password.")
+    """
+    Clean Django-only login view with remember-me behaviour.
+    """
+    next_url = _resolve_next_url(request)
 
-    payload = {
-        "action": reverse("login"),
-        "csrfToken": get_token(request),
-        "next": next_url,
-        "signupUrl": reverse("signup"),
-        "forgotUrl": "#",
-        "messages": _messages_payload(request),
-    }
+    if request.method == "POST":
+        username = (request.POST.get("username") or "").strip()
+        password = request.POST.get("password") or ""
+        remember = request.POST.get("remember") == "on"
+
+        user = authenticate(request, username=username, password=password)
+        if user is not None:
+            login(request, user)
+            if remember:
+                request.session.set_expiry(60 * 60 * 24 * 30)  # 30 days
+            else:
+                request.session.set_expiry(0)
+            return redirect(next_url)
+
+        messages.error(request, "Invalid email/username or password.")
+
+    dashboard_url = reverse("dashboard")
+    next_field_value = "" if next_url == dashboard_url else next_url
+
+    stored_messages = list(messages.get_messages(request))
+    error_messages = [m.message for m in stored_messages if m.level_tag == "error"]
+
+    login_payload = json.dumps(
+        {
+            "action": request.path,
+            "csrfToken": get_token(request),
+            "nextUrl": next_field_value,
+            "next": next_field_value,
+            "errors": error_messages,
+        }
+    )
+
     context = {
-        "login_payload": json.dumps(payload, cls=DjangoJSONEncoder),
-        "next_url": next_url,
+        "login_payload": login_payload,
+        "next": next_field_value,
+        "messages": [m.message for m in stored_messages],
     }
     return render(request, "login.html", context)
 
@@ -402,58 +473,67 @@ def business_setup(request):
 @login_required
 def account_settings(request):
     business = get_current_business(request.user)
-    user_form = UserProfileForm(instance=request.user, prefix="user")
+    profile_form = UserProfileForm(instance=request.user, prefix="user")
     business_form = BusinessProfileForm(instance=business, prefix="business") if business else None
     password_form = PasswordChangeForm(request.user, prefix="password")
 
     if request.method == "POST":
-        form_name = request.POST.get("form")
-        if form_name == "profile":
-            user_form = UserProfileForm(request.POST, instance=request.user, prefix="user")
-            if user_form.is_valid():
-                user_form.save()
+        form_id = request.POST.get("form_id")
+        if form_id == "profile":
+            profile_form = UserProfileForm(request.POST, instance=request.user, prefix="user")
+            if profile_form.is_valid():
+                profile_form.save()
                 messages.success(request, "Your profile details were updated.")
                 return redirect("account_settings")
-        elif form_name == "business" and business:
+        elif form_id == "business" and business:
             business_form = BusinessProfileForm(request.POST, instance=business, prefix="business")
             if business_form.is_valid():
                 business_form.save()
                 messages.success(request, "Business settings updated.")
                 return redirect("account_settings")
-        elif form_name == "password":
+        elif form_id == "password":
             password_form = PasswordChangeForm(request.user, request.POST, prefix="password")
             if password_form.is_valid():
                 password_form.save()
                 update_session_auth_hash(request, password_form.user)
                 messages.success(request, "Password updated successfully.")
                 return redirect("account_settings")
-    context = {
-        "user_form": user_form,
-        "business_form": business_form,
-        "password_form": password_form,
-        "business": business,
-        "account_settings_payload": json.dumps(
-            {
-                "csrfToken": get_token(request),
-                "postUrl": reverse("account_settings"),
-                "logoutUrl": reverse("logout"),
-                "profileForm": _serialize_form(user_form, "profile"),
-                "businessForm": _serialize_form(business_form, "business"),
-                "passwordForm": _serialize_form(password_form, "password"),
-                "messages": _messages_payload(request),
-                "user": {
-                    "email": request.user.email or "",
-                    "name": request.user.get_full_name() or request.user.username,
-                },
-                "session": {
-                    "device": request.META.get("HTTP_USER_AGENT", "Current session"),
-                    "location": request.META.get("GEOIP_CITY", "") or "",
-                },
-            },
-            cls=DjangoJSONEncoder,
-        ),
+
+    for form in (profile_form, business_form, password_form):
+        if form is not None:
+            setattr(form, "action", request.path)
+            setattr(form, "method", "post")
+
+    try:
+        logout_all_url = reverse("logout_all")
+    except NoReverseMatch:
+        logout_all_url = "#"
+
+    payload = {
+        "csrfToken": get_token(request),
+        "profileForm": _serialize_form(profile_form, "profile"),
+        "businessForm": _serialize_form(business_form, "business"),
+        "passwordForm": _serialize_form(password_form, "password"),
+        "sessions": {
+            "current_ip": request.META.get("REMOTE_ADDR", ""),
+            "user_agent": request.META.get("HTTP_USER_AGENT", ""),
+        },
+        "postUrls": {
+            "profile": request.path,
+            "business": request.path,
+            "password": request.path,
+            "logoutAll": logout_all_url,
+        },
+        "messages": _messages_payload(request),
     }
-    return render(request, "account_settings.html", context)
+
+    return render(
+        request,
+        "account_settings.html",
+        {
+            "account_settings_payload": json.dumps(payload, cls=DjangoJSONEncoder),
+        },
+    )
 
 
 @login_required
@@ -462,20 +542,9 @@ def dashboard(request):
     if business is None:
         return redirect("business_setup")
 
-    has_bank = BankAccount.objects.filter(business=business).exists()
-    has_customer = Customer.objects.filter(business=business).exists()
-    empty_workspace = not has_bank and not has_customer
-
-    if empty_workspace:
-        context = {
-            "business": business,
-            "empty_workspace": True,
-            "has_bank": has_bank,
-            "start_books_url": reverse("customer_create"),
-            "create_bank_url": reverse("bank_account_create"),
-            "import_csv_url": reverse("bank_import"),
-        }
-        return render(request, "dashboard.html", context)
+    empty_workspace = is_empty_workspace(business)
+    start_books_url = reverse("customer_create")
+    bank_import_url = reverse("bank_import")
 
     today = timezone.now().date()
     thirty_days_ago = today - timedelta(days=30)
@@ -552,6 +621,7 @@ def dashboard(request):
     current_month_start = _first_day_of_month(today)
     start_month = _add_months(current_month_start, -5)
 
+    # Build cashflow from actual BankTransaction cash movement
     for i in range(6):
         month_start = _add_months(start_month, i)
         next_month_start = _add_months(month_start, 1)
@@ -559,23 +629,28 @@ def dashboard(request):
 
         labels.append(month_start.strftime("%b %Y"))
 
-        month_income = (
-            invoices_qs.filter(
-                status=Invoice.Status.PAID,
-                issue_date__gte=month_start,
-                issue_date__lte=month_end,
-            ).aggregate(total=Sum("net_total"))["total"]
-            or Decimal("0")
+        # Get all bank transactions for this month
+        month_transactions = BankTransaction.objects.filter(
+            bank_account__business=business,
+            date__gte=month_start,
+            date__lte=month_end,
         )
-        month_expenses = (
-            expenses_qs.filter(date__gte=month_start, date__lte=month_end).aggregate(total=Sum("net_total"))[
-                "total"
-            ]
+
+        # Sum inflows (positive amounts = deposits)
+        inflows = (
+            month_transactions.filter(amount__gte=0).aggregate(total=Sum("amount"))["total"]
             or Decimal("0")
         )
 
-        income_series.append(float(month_income))
-        expense_series.append(float(month_expenses))
+        # Sum outflows (negative amounts = withdrawals, take absolute value)
+        outflows_sum = (
+            month_transactions.filter(amount__lt=0).aggregate(total=Sum("amount"))["total"]
+            or Decimal("0")
+        )
+        outflows = abs(outflows_sum)
+
+        income_series.append(float(inflows))
+        expense_series.append(float(outflows))
 
     expense_by_cat_qs = (
         expenses_qs.filter(date__gte=month_start, date__lte=month_end)
@@ -629,14 +704,125 @@ def dashboard(request):
         or Decimal("0")
     )
 
+    cash_balances = account_balances_for_business(business)
+    cash_on_hand = Decimal("0")
+    for account in cash_balances["accounts"]:
+        if account["type"] == Account.AccountType.ASSET:
+            cash_on_hand += account["balance"]
+
+    open_invoices_qs = invoices_qs.filter(status__in=[Invoice.Status.SENT, Invoice.Status.PARTIAL])
+    open_invoices_total = open_invoices_qs.aggregate(total=Sum("grand_total"))["total"] or Decimal("0")
+    open_invoices_count = open_invoices_qs.count()
+
+    bank_feed_items = (
+        BankTransaction.objects.filter(bank_account__business=business).order_by("-date", "-id")[:5]
+    )
+
+    def _decimal_to_float(value):
+        if value is None:
+            return 0.0
+        if isinstance(value, Decimal):
+            return float(value)
+        return float(value)
+
+    recent_invoices_payload = []
+    for inv in recent_invoices:
+        if inv.due_date:
+            delta = (inv.due_date - today).days
+            if delta > 0:
+                due_label = f"Due in {delta}d"
+            elif delta == 0:
+                due_label = "Due today"
+            else:
+                due_label = f"{abs(delta)}d overdue"
+        else:
+            due_label = ""
+        recent_invoices_payload.append(
+            {
+                "number": inv.invoice_number,
+                "customer": inv.customer.name if inv.customer else "",
+                "status": inv.status,
+                "issue_date": inv.issue_date.isoformat() if inv.issue_date else "",
+                "amount": _decimal_to_float(inv.grand_total),
+                "due_label": due_label,
+                "url": reverse("invoice_update", args=[inv.pk]),
+            }
+        )
+
+    bank_feed_payload = []
+    for tx in bank_feed_items:
+        note_value = getattr(tx, "status_label", None)
+        if note_value is None:
+            note_value = getattr(tx, "statusLabel", tx.status)
+        direction = "in" if (tx.amount or Decimal("0")) >= 0 else "out"
+        bank_feed_payload.append(
+            {
+                "description": tx.description,
+                "note": note_value,
+                "amount": _decimal_to_float(tx.amount),
+                "direction": direction,
+                "date": tx.date.isoformat() if tx.date else "",
+            }
+        )
+
+    expense_summary_payload = [
+        {
+            "name": row["name"],
+            "total": _decimal_to_float(row["total"]),
+        }
+        for row in expense_summary
+    ]
+
+    dashboard_payload = json.dumps(
+        {
+            "username": request.user.get_username() or request.user.get_full_name() or request.user.email,
+            "business": business.name if business else "",
+            "currency": business.currency if business else "",
+            "is_empty_workspace": empty_workspace,
+            "metrics": {
+                "cash_on_hand": _decimal_to_float(cash_on_hand),
+                "open_invoices_total": _decimal_to_float(open_invoices_total),
+                "open_invoices_count": open_invoices_count,
+                "net_income_month": _decimal_to_float(net_income_month),
+                "revenue_30": _decimal_to_float(revenue_30),
+                "expenses_30": _decimal_to_float(expenses_30),
+                "overdue_total": _decimal_to_float(overdue_total),
+                "overdue_count": overdue_count,
+                "unpaid_expenses_total": _decimal_to_float(unpaid_expenses_total),
+                "revenue_month": _decimal_to_float(total_income_month),
+                "expenses_month": _decimal_to_float(total_expenses_month),
+            },
+            "recentInvoices": recent_invoices_payload,
+            "bankFeed": bank_feed_payload,
+            "expenseSummary": expense_summary_payload,
+            "cashflow": {
+                "labels": labels,
+                "income": income_series,
+                "expenses": expense_series,
+            },
+            "urls": {
+                "newInvoice": reverse("invoice_create"),
+                "invoices": reverse("invoice_list"),
+                "banking": reverse("banking_accounts_feed"),
+                "expenses": reverse("expense_list"),
+                "suppliers": reverse("suppliers"),
+                "profitAndLoss": reverse("report_pnl"),
+                "bankReview": reverse("banking_accounts_feed"),
+                "overdueInvoices": reverse("invoice_list"),
+                "unpaidExpenses": reverse("expense_list"),
+                "cashflowReport": reverse("cashflow_report"),
+                "startBooks": start_books_url,
+                "bankImport": bank_import_url,
+            },
+        },
+        cls=DjangoJSONEncoder,
+    )
+
     context = {
         "business": business,
-        "empty_workspace": False,
-        "has_bank": has_bank,
-        "has_customer": has_customer,
-        "start_books_url": reverse("customer_create"),
-        "create_bank_url": reverse("bank_account_create"),
-        "import_csv_url": reverse("bank_import"),
+        "empty_workspace": empty_workspace,
+        "start_books_url": start_books_url,
+        "import_csv_url": bank_import_url,
         "has_any_data": has_any_data,
         "has_any_invoices": has_any_invoices,
         "has_any_expenses": has_any_expenses,
@@ -670,6 +856,7 @@ def dashboard(request):
         "revenue_month": total_income_month,
         "subscriptions_month": subscriptions_month,
         "taxes_month": taxes_month,
+        "dashboard_payload": dashboard_payload,
     }
     return render(request, "dashboard.html", context)
 
@@ -1240,7 +1427,7 @@ class SuppliersView(LoginRequiredMixin, TemplateView):
         mtd_percent = 0
         if selected_supplier and total_ytd > 0:
             ytd_percent = int(
-                (selected_supplier.ytd_spend / total_ytd * Decimal("100")).quantize(Decimal("1"))
+                (selected_supplier._ytd_spend_cache / total_ytd * Decimal("100")).quantize(Decimal("1"))
             )
         if selected_supplier and total_mtd > 0:
             mtd_percent = int(
@@ -1250,7 +1437,7 @@ class SuppliersView(LoginRequiredMixin, TemplateView):
         avg_monthly_selected = Decimal("0")
         if selected_supplier and months_so_far > 0:
             avg_monthly_selected = (
-                selected_supplier.ytd_spend / Decimal(months_so_far)
+                selected_supplier._ytd_spend_cache / Decimal(months_so_far)
             ).quantize(Decimal("0.01"))
 
         context.update(
@@ -1282,6 +1469,13 @@ def customer_create(request):
             customer = form.save(commit=False)
             customer.business = business
             customer.save()
+            
+            # Handle ?next= redirect
+            next_url = request.POST.get("next") or request.GET.get("next")
+            if next_url and url_has_allowed_host_and_scheme(
+                next_url, allowed_hosts={request.get_host()}
+            ):
+                return redirect(next_url)
             return redirect("customer_list")
     else:
         form = CustomerForm(business=business)
@@ -1348,6 +1542,13 @@ def supplier_create(request):
             supplier = form.save(commit=False)
             supplier.business = business
             supplier.save()
+            
+            # Handle ?next= redirect
+            next_url = request.POST.get("next") or request.GET.get("next")
+            if next_url and url_has_allowed_host_and_scheme(
+                next_url, allowed_hosts={request.get_host()}
+            ):
+                return redirect(next_url)
             return redirect("suppliers")
     else:
         form = SupplierForm(business=business)
@@ -1453,6 +1654,13 @@ def category_create(request):
             category = form.save(commit=False)
             category.business = business
             category.save()
+            
+            # Handle ?next= redirect
+            next_url = request.POST.get("next") or request.GET.get("next")
+            if next_url and url_has_allowed_host_and_scheme(
+                next_url, allowed_hosts={request.get_host()}
+            ):
+                return redirect(next_url)
             return redirect("category_list")
     else:
         form = CategoryForm(business=business)
@@ -1765,6 +1973,126 @@ def journal_entries(request):
         "core/journal_entries.html",
         {"business": business, "entries": entries},
     )
+
+
+@login_required
+def cashflow_report_view(request):
+    business = get_current_business(request.user)
+    if business is None:
+        return redirect("business_setup")
+
+    today = timezone.localdate()
+    qs = (
+        BankTransaction.objects.filter(bank_account__business=business)
+        .select_related("category")
+        .order_by("date")
+    )
+
+    start_date = _add_months(today.replace(day=1), -5)
+    qs = qs.filter(date__gte=start_date)
+
+    periods: OrderedDict[tuple[int, int], dict[str, Decimal]] = OrderedDict()
+    cursor = start_date
+    for _ in range(6):
+        key = (cursor.year, cursor.month)
+        periods[key] = {"inflows": Decimal("0.00"), "outflows": Decimal("0.00")}
+        cursor = _add_months(cursor, 1)
+
+    for tx in qs:
+        key = (tx.date.year, tx.date.month)
+        if key not in periods:
+            continue
+        amount = tx.amount or Decimal("0.00")
+        if amount >= 0:
+            periods[key]["inflows"] += amount
+        else:
+            periods[key]["outflows"] += abs(amount)
+
+    total_inflows = Decimal("0.00")
+    total_outflows = Decimal("0.00")
+    trend: list[dict[str, float]] = []
+    for (year, month), aggregates in periods.items():
+        inflows = aggregates["inflows"]
+        outflows = aggregates["outflows"]
+        net = inflows - outflows
+        total_inflows += inflows
+        total_outflows += outflows
+        label = date(year, month, 1).strftime("%b %Y")
+        trend.append(
+            {
+                "periodLabel": label,
+                "inflows": float(inflows),
+                "outflows": float(outflows),
+                "net": float(net),
+            }
+        )
+
+    net_change = total_inflows - total_outflows
+
+    activities = {
+        "operating": float(net_change),
+        "investing": 0.0,
+        "financing": 0.0,
+    }
+
+    driver_rows = (
+        qs.values("category__name")
+        .annotate(net=Sum("amount"))
+        .order_by("-net")[:5]
+    )
+    drivers: list[dict[str, object]] = []
+    for row in driver_rows:
+        label = row["category__name"] or "Uncategorized"
+        amount = row["net"] or Decimal("0.00")
+        driver_id = slugify(label) or f"driver-{len(drivers) + 1}"
+        drivers.append(
+            {
+                "id": driver_id,
+                "label": label,
+                "amount": float(amount),
+                "type": "inflow" if amount >= 0 else "outflow",
+            }
+        )
+
+    current_cash = (
+        BankTransaction.objects.filter(bank_account__business=business).aggregate(total=Sum("amount"))[
+            "total"
+        ]
+        or Decimal("0.00")
+    )
+
+    avg_monthly_burn = (
+        (total_outflows - total_inflows) / Decimal(len(periods))
+        if total_outflows > total_inflows
+        else Decimal("0.00")
+    )
+    runway_label = None
+    if avg_monthly_burn > 0 and current_cash > 0:
+        months = current_cash / avg_monthly_burn
+        runway_label = f"{months.quantize(Decimal('0.1'))} months"
+
+    payload = {
+        "username": request.user.first_name or request.user.username,
+        "asOfLabel": today.strftime("As of %b %d, %Y"),
+        "baseCurrency": business.currency or "USD",
+        "summary": {
+            "netChange": float(net_change),
+            "totalInflows": float(total_inflows),
+            "totalOutflows": float(total_outflows),
+            "runwayLabel": runway_label,
+        },
+        "trend": trend,
+        "activities": activities,
+        "topDrivers": drivers,
+        "bankingUrl": reverse("banking_accounts_feed"),
+        "invoicesUrl": reverse("invoice_list"),
+        "expensesUrl": reverse("expense_list"),
+    }
+
+    context = {
+        "cashflow_data_json": json.dumps(payload, cls=DjangoJSONEncoder),
+    }
+    return render(request, "reports/cashflow_report.html", context)
 
 
 @login_required

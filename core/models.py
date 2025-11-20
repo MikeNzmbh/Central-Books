@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 class Business(models.Model):
     name = models.CharField(max_length=255, unique=True)
     currency = models.CharField(max_length=3)
+    fiscal_year_start = models.CharField(max_length=5, default="01-01")
     owner_user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,

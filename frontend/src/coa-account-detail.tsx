@@ -100,6 +100,7 @@ export type BankCoaViewProps = {
   bankLast4?: string | null;
   bankDisplayName?: string | null;
   balance: number;
+  bankFeedBalance: number;
   periodDeposits: number;
   periodWithdrawals: number;
   periodCount: number;
@@ -239,7 +240,8 @@ const BankCoaViewPage: React.FC<BankCoaViewProps> = (props) => {
 
   useEffect(() => {
     if (!props.apiTransactionsUrl) {
-      setTransactions(fallbackTransactions);
+      // No bank connection - show empty state
+      setTransactions([]);
       setIsLoadingTransactions(false);
       return;
     }
@@ -257,11 +259,14 @@ const BankCoaViewPage: React.FC<BankCoaViewProps> = (props) => {
         const rows = Array.isArray(data?.transactions)
           ? data.transactions.map((row: any) => normalizeApiTransaction(row))
           : [];
-        setTransactions(rows.length ? rows : fallbackTransactions);
+        // Always use real data only - no fallback to demo transactions
+        setTransactions(rows);
       })
-      .catch(() => {
+      .catch((error) => {
+        console.error("Failed to load bank transactions:", error);
         if (!aborted) {
-          setTransactions(fallbackTransactions);
+          // On error, show empty state rather than demo data
+          setTransactions([]);
         }
       })
       .finally(() => {
@@ -352,13 +357,13 @@ const BankCoaViewPage: React.FC<BankCoaViewProps> = (props) => {
   const activityForDisplay = activityRows.length
     ? activityRows
     : activityFallbackSource.map((tx, index) => ({
-        id: tx.id,
-        date: tx.date,
-        description: tx.memo || tx.payee,
-        source: tx.type === "Deposit" ? "Invoice" : "Expense",
-        amount: tx.amount,
-        runningBalance: props.balance - index * 10,
-      }));
+      id: tx.id,
+      date: tx.date,
+      description: tx.memo || tx.payee,
+      source: tx.type === "Deposit" ? "Invoice" : "Expense",
+      amount: tx.amount,
+      runningBalance: props.balance - index * 10,
+    }));
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 via-slate-50 to-slate-100 text-slate-900">
@@ -433,11 +438,27 @@ const BankCoaViewPage: React.FC<BankCoaViewProps> = (props) => {
                   </div>
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5">
                     <div className="text-[11px] uppercase tracking-wide text-slate-500">Bank feed balance</div>
-                    <div className="mt-1 text-lg font-semibold text-slate-900">{formatMoney(props.balance - 221.2, props.currency)}</div>
-                    <div className="mt-1 flex items-center gap-1 text-[11px] text-amber-600">
-                      <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-                      Off by {formatMoney(221.2, props.currency)} · 3 items to reconcile
-                    </div>
+                    <div className="mt-1 text-lg font-semibold text-slate-900">{formatMoney(props.bankFeedBalance, props.currency)}</div>
+                    {(() => {
+                      const difference = Math.abs(props.balance - props.bankFeedBalance);
+                      const unreconciledText = props.unreconciledCount
+                        ? `${props.unreconciledCount} item${props.unreconciledCount > 1 ? 's' : ''} to reconcile`
+                        : 'No items to reconcile';
+                      if (difference < 0.01) {
+                        return (
+                          <div className="mt-1 flex items-center gap-1 text-[11px] text-emerald-600">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                            In sync with ledger
+                          </div>
+                        );
+                      }
+                      return (
+                        <div className="mt-1 flex items-center gap-1 text-[11px] text-amber-600">
+                          <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                          Off by {formatMoney(difference, props.currency)} · {unreconciledText}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3 text-xs">
@@ -564,9 +585,8 @@ const BankCoaViewPage: React.FC<BankCoaViewProps> = (props) => {
                       <button
                         key={label}
                         onClick={() => setTypeFilter(label)}
-                        className={`rounded-full px-2.5 py-1 font-medium ${
-                          typeFilter === label ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"
-                        }`}
+                        className={`rounded-full px-2.5 py-1 font-medium ${typeFilter === label ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"
+                          }`}
                       >
                         {label}
                       </button>
@@ -577,9 +597,8 @@ const BankCoaViewPage: React.FC<BankCoaViewProps> = (props) => {
                       <button
                         key={label}
                         onClick={() => setStatusFilter(label)}
-                        className={`rounded-full px-2.5 py-1 font-medium ${
-                          statusFilter === label ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"
-                        }`}
+                        className={`rounded-full px-2.5 py-1 font-medium ${statusFilter === label ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"
+                          }`}
                       >
                         {label}
                       </button>
@@ -609,10 +628,36 @@ const BankCoaViewPage: React.FC<BankCoaViewProps> = (props) => {
                           </td>
                         </tr>
                       )}
-                      {!isLoadingTransactions && filteredTransactions.length === 0 && (
+                      {!isLoadingTransactions && filteredTransactions.length === 0 && transactions.length === 0 && (
+                        <tr>
+                          <td colSpan={8} className="px-4 py-8 text-center">
+                            <div className="mx-auto max-w-sm">
+                              <div className="text-sm font-medium text-slate-900">No transactions yet</div>
+                              <div className="mt-1 text-[11px] text-slate-500">
+                                When payments start hitting this account, they'll appear here.
+                                {props.isBankAccount && (
+                                  <span> Import a CSV from your bank or connect a bank feed to get started.</span>
+                                )}
+                              </div>
+                              {props.linkBankFeedUrl && (
+                                <div className="mt-3">
+                                  <a
+                                    href={props.linkBankFeedUrl}
+                                    className="inline-flex items-center gap-1 rounded-full bg-slate-900 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-slate-800"
+                                  >
+                                    <LinkIcon className="h-3.5 w-3.5" />
+                                    Open bank feed
+                                  </a>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      {!isLoadingTransactions && filteredTransactions.length === 0 && transactions.length > 0 && (
                         <tr>
                           <td colSpan={8} className="px-4 py-6 text-center text-[11px] text-slate-500">
-                            No transactions match your filters yet.
+                            No transactions match your filters.
                           </td>
                         </tr>
                       )}
@@ -799,6 +844,7 @@ function bootstrap() {
     bankLast4: d.bankLast4 || null,
     bankDisplayName: d.bankDisplayName || null,
     balance: Number(d.balance || "0"),
+    bankFeedBalance: Number(d.bankFeedBalance || "0"),
     periodDeposits: Number(d.periodDeposits || "0"),
     periodWithdrawals: Number(d.periodWithdrawals || "0"),
     periodCount: Number(d.periodCount || "0"),

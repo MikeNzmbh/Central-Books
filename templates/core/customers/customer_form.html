@@ -133,6 +133,7 @@
     .mb-form-grid {
       grid-template-columns: minmax(0, 1fr);
     }
+
     .mb-form-grid-full {
       grid-column: auto;
     }
@@ -176,6 +177,7 @@
 <div class="mb-page">
   <form method="post" novalidate>
     {% csrf_token %}
+    {% if request.GET.next %}<input type="hidden" name="next" value="{{ request.GET.next }}">{% endif %}
 
     <header class="mb-header">
       <div>
@@ -200,110 +202,110 @@
     </header>
 
     {% if form.non_field_errors %}
-      <div class="mb-nonfield-errors">
-        {% for error in form.non_field_errors %}
-          <div>{{ error }}</div>
-        {% endfor %}
-      </div>
+    <div class="mb-nonfield-errors">
+      {% for error in form.non_field_errors %}
+      <div>{{ error }}</div>
+      {% endfor %}
+    </div>
     {% endif %}
 
     <div class="mb-page-body">
       <div class="mb-layout">
         <div class="mb-main">
           <section class="mb-card">
-          <div class="mb-card-header">
-            <div>
-              <h2 class="mb-card-title">Customer details</h2>
-              <p class="mb-card-subtitle">
-                Basic contact info used on invoices and reports.
-              </p>
+            <div class="mb-card-header">
+              <div>
+                <h2 class="mb-card-title">Customer details</h2>
+                <p class="mb-card-subtitle">
+                  Basic contact info used on invoices and reports.
+                </p>
+              </div>
+              <span class="mb-card-helper">
+                Required fields are marked with <span style="color:#ff3b30">*</span>.
+              </span>
             </div>
-            <span class="mb-card-helper">
-              Required fields are marked with <span style="color:#ff3b30">*</span>.
-            </span>
-          </div>
 
-          <div class="mb-form-grid">
-            <div class="mb-field">
-              <label class="mb-label">
-                Customer name
-                {% if form.name.field.required %}<span class="required">*</span>{% endif %}
-              </label>
-              {{ form.name }}
-              {% for error in form.name.errors %}
+            <div class="mb-form-grid">
+              <div class="mb-field">
+                <label class="mb-label">
+                  Customer name
+                  {% if form.name.field.required %}<span class="required">*</span>{% endif %}
+                </label>
+                {{ form.name }}
+                {% for error in form.name.errors %}
                 <div class="mb-error">{{ error }}</div>
-              {% endfor %}
-            </div>
+                {% endfor %}
+              </div>
 
-            {% if form.company %}
+              {% if form.company %}
               <div class="mb-field">
                 <label class="mb-label">Company (optional)</label>
                 {{ form.company }}
                 {% for error in form.company.errors %}
-                  <div class="mb-error">{{ error }}</div>
+                <div class="mb-error">{{ error }}</div>
                 {% endfor %}
               </div>
-            {% endif %}
-          </div>
+              {% endif %}
+            </div>
 
-          <div class="mb-contact-pair">
-            {% if form.email %}
+            <div class="mb-contact-pair">
+              {% if form.email %}
               <div class="mb-field">
                 <label class="mb-label">Email</label>
                 {{ form.email }}
                 {% for error in form.email.errors %}
-                  <div class="mb-error">{{ error }}</div>
+                <div class="mb-error">{{ error }}</div>
                 {% endfor %}
               </div>
-            {% endif %}
+              {% endif %}
 
-            {% if form.phone %}
+              {% if form.phone %}
               <div class="mb-field">
                 <label class="mb-label">Phone</label>
                 {{ form.phone }}
                 {% for error in form.phone.errors %}
-                  <div class="mb-error">{{ error }}</div>
+                <div class="mb-error">{{ error }}</div>
                 {% endfor %}
               </div>
-            {% endif %}
-          </div>
+              {% endif %}
+            </div>
 
-          {% if form.billing_address %}
+            {% if form.billing_address %}
             <div class="mb-form-grid mb-form-grid-full" style="margin-top: 12px;">
               <div class="mb-field">
                 <label class="mb-label">Billing address</label>
                 {{ form.billing_address }}
                 {% for error in form.billing_address.errors %}
-                  <div class="mb-error">{{ error }}</div>
+                <div class="mb-error">{{ error }}</div>
                 {% endfor %}
               </div>
             </div>
-          {% endif %}
-        </section>
+            {% endif %}
+          </section>
 
           <section class="mb-card">
             <h2 class="mb-card-title" style="margin-bottom: 6px;">Internal notes</h2>
             <p class="mb-card-subtitle" style="margin-bottom: 10px;">
-            These notes are for you and your team only. They never appear on invoices.
-          </p>
+              These notes are for you and your team only. They never appear on invoices.
+            </p>
 
-          {% if form.notes %}
+            {% if form.notes %}
             <div class="mb-field">
               {{ form.notes }}
               {% for error in form.notes.errors %}
-                <div class="mb-error">{{ error }}</div>
+              <div class="mb-error">{{ error }}</div>
               {% endfor %}
             </div>
-          {% endif %}
+            {% endif %}
 
-          <div style="margin-top: 10px; display:flex; flex-wrap:wrap; align-items:center; gap:6px;">
-            <span class="mb-status-label">Customer status</span>
-            <span class="mb-status-pill">Active</span>
-            {% if form.is_active %}
+            <div style="margin-top: 10px; display:flex; flex-wrap:wrap; align-items:center; gap:6px;">
+              <span class="mb-status-label">Customer status</span>
+              <span class="mb-status-pill">Active</span>
+              {% if form.is_active %}
               <span style="display:none;">
                 {{ form.is_active }}
               </span>
-            {% endif %}
+              {% endif %}
             </div>
           </section>
         </div>
@@ -312,33 +314,33 @@
           <section class="mb-card">
             <h2 class="mb-card-title" style="margin-bottom: 6px;">Customer overview</h2>
             <p class="mb-card-subtitle" style="margin-bottom: 12px;">
-            Once you start invoicing this customer, you’ll see their open balance and history here.
-          </p>
+              Once you start invoicing this customer, you’ll see their open balance and history here.
+            </p>
 
-          <div style="display:flex; flex-direction:column; gap:8px; font-size:13px;">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-              <span style="color:#6e6e73;">Open balance</span>
-              <span style="font-weight:600; color:#b0b0b5;">0.00 {{ business.currency }}</span>
+            <div style="display:flex; flex-direction:column; gap:8px; font-size:13px;">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="color:#6e6e73;">Open balance</span>
+                <span style="font-weight:600; color:#b0b0b5;">0.00 {{ business.currency }}</span>
+              </div>
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="color:#6e6e73;">Invoices (last 12 months)</span>
+                <span style="font-weight:600; color:#b0b0b5;">0 sent</span>
+              </div>
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="color:#6e6e73;">Average payment time</span>
+                <span style="font-weight:600; color:#b0b0b5;">—</span>
+              </div>
             </div>
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-              <span style="color:#6e6e73;">Invoices (last 12 months)</span>
-              <span style="font-weight:600; color:#b0b0b5;">0 sent</span>
-            </div>
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-              <span style="color:#6e6e73;">Average payment time</span>
-              <span style="font-weight:600; color:#b0b0b5;">—</span>
-            </div>
-          </div>
           </section>
 
           <section class="mb-card mb-card-ghost">
             <p class="mb-card-helper" style="font-weight:600; margin-bottom:4px;">
-            Tip for faster setup
-          </p>
-          <p class="mb-card-helper">
-            You can also create customers directly while creating an invoice. Mini-Books will remember
-            them here for next time.
-          </p>
+              Tip for faster setup
+            </p>
+            <p class="mb-card-helper">
+              You can also create customers directly while creating an invoice. Mini-Books will remember
+              them here for next time.
+            </p>
           </section>
         </aside>
       </div>

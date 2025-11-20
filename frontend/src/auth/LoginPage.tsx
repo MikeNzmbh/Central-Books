@@ -1,214 +1,207 @@
 import React from "react";
 
-type Message = {
-  level: string;
-  message: string;
-};
+export interface CentralBooksLoginPageProps {
+  action?: string;
+  csrfToken?: string;
+  nextUrl?: string;
+  errors?: string[];
+}
 
-export type LoginPayload = {
-  action: string;
-  csrfToken: string;
-  next?: string;
-  signupUrl: string;
-  forgotUrl: string;
-  messages?: Message[];
-};
-
-const AuthShell: React.FC<{
-  title: string;
-  subtitle?: string;
-  children: React.ReactNode;
-}> = ({ title, subtitle, children }) => (
-  <div className="min-h-screen w-full bg-slate-50 flex items-center justify-center px-4 py-10 text-slate-900">
-    <div className="max-w-5xl w-full grid gap-10 lg:grid-cols-[1.2fr,0.9fr] items-stretch">
-      <section className="bg-white/90 backdrop-blur rounded-3xl shadow-lg border border-slate-100 px-6 sm:px-10 py-8 sm:py-10 flex flex-col gap-6">
-        <header className="space-y-5">
-          <div className="flex items-center gap-3">
-            <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-900 text-white text-sm font-semibold">
-              MB
-            </div>
-            <div className="space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                Mini-Books
-              </p>
-              <p className="text-[11px] text-slate-500">Calm accounting, live cash.</p>
-            </div>
-          </div>
-          <div className="space-y-2">
-            <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-slate-900">
-              {title}
-            </h1>
-            {subtitle && <p className="text-sm text-slate-600 max-w-md">{subtitle}</p>}
-          </div>
-        </header>
-        <div className="space-y-6">{children}</div>
-        <footer className="pt-2 text-[11px] text-slate-400 flex items-center justify-between flex-wrap gap-2">
-          <span>© {new Date().getFullYear()} Mini-Books</span>
-          <span>Built for owner-led businesses.</span>
-        </footer>
-      </section>
-      <aside className="hidden lg:flex flex-col justify-between rounded-3xl border border-slate-100 bg-gradient-to-br from-slate-50 via-white to-sky-50 shadow-sm p-6">
-        <div className="space-y-6">
-          <div className="flex items-center justify-between text-xs text-slate-500">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/80 border border-slate-100 px-3 py-1">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              Live cash preview
-            </span>
-            <span>Central-Books · Dashboard</span>
-          </div>
-          <div className="rounded-2xl bg-white/90 border border-slate-100 shadow-sm p-4 space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs uppercase tracking-wide text-slate-500">Cash on hand</p>
-                <p className="mt-1 text-xl font-semibold text-slate-900">$24,380.12</p>
-              </div>
-              <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                +12.4% vs last month
-              </div>
-            </div>
-            <div className="relative h-24 rounded-xl bg-slate-50 overflow-hidden">
-              <div className="absolute inset-x-4 bottom-3 top-4 flex items-end gap-1.5">
-                <div className="flex-1 rounded-full bg-sky-100 h-4" />
-                <div className="flex-1 rounded-full bg-sky-200 h-7" />
-                <div className="flex-1 rounded-full bg-sky-300 h-10" />
-                <div className="flex-1 rounded-full bg-sky-200 h-6" />
-                <div className="flex-1 rounded-full bg-sky-400 h-12" />
-              </div>
-              <div className="absolute inset-0 bg-gradient-to-t from-white/40 to-transparent" />
-            </div>
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-3 space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="font-medium text-slate-800">Invoices</span>
-                  <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
-                    8 paid · 3 open
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-500">Clean aging, no double-counting.</p>
-              </div>
-              <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-3 space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="font-medium text-slate-800">Bank feed</span>
-                  <span className="inline-flex items-center rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-medium text-sky-700">
-                    3 to review
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-500">Every line tied back to the ledger.</p>
-              </div>
-            </div>
-          </div>
-          <p className="text-[11px] text-slate-500 leading-relaxed">
-            Sign in once to see a reconciled dashboard—cash, invoices, expenses, and tax-ready
-            ledgers always in sync.
-          </p>
-        </div>
-        <div className="flex items-center justify-between text-[11px] text-slate-500">
-          <span className="inline-flex items-center gap-1">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-            Secure by default
-          </span>
-          <span>CAD / USD ready</span>
-        </div>
-      </aside>
-    </div>
-  </div>
-);
-
-const AlertStack: React.FC<{ messages?: Message[] }> = ({ messages }) => {
-  if (!messages || messages.length === 0) {
+const ErrorStack: React.FC<{ errors?: string[] }> = ({ errors }) => {
+  if (!errors || errors.length === 0) {
     return null;
   }
   return (
-    <div className="space-y-2">
-      {messages.map((msg, idx) => (
-        <div
-          key={`${msg.message}-${idx}`}
-          className={`rounded-2xl border px-3.5 py-2 text-sm ${
-            msg.level === "success"
-              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-              : "border-rose-200 bg-rose-50 text-rose-700"
-          }`}
-        >
-          {msg.message}
-        </div>
+    <div className="space-y-1.5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+      {errors.map((message, idx) => (
+        <p key={`${message}-${idx}`}>{message}</p>
       ))}
     </div>
   );
 };
 
-const LoginPage: React.FC<{ data: LoginPayload }> = ({ data }) => (
-  <AuthShell
-    title="Sign in to Central-Books"
-    subtitle="Use your work email to access invoices, expenses, and live cash."
-  >
-    <AlertStack messages={data.messages} />
-    <form
-      method="POST"
-      action={data.action}
-      className="space-y-5"
-      noValidate
+const InsightBar: React.FC<{ label: string; value: string; accent: string }> = ({
+  label,
+  value,
+  accent,
+}) => (
+  <div className="flex items-center justify-between rounded-2xl border border-white/60 bg-white/70 px-4 py-3">
+    <div>
+      <p className="text-xs uppercase tracking-[0.22em] text-slate-400">{label}</p>
+      <p className="mt-2 text-lg font-semibold text-slate-900">{value}</p>
+    </div>
+    <div
+      className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-semibold ${accent}`}
     >
-      <input type="hidden" name="csrfmiddlewaretoken" value={data.csrfToken} />
-      {data.next && <input type="hidden" name="next" value={data.next} />}
-      <div className="space-y-1.5 text-sm">
-        <label className="block text-slate-700" htmlFor="id_username">
-          Email or username
-        </label>
-        <input
-          id="id_username"
-          name="username"
-          type="text"
-          autoComplete="username"
-          required
-          className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/80 focus:ring-offset-1 focus:ring-offset-slate-50"
-          placeholder="you@example.com"
-        />
-      </div>
-      <div className="space-y-1.5 text-sm">
-        <div className="flex items-center justify-between">
-          <label className="block text-slate-700" htmlFor="id_password">
-            Password
-          </label>
-          <a
-            href={data.forgotUrl || "#"}
-            className="text-[11px] font-medium text-slate-500 hover:text-slate-800"
-          >
-            Forgot password?
-          </a>
-        </div>
-        <input
-          id="id_password"
-          name="password"
-          type="password"
-          autoComplete="current-password"
-          required
-          className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/80 focus:ring-offset-1 focus:ring-offset-slate-50"
-          placeholder="••••••••••"
-        />
-      </div>
-      <label className="inline-flex items-center gap-2 text-[13px] text-slate-600">
-        <input
-          type="checkbox"
-          name="remember_me"
-          className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900/70"
-        />
-        Remember me on this device
-      </label>
-      <button
-        type="submit"
-        className="w-full inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-slate-800 active:bg-slate-900 transition"
-      >
-        Sign in
-      </button>
-      <p className="text-xs text-slate-500 text-center">
-        Don’t have an account yet?{" "}
-        <a href={data.signupUrl} className="font-semibold text-slate-800 hover:underline">
-          Sign up
-        </a>
-      </p>
-    </form>
-  </AuthShell>
+      <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
+      Live
+    </div>
+  </div>
 );
 
-export default LoginPage;
+const CashCard: React.FC = () => (
+  <div className="space-y-5 rounded-[28px] border border-white/40 bg-gradient-to-br from-white/95 via-slate-50/95 to-sky-50/80 p-6 shadow-[0_30px_80px_rgba(15,23,42,0.08)]">
+    <div className="flex items-center justify-between">
+      <div>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-500">
+          Today’s cash position
+        </p>
+        <p className="mt-2 text-3xl font-semibold text-slate-900">$124,830</p>
+      </div>
+      <div className="rounded-full bg-emerald-50 px-4 py-1 text-xs font-semibold text-emerald-700">
+        +$8,420 vs last 30d
+      </div>
+    </div>
+    <div className="rounded-3xl bg-white/80 p-4">
+      <div className="flex items-baseline gap-3 text-slate-700">
+        <p className="text-[11px] font-medium uppercase tracking-[0.3em] text-slate-400">
+          Cashflow
+        </p>
+        <span className="text-sm text-emerald-600">Aligned</span>
+      </div>
+      <div className="mt-4 grid grid-cols-5 gap-1.5">
+        <span className="h-8 rounded-full bg-sky-100" />
+        <span className="h-12 rounded-full bg-sky-200" />
+        <span className="h-16 rounded-full bg-sky-300" />
+        <span className="h-10 rounded-full bg-sky-200" />
+        <span className="h-20 rounded-full bg-sky-400" />
+      </div>
+      <div className="mt-5 flex items-center justify-between text-[11px] text-slate-500">
+        <span>Invoices reconciled</span>
+        <span>Expenses posted</span>
+      </div>
+    </div>
+    <div className="grid grid-cols-2 gap-3">
+      <InsightBar label="Receivables" value="$38,900" accent="text-amber-600" />
+      <InsightBar label="Payables" value="$26,420" accent="text-sky-600" />
+    </div>
+  </div>
+);
+
+const CentralBooksLoginPage: React.FC<CentralBooksLoginPageProps> = ({
+  action = "/login/",
+  csrfToken = "",
+  nextUrl,
+  errors = [],
+}) => (
+  <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-sky-50 px-4 py-10 text-slate-900">
+    <div className="mx-auto grid max-w-6xl gap-8 lg:grid-cols-[1.1fr,0.9fr]">
+      <section className="flex flex-col gap-8 rounded-[32px] border border-white/80 bg-white/90 px-8 py-10 shadow-[0_35px_80px_rgba(15,23,42,0.08)]">
+        <header className="flex flex-col gap-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-base font-semibold text-white">
+              CB
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">
+                Central-Books
+              </p>
+              <p className="text-sm text-slate-500">Quiet confidence for owner-led teams.</p>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Sign in</h1>
+            <p className="text-sm text-slate-500">
+              Use your email or username to unlock cash, ledgers, and banking in one place.
+            </p>
+          </div>
+        </header>
+        <ErrorStack errors={errors} />
+        <form method="post" action={action} className="space-y-5">
+          <input type="hidden" name="csrfmiddlewaretoken" value={csrfToken} />
+          {nextUrl && <input type="hidden" name="next" value={nextUrl} />}
+          <div className="space-y-2 text-sm">
+            <label className="font-medium text-slate-700" htmlFor="id_username">
+              Email or username
+            </label>
+            <input
+              id="id_username"
+              name="username"
+              type="text"
+              autoComplete="username"
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-slate-400 focus:bg-white focus:outline-none"
+              placeholder="you@studio.com"
+              required
+            />
+          </div>
+          <div className="space-y-2 text-sm">
+            <div className="flex items-center justify-between">
+              <label className="font-medium text-slate-700" htmlFor="id_password">
+                Password
+              </label>
+              <span className="text-xs font-medium text-slate-400">Secured</span>
+            </div>
+            <input
+              id="id_password"
+              name="password"
+              type="password"
+              autoComplete="current-password"
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-slate-400 focus:bg-white focus:outline-none"
+              placeholder="••••••••"
+              required
+            />
+          </div>
+          <label className="flex items-center gap-2 text-xs text-slate-600">
+            <input
+              type="checkbox"
+              name="remember"
+              className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900/30"
+            />
+            Keep me signed in
+          </label>
+          <button
+            type="submit"
+            className="w-full rounded-full bg-slate-900 py-3 text-sm font-semibold tracking-wide text-white shadow-[0_15px_45px_rgba(15,23,42,0.35)] transition hover:-translate-y-0.5 hover:bg-slate-800"
+          >
+            Sign in
+          </button>
+          <p className="text-center text-xs text-slate-500">
+            New to Central-Books?{" "}
+            <a href="/signup/" className="font-semibold text-slate-900 hover:underline">
+              Create one
+            </a>
+          </p>
+        </form>
+      </section>
+      <section className="hidden flex-col gap-6 rounded-[32px] border border-slate-100 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-8 text-white lg:flex">
+        <div className="flex items-center justify-between text-xs text-slate-200">
+          <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-3 py-1">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+            Live banking sync
+          </span>
+          <span>Owner view</span>
+        </div>
+        <CashCard />
+        <div className="rounded-[28px] border border-white/20 bg-white/10 p-6 backdrop-blur">
+          <p className="text-[11px] uppercase tracking-[0.3em] text-slate-200">Schedule</p>
+          <div className="mt-4 space-y-3 text-sm">
+            <div className="flex items-center justify-between">
+              <span>Bank feed review</span>
+              <span className="rounded-full border border-white/30 px-3 py-1 text-[11px]">
+                9:30 AM
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>Owner update</span>
+              <span className="rounded-full border border-white/30 px-3 py-1 text-[11px]">
+                11:00 AM
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>Quiet close</span>
+              <span className="rounded-full border border-white/30 px-3 py-1 text-[11px]">
+                4:00 PM
+              </span>
+            </div>
+          </div>
+          <p className="mt-6 text-xs text-slate-200">
+            Sign in once. Central-Books keeps cash, revenue, and expenses aligned without tab
+            juggling or exports.
+          </p>
+        </div>
+      </section>
+    </div>
+  </div>
+);
+
+export default CentralBooksLoginPage;

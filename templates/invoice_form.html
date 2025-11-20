@@ -12,10 +12,12 @@
     color: #0f172a;
     padding: 32px 24px 40px;
   }
+
   .mb-shell-inner {
     max-width: 1120px;
     margin: 0 auto;
   }
+
   .mb-header {
     display: flex;
     flex-wrap: wrap;
@@ -24,6 +26,7 @@
     gap: 16px;
     margin-bottom: 24px;
   }
+
   .mb-kicker {
     text-transform: uppercase;
     letter-spacing: 0.18em;
@@ -32,22 +35,26 @@
     color: #94a3b8;
     margin-bottom: 6px;
   }
+
   .mb-title {
     font-size: 24px;
     font-weight: 600;
     letter-spacing: -0.02em;
     margin-bottom: 4px;
   }
+
   .mb-subtitle {
     font-size: 13px;
     color: #64748b;
     max-width: 520px;
   }
+
   .mb-header-actions {
     display: flex;
     align-items: center;
     gap: 8px;
   }
+
   .mb-chip {
     border-radius: 999px;
     border: 1px solid #e2e8f0;
@@ -57,6 +64,7 @@
     font-weight: 500;
     color: #64748b;
   }
+
   .mb-btn {
     border-radius: 999px;
     border: 1px solid #e2e8f0;
@@ -68,21 +76,25 @@
     cursor: pointer;
     text-decoration: none;
   }
+
   .mb-btn-primary {
     border-color: transparent;
     background: #0284c7;
     color: #ffffff;
     box-shadow: 0 10px 25px rgba(37, 99, 235, 0.25);
   }
+
   .mb-grid {
     display: grid;
     gap: 24px;
   }
+
   @media (min-width: 1024px) {
     .mb-grid {
       grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
     }
   }
+
   .mb-card {
     border-radius: 24px;
     background: #ffffff;
@@ -90,6 +102,7 @@
     box-shadow: 0 18px 45px rgba(15, 23, 42, 0.06);
     overflow: hidden;
   }
+
   .mb-card-header {
     display: flex;
     justify-content: space-between;
@@ -97,26 +110,32 @@
     padding: 18px 24px;
     border-bottom: 1px solid #e2e8f0;
   }
+
   .mb-card-title {
     font-size: 14px;
     font-weight: 600;
     margin-bottom: 4px;
   }
+
   .mb-card-subtitle {
     font-size: 12px;
     color: #64748b;
   }
+
   .mb-card-meta {
     font-size: 11px;
     color: #94a3b8;
     white-space: nowrap;
   }
+
   .mb-card-body {
     padding: 18px 24px 20px;
   }
+
   .mb-field {
     margin-bottom: 14px;
   }
+
   .mb-label {
     display: block;
     font-size: 11px;
@@ -124,32 +143,39 @@
     color: #475569;
     margin-bottom: 4px;
   }
+
   .mb-label span.req {
     color: #f97373;
     margin-left: 3px;
   }
+
   .mb-hint {
     margin-top: 2px;
     font-size: 11px;
     color: #94a3b8;
   }
+
   .mb-error {
     margin-top: 2px;
     font-size: 11px;
     color: #b91c1c;
   }
+
   .mb-row-2 {
     display: grid;
     gap: 48px;
   }
+
   @media (min-width: 640px) {
     .mb-row-2 {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
-  .mb-row-2 + .mb-row-2 {
+
+  .mb-row-2+.mb-row-2 {
     margin-top: 14px;
   }
+
   .mb-card-body input,
   .mb-card-body select,
   .mb-card-body textarea {
@@ -164,10 +190,12 @@
     transition: border-color 0.15s ease, box-shadow 0.15s ease,
       background-color 0.15s ease;
   }
+
   .mb-card-body textarea {
     min-height: 70px;
     resize: vertical;
   }
+
   .mb-card-body input:focus,
   .mb-card-body select:focus,
   .mb-card-body textarea:focus {
@@ -175,23 +203,28 @@
     background: #ffffff;
     box-shadow: 0 0 0 2px #e0f2fe;
   }
+
   .mb-side-card dl {
     font-size: 12px;
     color: #64748b;
   }
+
   .mb-side-row {
     display: flex;
     justify-content: space-between;
     margin-bottom: 6px;
   }
+
   .mb-side-row dd {
     font-weight: 500;
     color: #0f172a;
   }
+
   .mb-side-row dd.amount {
     color: #16a34a;
     font-weight: 600;
   }
+
   .mb-side-note {
     margin-top: 10px;
     border-radius: 16px;
@@ -242,9 +275,15 @@
                 <label class="mb-label">
                   Customer<span class="req">*</span>
                 </label>
-                {{ form.customer }}
+                <div style="display: flex; align-items: start; gap: 8px;">
+                  <div style="flex: 1;">{{ form.customer }}</div>
+                  <a href="{% url 'customer_create' %}?next={{ request.get_full_path|urlencode }}" class="mb-btn"
+                    style="white-space: nowrap; font-size: 11px; padding: 7px 12px; margin-top: 0;">
+                    + New
+                  </a>
+                </div>
                 {% for error in form.customer.errors %}
-                  <p class="mb-error">{{ error }}</p>
+                <p class="mb-error">{{ error }}</p>
                 {% endfor %}
               </div>
               <div class="mb-row-2" style="max-width: 480px;">
@@ -254,7 +293,7 @@
                   </label>
                   {{ form.invoice_number }}
                   {% for error in form.invoice_number.errors %}
-                    <p class="mb-error">{{ error }}</p>
+                  <p class="mb-error">{{ error }}</p>
                   {% endfor %}
                 </div>
                 <div class="mb-field">
@@ -263,7 +302,7 @@
                   </label>
                   {{ form.issue_date }}
                   {% for error in form.issue_date.errors %}
-                    <p class="mb-error">{{ error }}</p>
+                  <p class="mb-error">{{ error }}</p>
                   {% endfor %}
                 </div>
               </div>
@@ -271,7 +310,7 @@
                 <label class="mb-label">Product / service</label>
                 {{ form.item }}
                 {% for error in form.item.errors %}
-                  <p class="mb-error">{{ error }}</p>
+                <p class="mb-error">{{ error }}</p>
                 {% endfor %}
               </div>
               <div class="mb-row-2" style="max-width: 480px; margin-top: 4px;">
@@ -281,7 +320,7 @@
                   </label>
                   {{ form.due_date }}
                   {% for error in form.due_date.errors %}
-                    <p class="mb-error">{{ error }}</p>
+                  <p class="mb-error">{{ error }}</p>
                   {% endfor %}
                 </div>
                 <div class="mb-field">
@@ -290,7 +329,7 @@
                   </label>
                   {{ form.total_amount }}
                   {% for error in form.total_amount.errors %}
-                    <p class="mb-error">{{ error }}</p>
+                  <p class="mb-error">{{ error }}</p>
                   {% endfor %}
                 </div>
               </div>
@@ -303,7 +342,7 @@
                   Optional tax portion of this invoice. Leave blank if tax-free.
                 </p>
                 {% for error in form.tax_amount.errors %}
-                  <p class="mb-error">{{ error }}</p>
+                <p class="mb-error">{{ error }}</p>
                 {% endfor %}
               </div>
               <div class="mb-field" style="max-width: 480px;">
@@ -315,7 +354,7 @@
                   Choose a saved tax rate to auto-calculate the tax portion.
                 </p>
                 {% for error in form.tax_rate.errors %}
-                  <p class="mb-error">{{ error }}</p>
+                <p class="mb-error">{{ error }}</p>
                 {% endfor %}
               </div>
               <div class="mb-field" style="max-width: 560px; margin-top: 8px;">
@@ -325,7 +364,7 @@
                   This will show on the invoice (for example, project or services description).
                 </p>
                 {% for error in form.description.errors %}
-                  <p class="mb-error">{{ error }}</p>
+                <p class="mb-error">{{ error }}</p>
                 {% endfor %}
               </div>
               <div class="mb-field" style="max-width: 560px; margin-top: 6px;">
@@ -335,7 +374,7 @@
                   Optional message that appears at the bottom of the invoice.
                 </p>
                 {% for error in form.notes.errors %}
-                  <p class="mb-error">{{ error }}</p>
+                <p class="mb-error">{{ error }}</p>
                 {% endfor %}
               </div>
             </div>
@@ -357,9 +396,9 @@
                   <dt>Customer</dt>
                   <dd>
                     {% if form.customer.value %}
-                      Selected
+                    Selected
                     {% else %}
-                      Not selected
+                    Not selected
                     {% endif %}
                   </dd>
                 </div>

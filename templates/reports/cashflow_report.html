@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% load static mb_extras %}
+
+{% block title %}Cashflow report · Mini-Books{% endblock %}
+
+{% block content %}
+  <div class="mb-page-shell">
+    <div id="cashflow-report-root"></div>
+    <script id="cashflow-report-data" type="application/json">
+      {{ cashflow_data_json|safe }}
+    </script>
+    {% vite_asset 'cashflow-report' 'css' as cashflow_css %}
+    {% if cashflow_css %}
+      <link rel="stylesheet" href="{% static cashflow_css %}">
+    {% endif %}
+    {% vite_asset 'cashflow-report' as cashflow_js %}
+    {% if cashflow_js %}
+      <script type="module" src="{% static cashflow_js %}"></script>
+    {% endif %}
+  </div>
+{% endblock %}

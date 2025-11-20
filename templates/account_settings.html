@@ -1,11 +1,15 @@
 {% extends "base.html" %}
 {% load static mb_extras %}
 
-{% block title %} · Account settings{% endblock %}
-
 {% block content %}
   <div id="account-settings-root"></div>
-  {{ account_settings_payload|json_script:"account-settings-data" }}
+  <script id="account-settings-data" type="application/json">
+    {{ account_settings_payload|safe }}
+  </script>
+  {% vite_asset 'account-settings' 'css' as settings_css %}
+  {% if settings_css %}
+    <link rel="stylesheet" href="{% static settings_css %}">
+  {% endif %}
   {% vite_asset 'account-settings' as settings_js %}
   {% if settings_js %}
     <script type="module" src="{% static settings_js %}"></script>

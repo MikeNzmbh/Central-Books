@@ -4,37 +4,42 @@
 {% block title %} · Dashboard{% endblock %}
 
 {% block content %}
-{% vite_asset 'dashboard-welcome' as dashboard_welcome_js %}
-{% if empty_workspace %}
-  <div
-    id="welcome-onboarding-root"
-    data-start-books-url="{{ start_books_url }}"
-    data-create-bank-url="{{ create_bank_url }}"
-    data-import-csv-url="{{ import_csv_url }}"
-    data-has-bank="{% if has_bank %}true{% else %}false{% endif %}"
-    style="min-height:70vh;"
-  ></div>
-  {% if dashboard_welcome_js %}
-    <script type="module" src="{% static dashboard_welcome_js %}"></script>
+  <div id="dashboard-root"></div>
+  <script id="dashboard-data" type="application/json">
+    {{ dashboard_payload|safe }}
+  </script>
+  {% vite_asset 'dashboard' 'css' as dashboard_css %}
+  {% if dashboard_css %}
+    <link rel="stylesheet" href="{% static dashboard_css %}">
   {% endif %}
-{% elif not has_any_data %}
-  <section class="card" style="max-width:720px;margin:32px auto;">
-    <h1 class="app-page-title">
-      Welcome to Mini-Books{% if request.user.first_name %}, {{ request.user.first_name }}{% endif %} 👋
-    </h1>
-    <p class="app-header-subtitle">
-      Let’s get your finances in order. Start by creating your first invoice or logging an expense.
-    </p>
-    <ul style="margin-top:16px;margin-bottom:16px;padding-left:18px;font-size:14px;">
-      <li>Create your first invoice for a customer.</li>
-      <li>Add at least one expense to track your spending.</li>
-    </ul>
-    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;">
-      <a href="{% url 'invoice_create' %}" class="btn-pill btn-primary">Create first invoice</a>
-      <a href="{% url 'expense_create' %}" class="btn-pill btn-secondary">Add first expense</a>
+  {% vite_asset 'dashboard' as dashboard_js %}
+  {% if dashboard_js %}
+    <script type="module" src="{% static dashboard_js %}"></script>
+  {% endif %}
+  <script>
+    window.addEventListener("dashboard-mounted", function () {
+      var fallback = document.getElementById("dashboard-fallback");
+      if (fallback) {
+        fallback.style.display = "none";
+      }
+    });
+  </script>
+  {% if empty_workspace %}
+    <div id="dashboard-fallback">
+      <section class="card" style="max-width:720px;margin:32px auto;">
+        <h1 class="app-page-title">Welcome to Central-Books 👋</h1>
+        <p class="app-header-subtitle">
+          Start by creating your first customer or importing a sample bank CSV.
+        </p>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:12px;">
+          <a href="{{ start_books_url }}" class="btn-pill btn-primary">Start your books</a>
+          <a href="{{ import_csv_url }}" class="btn-pill btn-secondary">Upload a sample bank CSV</a>
+        </div>
+      </section>
     </div>
-  </section>
-{% else %}
+  {% endif %}
+  {% if not empty_workspace %}
+  <div id="dashboard-fallback">
 <header class="app-header">
   <div class="app-title-row">
     <div>
@@ -149,9 +154,9 @@
       </div>
     </div>
   </div>
-</section>
+ </section>
 
-<section class="card" style="margin-top:12px;">
+ <section class="card" style="margin-top:12px;">
   <h2 class="card-title">Branding</h2>
   <p class="card-meta" style="margin-top:4px;">
     Upload your logo so Mini-Books feels like home. This will show on invoices and the dashboard later.
@@ -329,8 +334,9 @@
       Income {{ metrics.total_income_month|default:0|floatformat:2 }} − Expenses {{ metrics.total_expenses_month|default:0|floatformat:2 }}
     </p>
   </div>
-  </section>
-{% else %}
+ </section>
+  </div>
+</div>
 
 <script>
   (function() {

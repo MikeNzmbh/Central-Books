@@ -2,41 +2,31 @@
 {% load static mb_extras %}
 
 {% block content %}
-  <div class="px-4 py-6">
-    <div
-      id="coa-account-root"
-      data-account-id="{{ account.id }}"
-      data-name="{{ account.name|escapejs }}"
-      data-code="{{ account.code|default:""|escapejs }}"
-      data-type="{{ account.get_type_display|default:account.type|escapejs }}"
-      data-detail-type="{{ account_detail_type|escapejs }}"
-      data-currency="{{ business.currency|default:"USD" }}"
-      data-is-favorite="{{ account.is_favorite|yesno:'true,false' }}"
-      data-is-bank-account="{{ is_bank_account|yesno:'true,false' }}"
-      data-bank-last4="{{ bank_last4|default_if_none:"" }}"
-      data-bank-display-name="{{ bank_display_name|default_if_none:""|escapejs }}"
-      data-balance="{{ balance }}"
-      data-period-deposits="{{ period_deposits }}"
-      data-period-withdrawals="{{ period_withdrawals }}"
-      data-period-count="{{ period_count }}"
-      data-last-reconciled-on="{{ last_reconciled_on|default_if_none:"" }}"
-      data-unreconciled-count="{{ unreconciled_count }}"
-      data-edit-form-url="{{ edit_form_url }}"
-      data-link-bank-feed-url="{{ link_bank_feed_url }}"
-      data-api-transactions-url="{{ api_bank_transactions_url }}"
-      data-api-activity-url="{{ api_activity_url }}"
-      data-api-ledger-url="{{ api_ledger_url }}"
-      data-api-toggle-favorite-url="{{ api_toggle_favorite_url }}"
-      data-api-create-manual-tx-url="{{ api_create_manual_tx_url }}"
-    ></div>
-  </div>
+<div class="px-4 py-6">
+  <div id="coa-account-root" data-account-id="{{ account.id }}" data-name="{{ account.name|escapejs }}"
+    data-code="{{ account.code|default:""|escapejs }}"
+    data-type="{{ account.get_type_display|default:account.type|escapejs }}"
+    data-detail-type="{{ account_detail_type|escapejs }}" data-currency="{{ business.currency|default:" USD" }}"
+    data-is-favorite="{{ account.is_favorite|yesno:'true,false' }}"
+    data-is-bank-account="{{ is_bank_account|yesno:'true,false' }}"
+    data-bank-last4="{{ bank_last4|default_if_none:"" }}"
+    data-bank-display-name="{{ bank_display_name|default_if_none:""|escapejs }}" data-balance="{{ balance }}"
+    data-bank-feed-balance="{{ bank_feed_balance }}" data-period-deposits="{{ period_deposits }}"
+    data-period-withdrawals="{{ period_withdrawals }}" data-period-count="{{ period_count }}"
+    data-last-reconciled-on="{{ last_reconciled_on|default_if_none:"" }}"
+    data-unreconciled-count="{{ unreconciled_count }}" data-edit-form-url="{{ edit_form_url }}"
+    data-link-bank-feed-url="{{ link_bank_feed_url }}" data-api-transactions-url="{{ api_bank_transactions_url }}"
+    data-api-activity-url="{{ api_activity_url }}" data-api-ledger-url="{{ api_ledger_url }}"
+    data-api-toggle-favorite-url="{{ api_toggle_favorite_url }}"
+    data-api-create-manual-tx-url="{{ api_create_manual_tx_url }}"></div>
+</div>
 
-  {% vite_asset 'coa-account-detail' as js_path %}
-  {% if js_path %}
-    <script type="module" src="{% static js_path %}"></script>
-  {% endif %}
-  {% vite_asset 'coa-account-detail' 'css' as css_path %}
-  {% if css_path %}
-    <link rel="stylesheet" href="{% static css_path %}">
-  {% endif %}
+{% vite_asset 'coa-account-detail' as js_path %}
+{% if js_path %}
+<script type="module" src="{% static js_path %}"></script>
+{% endif %}
+{% vite_asset 'coa-account-detail' 'css' as css_path %}
+{% if css_path %}
+<link rel="stylesheet" href="{% static css_path %}">
+{% endif %}
 {% endblock %}
