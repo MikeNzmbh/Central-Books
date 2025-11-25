@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}US Sales Tax Summary{% endblock %}
+
+{% block content %}
+<header class="app-header">
+  <div class="app-title-row">
+    <div>
+      <span class="app-page-title">US Sales Tax Collected Summary</span>
+      {% if business %}<span class="app-currency-pill">{{ business.currency }}</span>{% endif %}
+    </div>
+    <div class="app-header-actions">
+      <form method="get" class="form-inline" style="display:flex;gap:8px;flex-wrap:wrap;">
+        <label>
+          Start
+          <input type="date" name="start_date" value="{{ period.start }}" required>
+        </label>
+        <label>
+          End
+          <input type="date" name="end_date" value="{{ period.end }}" required>
+        </label>
+        <button class="btn-pill btn-primary" type="submit">Apply</button>
+        <a class="btn-pill btn-secondary" href="?start_date={{ period.start }}&end_date={{ period.end }}&format=json">Export JSON</a>
+      </form>
+    </div>
+  </div>
+  <p class="app-header-subtitle">Tracking only. Central-Books does not determine nexus or rate correctness.</p>
+</header>
+
+<section class="card" style="margin-top:12px;">
+  <div class="card-header">
+    <h2 class="card-title">By jurisdiction</h2>
+    <p class="card-meta">Amounts are accrual, using TransactionLineTaxDetail.</p>
+  </div>
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Jurisdiction</th>
+          <th>Gross taxable sales (txn)</th>
+          <th>Gross taxable sales (CAD)</th>
+          <th>Tax collected (txn)</th>
+          <th>Tax collected (CAD)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in jurisdictions %}
+          <tr>
+            <td>{{ row.code }}</td>
+            <td>{{ row.gross_taxable_sales_txn|floatformat:2 }}</td>
+            <td>{{ row.gross_taxable_sales_home|floatformat:2 }}</td>
+            <td>{{ row.tax_collected_txn|floatformat:2 }}</td>
+            <td>{{ row.tax_collected_home|floatformat:2 }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5">No US tax collected in this period.</td></tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr>
+          <th>Total</th>
+          <th>{{ totals.gross_taxable_sales_txn|floatformat:2 }}</th>
+          <th>{{ totals.gross_taxable_sales_home|floatformat:2 }}</th>
+          <th>{{ totals.tax_collected_txn|floatformat:2 }}</th>
+          <th>{{ totals.tax_collected_home|floatformat:2 }}</th>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</section>
+
+<section class="card" style="margin-top:12px;">
+  <h3 class="card-title">Disclaimer</h3>
+  <p class="card-meta">{{ disclaimer }}</p>
+  <div style="margin-top:8px;display:flex;gap:12px;flex-wrap:wrap;">
+    <a class="btn-pill btn-secondary" href="{% url 'dashboard' %}">Back to dashboard</a>
+    <a class="btn-pill btn-secondary" href="{% url 'gst_hst_report' %}">View GST/HST filing</a>
+  </div>
+</section>
+{% endblock %}

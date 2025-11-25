@@ -18,6 +18,7 @@ from .models import (
     BankStatementImport,
     TaxRate,
 )
+from taxes.models import TaxGroup
 from .utils import get_current_business
 
 
@@ -247,6 +248,12 @@ class InvoiceForm(forms.ModelForm):
         label="Tax rate",
         empty_label="Select tax rate",
     )
+    tax_group = forms.ModelChoiceField(
+        queryset=TaxGroup.objects.none(),
+        required=False,
+        label="Tax group",
+        empty_label="Select tax group",
+    )
 
     class Meta:
         model = Invoice
@@ -259,7 +266,8 @@ class InvoiceForm(forms.ModelForm):
             "description",
             "total_amount",
             "tax_amount",
-             "tax_rate",
+            "tax_rate",
+            "tax_group",
             "notes",
         ]
 
@@ -280,6 +288,9 @@ class InvoiceForm(forms.ModelForm):
                 default_rate = tax_qs.filter(is_default_sales=True).first()
                 if default_rate:
                     self.fields["tax_rate"].initial = default_rate.pk
+            self.fields["tax_group"].queryset = TaxGroup.objects.filter(business=self.business).order_by(
+                "display_name"
+            )
 
     def clean_customer(self):
         customer = self.cleaned_data.get("customer")
@@ -290,7 +301,8 @@ class InvoiceForm(forms.ModelForm):
     def clean_tax_amount(self):
         value = self.cleaned_data.get("tax_amount")
         tax_rate = self.cleaned_data.get("tax_rate")
-        if tax_rate:
+        tax_group = self.cleaned_data.get("tax_group")
+        if tax_rate or tax_group:
             return Decimal("0.00")
         if value is None:
             value = Decimal("0.00")
@@ -303,6 +315,12 @@ class InvoiceForm(forms.ModelForm):
         if rate and self.business and rate.business_id != self.business.id:
             raise ValidationError("Invalid tax rate for this business.")
         return rate
+
+    def clean_tax_group(self):
+        group = self.cleaned_data.get("tax_group")
+        if group and self.business and group.business_id != self.business.id:
+            raise ValidationError("Invalid tax group for this business.")
+        return group
 
 
 class ExpenseForm(forms.ModelForm):
@@ -318,10 +336,25 @@ class ExpenseForm(forms.ModelForm):
         label="Tax rate",
         empty_label="Select tax rate",
     )
+    tax_group = forms.ModelChoiceField(
+        queryset=TaxGroup.objects.none(),
+        required=False,
+        label="Tax group",
+        empty_label="Select tax group",
+    )
 
     class Meta:
         model = Expense
-        fields = ["supplier", "category", "date", "description", "amount", "tax_amount", "tax_rate"]
+        fields = [
+            "supplier",
+            "category",
+            "date",
+            "description",
+            "amount",
+            "tax_amount",
+            "tax_rate",
+            "tax_group",
+        ]
 
     def __init__(self, *args, **kwargs):
         self.business = kwargs.pop("business", None)
@@ -340,11 +373,15 @@ class ExpenseForm(forms.ModelForm):
                 default_rate = tax_qs.filter(is_default_purchases=True).first()
                 if default_rate:
                     self.fields["tax_rate"].initial = default_rate.pk
+            self.fields["tax_group"].queryset = TaxGroup.objects.filter(business=self.business).order_by(
+                "display_name"
+            )
 
     def clean_tax_amount(self):
         value = self.cleaned_data.get("tax_amount")
         tax_rate = self.cleaned_data.get("tax_rate")
-        if tax_rate:
+        tax_group = self.cleaned_data.get("tax_group")
+        if tax_rate or tax_group:
             return Decimal("0.00")
         if value is None:
             value = Decimal("0.00")
@@ -357,6 +394,12 @@ class ExpenseForm(forms.ModelForm):
         if rate and self.business and rate.business_id != self.business.id:
             raise ValidationError("Invalid tax rate for this business.")
         return rate
+
+    def clean_tax_group(self):
+        group = self.cleaned_data.get("tax_group")
+        if group and self.business and group.business_id != self.business.id:
+            raise ValidationError("Invalid tax group for this business.")
+        return group
 
 
 class ItemForm(forms.ModelForm):

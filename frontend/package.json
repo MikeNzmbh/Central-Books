@@ -18,6 +18,8 @@
     "vite": "^5.2.0"
   },
   "dependencies": {
+    "framer-motion": "^12.23.24",
+    "lucide-react": "^0.554.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   }

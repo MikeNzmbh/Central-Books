@@ -4,6 +4,8 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 
 from .accounting_defaults import ensure_default_accounts
+from taxes.models import TransactionLineTaxDetail
+from taxes.postings import add_expense_tax_lines
 from .models import Account, JournalEntry, JournalLine, Expense
 
 
@@ -69,14 +71,28 @@ def post_expense_paid(expense, bank_account_code="1010"):
             source_object_id=expense.pk,
         )
 
+        non_recoverable_extra = Decimal("0.00")
+        tax_details = []
+        if expense.tax_group_id and expense.pk:
+            ct = ContentType.objects.get_for_model(Expense)
+            tax_details = list(
+                TransactionLineTaxDetail.objects.filter(
+                    business=expense.business,
+                    transaction_line_content_type=ct,
+                    transaction_line_object_id=expense.pk,
+                )
+            )
+
+        if tax_details:
+            non_recoverable_extra = add_expense_tax_lines(entry, tax_details)
         JournalLine.objects.create(
             journal_entry=entry,
             account=expense_account,
-            debit=net + (Decimal("0.00") if (expense.tax_rate and expense.tax_rate.is_recoverable) else tax),
+            debit=net + (non_recoverable_extra if tax_details else (Decimal("0.00") if (expense.tax_rate and expense.tax_rate.is_recoverable) else tax)),
             credit=0,
             description="Expense posted",
         )
-        if tax > 0 and expense.tax_rate and expense.tax_rate.is_recoverable:
+        if not tax_details and tax > 0 and expense.tax_rate and expense.tax_rate.is_recoverable:
             tax_account = defaults.get("tax_recoverable")
             if not tax_account:
                 raise ValueError("No tax recoverable account available.")

@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}Reconcile {{ bank_account.name }}{% endblock %}
+
+{% block content %}
+<header class="app-header">
+  <div class="app-title-row">
+    <div>
+      <span class="app-page-title">Reconcile – {{ bank_account.name }}</span>
+      <span class="app-currency-pill">{{ bank_account.account.code|default:"" }}</span>
+    </div>
+    <form method="get" class="form-inline" style="display:flex;gap:8px;flex-wrap:wrap;">
+      <label>Start <input type="date" name="start" value="{{ period.start }}"></label>
+      <label>End <input type="date" name="end" value="{{ period.end }}"></label>
+      <button class="btn-pill btn-primary" type="submit">Apply</button>
+    </form>
+  </div>
+  <p class="app-header-subtitle">Match bank feed lines to ledger entries. When all lines in this period are reconciled, your bank account is balanced.</p>
+</header>
+
+<section class="card" style="margin-top:12px;">
+  <div class="card-header">
+    <h2 class="card-title">Bank lines</h2>
+    <p class="card-meta">Unreconciled transactions for the selected period.</p>
+  </div>
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Description</th>
+          <th style="text-align:right;">Amount</th>
+          <th>Suggested matches</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in bank_lines %}
+          <tr>
+            <td>{{ row.obj.date }}</td>
+            <td>{{ row.obj.description }}</td>
+            <td style="text-align:right;">{{ row.obj.amount|floatformat:2 }}</td>
+            <td>
+              {% if row.candidates %}
+                {% for cand in row.candidates %}
+                  <div style="margin-bottom:6px;">
+                    {{ cand.journal_entry.date }} – {{ cand.journal_entry.description }} ({{ cand.debit|floatformat:2 }} / {{ cand.credit|floatformat:2 }})
+                    <form method="post" action="{% url 'reconcile_bank_account' bank_account.id %}" style="display:inline;">
+                      {% csrf_token %}
+                      <input type="hidden" name="bank_line_id" value="{{ row.obj.id }}">
+                      <input type="hidden" name="journal_line_id" value="{{ cand.id }}">
+                      <button class="btn-pill btn-secondary btn-small" type="submit">Match</button>
+                    </form>
+                  </div>
+                {% endfor %}
+              {% else %}
+                <span class="card-meta">No suggestions</span>
+              {% endif %}
+            </td>
+            <td>
+              <a class="btn-pill btn-secondary btn-small" href="#">Create transaction</a>
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5">All bank lines reconciled for this period.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card" style="margin-top:12px;">
+  <h3 class="card-title">Tips</h3>
+  <p class="card-meta">Reconcile your bank feed by matching imported bank lines to Central-Books transactions. When everything is matched, your bank account is fully reconciled.</p>
+</section>
+{% endblock %}

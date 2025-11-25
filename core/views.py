@@ -23,7 +23,7 @@ from django.middleware.csrf import get_token
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.forms import ModelChoiceField
-from typing import cast
+from typing import cast, Any
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 from django.views.generic import ListView, TemplateView, CreateView, UpdateView, View
@@ -60,8 +60,10 @@ from .models import (
     BankAccount,
     BankStatementImport,
     BankTransaction,
+    Business,
 )
 from .ledger_services import compute_ledger_pl
+from taxes.reporting import net_tax_position
 from .ledger_reports import account_balances_for_business
 from .utils import get_current_business, is_empty_workspace
 
@@ -125,6 +127,7 @@ from .accounting_posting_expenses import post_expense_paid
 from .accounting_defaults import ensure_default_accounts
 from .reconciliation import (
     Allocation,
+    AllocationKind,
     add_bank_match,
     allocate_bank_transaction,
     recompute_bank_transaction_status,
@@ -717,6 +720,25 @@ def dashboard(request):
     bank_feed_items = (
         BankTransaction.objects.filter(bank_account__business=business).order_by("-date", "-id")[:5]
     )
+    bank_reco = []
+    if business:
+        for ba in BankAccount.objects.filter(business=business).select_related("account"):
+            unreconciled = (
+                BankTransaction.objects.filter(
+                    bank_account=ba,
+                    is_reconciled=False,
+                )
+                .exclude(status=BankTransaction.TransactionStatus.EXCLUDED)
+                .count()
+            )
+            bank_reco.append(
+                {
+                    "id": ba.id,
+                    "name": ba.name,
+                    "unreconciled": unreconciled,
+                    "account_code": ba.account.code if ba.account else "",
+                }
+            )
 
     def _decimal_to_float(value):
         if value is None:
@@ -773,6 +795,17 @@ def dashboard(request):
         for row in expense_summary
     ]
 
+    tax_position = {"sales_tax_payable": Decimal("0.00"), "recoverable_tax_asset": Decimal("0.00"), "net_tax": Decimal("0.00")}
+    tax_position_label = ""
+    if business:
+        tax_position = net_tax_position(business)
+        if tax_position["net_tax"] > 0:
+            tax_position_label = "Estimated tax owing"
+        elif tax_position["net_tax"] < 0:
+            tax_position_label = "Estimated tax refund receivable"
+        else:
+            tax_position_label = "Net tax is balanced"
+
     dashboard_payload = json.dumps(
         {
             "username": request.user.get_username() or request.user.get_full_name() or request.user.email,
@@ -792,6 +825,13 @@ def dashboard(request):
                 "revenue_month": _decimal_to_float(total_income_month),
                 "expenses_month": _decimal_to_float(total_expenses_month),
             },
+            "tax": {
+                "sales_tax_payable": _decimal_to_float(tax_position["sales_tax_payable"]),
+                "recoverable_tax_asset": _decimal_to_float(tax_position["recoverable_tax_asset"]),
+                "net_tax": _decimal_to_float(tax_position["net_tax"]),
+                "label": tax_position_label,
+            },
+            "bankReconciliation": bank_reco,
             "recentInvoices": recent_invoices_payload,
             "bankFeed": bank_feed_payload,
             "expenseSummary": expense_summary_payload,
@@ -856,6 +896,9 @@ def dashboard(request):
         "revenue_month": total_income_month,
         "subscriptions_month": subscriptions_month,
         "taxes_month": taxes_month,
+        "tax_position": tax_position,
+        "tax_position_label": tax_position_label,
+        "bank_reconciliation": bank_reco,
         "dashboard_payload": dashboard_payload,
     }
     return render(request, "dashboard.html", context)
@@ -1374,7 +1417,8 @@ class SuppliersView(LoginRequiredMixin, TemplateView):
         months_so_far = today.month or 1
 
         for supplier in suppliers:
-            expenses_all_qs = supplier.expenses.all()
+            supplier_any = cast(Any, supplier)
+            expenses_all_qs = supplier_any.expenses.all()
             paid_expenses_qs = expenses_all_qs.filter(status=Expense.Status.PAID)
             ytd = (
                 paid_expenses_qs.filter(date__gte=start_of_year, date__lte=today)
@@ -1400,12 +1444,12 @@ class SuppliersView(LoginRequiredMixin, TemplateView):
                 .get("total")
                 or Decimal("0")
             )
-
-            supplier._ytd_spend_cache = ytd
-            supplier.mtd_spend = mtd
-            supplier.default_category_name = default_category
-            supplier.initials = self._initials(supplier.name)
-            supplier.open_balance = open_balance
+            supplier_any = cast(Any, supplier)
+            supplier_any._ytd_spend_cache = ytd  # cache for percent calcs
+            supplier_any.mtd_spend = mtd
+            supplier_any.default_category_name = default_category
+            supplier_any.initials = self._initials(supplier.name)
+            supplier_any.open_balance = open_balance
 
             total_ytd += ytd
             total_mtd += mtd
@@ -1426,18 +1470,19 @@ class SuppliersView(LoginRequiredMixin, TemplateView):
         ytd_percent = 0
         mtd_percent = 0
         if selected_supplier and total_ytd > 0:
+            selected_supplier_any = cast(Any, selected_supplier)
             ytd_percent = int(
-                (selected_supplier._ytd_spend_cache / total_ytd * Decimal("100")).quantize(Decimal("1"))
+                (selected_supplier_any._ytd_spend_cache / total_ytd * Decimal("100")).quantize(Decimal("1"))
             )
         if selected_supplier and total_mtd > 0:
             mtd_percent = int(
-                (selected_supplier.mtd_spend / total_mtd * Decimal("100")).quantize(Decimal("1"))
+                (cast(Any, selected_supplier).mtd_spend / total_mtd * Decimal("100")).quantize(Decimal("1"))
             )
 
         avg_monthly_selected = Decimal("0")
         if selected_supplier and months_so_far > 0:
             avg_monthly_selected = (
-                selected_supplier._ytd_spend_cache / Decimal(months_so_far)
+                cast(Any, selected_supplier)._ytd_spend_cache / Decimal(months_so_far)
             ).quantize(Decimal("0.01"))
 
         context.update(
@@ -2010,7 +2055,7 @@ def cashflow_report_view(request):
 
     total_inflows = Decimal("0.00")
     total_outflows = Decimal("0.00")
-    trend: list[dict[str, float]] = []
+    trend: list[dict[str, object]] = []
     for (year, month), aggregates in periods.items():
         inflows = aggregates["inflows"]
         outflows = aggregates["outflows"]
@@ -2508,7 +2553,7 @@ def bank_feed_review(request, bank_account_id=None):
                             expense.save()
 
                             journal_entry = (
-                                expense.journalentry_set.order_by("-date", "-id").first()
+                                expense.journalentry_set.order_by("-date", "-id").first()  # type: ignore[attr-defined]
                             )
                             if journal_entry:
                                 tx.posted_journal_entry = journal_entry
@@ -2561,7 +2606,7 @@ def bank_feed_review(request, bank_account_id=None):
                     tx.save(update_fields=["status", "matched_expense"])
                     messages.success(request, "Transaction reset to New.")
                 elif action == "mark_created":
-                    tx.status = BankTransaction.TransactionStatus.CREATED
+                    tx.status = BankTransaction.TransactionStatus.LEGACY_CREATED
                     tx.save(update_fields=["status"])
                     messages.success(request, "Transaction marked as created.")
 
@@ -2650,7 +2695,7 @@ def bank_feed_match_invoice(request, bank_account_id, tx_id):
                     invoice.status = Invoice.Status.PAID
                     invoice.save()
                 payment_entry = (
-                    invoice.journalentry_set.filter(description__icontains="Invoice paid")
+                    invoice.journalentry_set.filter(description__icontains="Invoice paid")  # type: ignore[attr-defined]
                     .order_by("-date", "-id")
                     .first()
                 )
@@ -2895,16 +2940,16 @@ def api_banking_feed_transactions(request):
                 "memo": tx.description,
                 "amount": float(tx.amount),
                 "status": tx.status,
-                "status_label": tx.get_status_display(),
+                "status_label": cast(Any, tx).get_status_display(),  # type: ignore[attr-defined]
                 "allocated_amount": float(tx.allocated_amount or Decimal("0.00")),
                 "side": "IN" if tx.amount >= 0 else "OUT",
                 "category": tx.category.name if tx.category else "",
-                "category_id": tx.category_id,
+                "category_id": tx.category_id,  # type: ignore[attr-defined]
                 "counterparty": counterparty,
                 "customer": getattr(tx.customer, "name", ""),
                 "supplier": getattr(tx.supplier, "name", ""),
-                "matched_invoice_id": tx.matched_invoice_id,
-                "matched_expense_id": tx.matched_expense_id,
+                "matched_invoice_id": tx.matched_invoice_id,  # type: ignore[attr-defined]
+                "matched_expense_id": tx.matched_expense_id,  # type: ignore[attr-defined]
                 "posted_journal_entry": entry_payload,
                 "expense_candidates": [
                     {
@@ -2966,12 +3011,21 @@ def api_allocate_bank_transaction(request, bank_tx_id):
 
     def _build_allocation(raw: dict) -> Allocation:
         try:
-            kind = str(raw["type"]).upper()
+            kind_raw = str(raw["type"]).upper()
             amount = Decimal(str(raw["amount"]))
         except (KeyError, TypeError, InvalidOperation, ValueError):
             raise ValidationError("Invalid allocation payload.")
+        allowed_kinds: tuple[AllocationKind, ...] = (
+            "INVOICE",
+            "BILL",
+            "DIRECT_INCOME",
+            "DIRECT_EXPENSE",
+            "CREDIT_NOTE",
+        )
+        if kind_raw not in allowed_kinds:
+            raise ValidationError("Invalid allocation type.")
         return Allocation(
-            kind=kind,
+            kind=cast(AllocationKind, kind_raw),
             id=raw.get("id"),
             account_id=raw.get("account_id"),
             amount=amount,
@@ -3035,7 +3089,7 @@ def api_allocate_bank_transaction(request, bank_tx_id):
             "bank_transaction": {
                 "id": bank_tx.id,
                 "status": bank_tx.status,
-                "status_label": bank_tx.get_status_display(),
+                "status_label": cast(Any, bank_tx).get_status_display(),  # type: ignore[attr-defined]
                 "allocated_amount": str(bank_tx.allocated_amount or Decimal("0.00")),
             },
         }
@@ -3161,7 +3215,7 @@ def api_banking_feed_create_entry(request, tx_id):
                     {"detail": f"Unable to save expense: {exc}"},
                     status=400,
                 )
-            journal_entry = expense.journalentry_set.order_by("-date", "-id").first()
+            journal_entry = expense.journalentry_set.order_by("-date", "-id").first()  # type: ignore[attr-defined]
             bank_tx.matched_expense = expense
             bank_tx.matched_invoice = None
             bank_tx.category = category
@@ -3178,7 +3232,8 @@ def api_banking_feed_create_entry(request, tx_id):
                     "posted_journal_entry",
                 ]
             )
-            add_bank_match(bank_tx, journal_entry)
+            if journal_entry:
+                add_bank_match(bank_tx, journal_entry)
         else:
             if category.type != Category.CategoryType.INCOME:
                 return JsonResponse(
@@ -3267,7 +3322,7 @@ def api_banking_feed_match_invoice_api(request, tx_id):
             invoice.save()
 
         payment_entry = (
-            invoice.journalentry_set.filter(description__icontains="Invoice paid")
+            invoice.journalentry_set.filter(description__icontains="Invoice paid")  # type: ignore[attr-defined]
             .order_by("-date", "-id")
             .first()
         )
@@ -3336,7 +3391,7 @@ def api_banking_feed_match_expense_api(request, tx_id):
 
         journal_entry = post_expense_paid(expense)
         if journal_entry is None:
-            journal_entry = expense.journalentry_set.order_by("-date", "-id").first()
+            journal_entry = expense.journalentry_set.order_by("-date", "-id").first()  # type: ignore[attr-defined]
 
         expense.status = Expense.Status.PAID
         expense.paid_date = bank_tx.date
@@ -3356,7 +3411,10 @@ def api_banking_feed_match_expense_api(request, tx_id):
                 "posted_journal_entry",
             ]
         )
-        add_bank_match(bank_tx, journal_entry)
+        if journal_entry:
+            add_bank_match(bank_tx, journal_entry)
+        else:
+            recompute_bank_transaction_status(bank_tx)
 
     return JsonResponse({"success": True})
 
@@ -3442,7 +3500,7 @@ def bank_feed_match_expense(request, bank_account_id, tx_id):
         journal_entry = post_expense_paid(expense)
         if journal_entry is None:
             journal_entry = (
-                expense.journalentry_set.order_by("-date", "-id").first()
+                expense.journalentry_set.order_by("-date", "-id").first()  # type: ignore[attr-defined]
             )
 
         expense.status = Expense.Status.PAID
@@ -3452,7 +3510,10 @@ def bank_feed_match_expense(request, bank_account_id, tx_id):
         bank_tx.matched_expense = expense
         bank_tx.posted_journal_entry = journal_entry
         bank_tx.save(update_fields=["matched_expense", "posted_journal_entry"])
-        add_bank_match(bank_tx, journal_entry)
+        if journal_entry:
+            add_bank_match(bank_tx, journal_entry)
+        else:
+            recompute_bank_transaction_status(bank_tx)
 
     messages.success(request, "Expense matched and marked as paid.")
     return redirect("bank_feed_review", bank_account_id=bank_account.id)
@@ -3495,17 +3556,18 @@ def chart_of_accounts_spa(request):
 
     payload: list[dict[str, object]] = []
     for account in accounts:
+        account_any = cast(Any, account)
         payload.append(
             {
-                "id": account.id,
-                "code": account.code or "",
-                "name": account.name,
-                "type": account.type,
-                "detailType": account.description or "",
-                "isActive": account.is_active,
-                "balance": float(balance_map.get(account.id) or 0),
-                "favorite": account.is_favorite,
-                "detailUrl": reverse("coa_account_detail", args=[account.id]),
+                "id": account_any.id,
+                "code": account_any.code or "",
+                "name": account_any.name,
+                "type": account_any.type,
+                "detailType": account_any.description or "",
+                "isActive": account_any.is_active,
+                "balance": float(balance_map.get(account_any.id) or 0),
+                "favorite": account_any.is_favorite,
+                "detailUrl": reverse("coa_account_detail", args=[account_any.id]),
             }
         )
 
@@ -3525,4 +3587,45 @@ def chart_of_accounts_spa(request):
         "spa_initial": json.dumps(spa_payload, cls=DjangoJSONEncoder),
         "new_account_url": reverse("bank_account_create"),
     }
+
     return render(request, "chart_of_accounts_spa.html", context)
+
+
+@login_required
+def reconciliation_entry(request):
+    """
+    Entry point for reconciliation - redirects to first available bank account.
+    """
+    business = get_current_business(request.user)
+    if business is None:
+        messages.warning(request, "Please create a business to start reconciling.")
+        return redirect("business_setup")
+
+    first_account = BankAccount.objects.filter(business=business).first()
+    if first_account:
+        return redirect("reconciliation_page", bank_account_id=first_account.id)
+    # Render shell with no selection when no accounts exist.
+    return render(request, "reconciliation/reconciliation_page.html", {"current": "reconciliation", "bank_account_id": ""})
+
+
+@login_required
+def reconciliation_page(request, bank_account_id):
+    """
+    Reconciliation workspace for a specific bank account.
+    """
+    business = get_current_business(request.user)
+    if business is None:
+        messages.warning(request, "Please create a business to start reconciling.")
+        return redirect("business_setup")
+
+    bank_account = get_object_or_404(BankAccount, id=bank_account_id, business=business)
+
+    return render(
+        request,
+        "reconciliation/reconciliation_page.html",
+        {
+            "current": "reconciliation",
+            "bank_account": bank_account,
+            "bank_account_id": bank_account.id,
+        },
+    )

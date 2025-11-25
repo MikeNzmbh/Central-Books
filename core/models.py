@@ -1,8 +1,9 @@
 from decimal import Decimal
 from typing import TYPE_CHECKING, Optional
+from types import SimpleNamespace
 
 from django.conf import settings
-from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.db.models import Sum, Q
@@ -436,6 +437,18 @@ class Invoice(models.Model):
         related_name="invoices",
         verbose_name="Product / service",
     )
+    tax_group = models.ForeignKey(
+        "taxes.TaxGroup",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="invoices",
+    )
+    posted_journal_entry = GenericRelation(
+        "core.JournalEntry",
+        content_type_field="source_content_type",
+        object_id_field="source_object_id",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -450,16 +463,39 @@ class Invoice(models.Model):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._original_status = self.status
+        self._skip_tax_sync = False
 
     def recalc_totals(self):
         net = self.total_amount or Decimal("0.00")
         self.subtotal = net
         tax = self.tax_amount or Decimal("0.00")
-        if self.tax_rate and self.tax_rate.percentage:
+
+        if self.tax_group_id:
+            from taxes.services import TaxEngine
+
+            currency = getattr(self.business, "currency", "CAD") or "CAD"
+            fx_rate = Decimal("1.00")
+            result = TaxEngine.calculate_for_line(
+                business=self.business,
+                transaction_line=SimpleNamespace(net_amount=net),
+                tax_group=self.tax_group,
+                txn_date=self.issue_date or timezone.now().date(),
+                currency=currency,
+                fx_rate=fx_rate,
+                persist=False,
+            )
+            tax_txn = result["total_tax_txn_currency"]
+            tax = tax_txn
+            self.tax_amount = tax_txn
+            self.tax_total = tax_txn
+        elif self.tax_rate and self.tax_rate.percentage:
             tax = (net * (self.tax_rate.percentage / Decimal("100"))).quantize(Decimal("0.01"))
+            self.tax_total = tax
+        else:
+            self.tax_total = tax
+
         self.tax_amount = tax
         self.net_total = net
-        self.tax_total = tax
         self.grand_total = net + tax
         self._recalc_payment_state()
 
@@ -485,6 +521,9 @@ class Invoice(models.Model):
         self.recalc_totals()
         super().save(*args, **kwargs)
 
+        if not self._skip_tax_sync:
+            self._sync_tax_details()
+
         from .accounting_posting import (
             post_invoice_sent,
             post_invoice_paid,
@@ -505,6 +544,41 @@ class Invoice(models.Model):
             remove_invoice_paid_entry(self)
 
         self._original_status = self.status
+
+    @property
+    def net_amount(self) -> Decimal:
+        return self.net_total or self.amount or Decimal("0.00")
+
+    def _sync_tax_details(self):
+        """
+        Refresh TransactionLineTaxDetail rows after save to keep postings aligned.
+        """
+        from django.contrib.contenttypes.models import ContentType
+        from taxes.models import TransactionLineTaxDetail
+        from taxes.services import TaxEngine
+
+        ct = ContentType.objects.get_for_model(self.__class__)
+        TransactionLineTaxDetail.objects.filter(
+            business=self.business,
+            transaction_line_content_type=ct,
+            transaction_line_object_id=self.pk,
+        ).delete()
+
+        if not self.tax_group_id:
+            return
+
+        currency = getattr(self.business, "currency", "CAD") or "CAD"
+        fx_rate = Decimal("1.00")
+        # Persist details; totals already applied to fields during recalc.
+        TaxEngine.calculate_for_line(
+            business=self.business,
+            transaction_line=self,
+            tax_group=self.tax_group,
+            txn_date=self.issue_date or timezone.now().date(),
+            currency=currency,
+            fx_rate=fx_rate,
+            persist=True,
+        )
 
     def delete(self, *args, **kwargs):
         from .accounting_posting import remove_invoice_sent_entry, remove_invoice_paid_entry
@@ -573,6 +647,18 @@ class Expense(models.Model):
         blank=True,
         related_name="expenses",
     )
+    tax_group = models.ForeignKey(
+        "taxes.TaxGroup",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="expenses",
+    )
+    posted_journal_entry = GenericRelation(
+        "core.JournalEntry",
+        content_type_field="source_content_type",
+        object_id_field="source_object_id",
+    )
     net_total = models.DecimalField(
         max_digits=10,
         decimal_places=2,
@@ -605,12 +691,28 @@ class Expense(models.Model):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._original_status = self.status
+        self._skip_tax_sync = False
 
     def recalc_totals(self):
         net = self.amount or Decimal("0.00")
         self.subtotal = net
         tax = self.tax_amount or Decimal("0.00")
-        if self.tax_rate and self.tax_rate.percentage:
+        if self.tax_group_id:
+            from taxes.services import TaxEngine
+
+            currency = getattr(self.business, "currency", "CAD") or "CAD"
+            fx_rate = Decimal("1.00")
+            result = TaxEngine.calculate_for_line(
+                business=self.business,
+                transaction_line=SimpleNamespace(net_amount=net),
+                tax_group=self.tax_group,
+                txn_date=self.date or timezone.now().date(),
+                currency=currency,
+                fx_rate=fx_rate,
+                persist=False,
+            )
+            tax = result["total_tax_txn_currency"]
+        elif self.tax_rate and self.tax_rate.percentage:
             tax = (net * (self.tax_rate.percentage / Decimal("100"))).quantize(Decimal("0.01"))
         self.tax_amount = tax
         self.net_total = net
@@ -653,6 +755,9 @@ class Expense(models.Model):
         self.recalc_totals()
         super().save(*args, **kwargs)
 
+        if not self._skip_tax_sync:
+            self._sync_tax_details()
+
         from .accounting_posting import remove_expense_entry
         from .accounting_posting_expenses import post_expense_paid
 
@@ -675,6 +780,41 @@ class Expense(models.Model):
     @property
     def gross_amount(self) -> Decimal:
         return self.grand_total or (self.net_total + self.tax_total)
+
+    @property
+    def net_amount(self) -> Decimal:
+        return self.net_total or self.total_amount or Decimal("0.00")
+
+    def _sync_tax_details(self):
+        """
+        Refresh TransactionLineTaxDetail rows after save to keep postings aligned.
+        """
+        from django.contrib.contenttypes.models import ContentType
+        from taxes.models import TransactionLineTaxDetail
+        from taxes.services import TaxEngine
+
+        ct = ContentType.objects.get_for_model(self.__class__)
+        TransactionLineTaxDetail.objects.filter(
+            business=self.business,
+            transaction_line_content_type=ct,
+            transaction_line_object_id=self.pk,
+        ).delete()
+
+        if not self.tax_group_id:
+            return
+
+        currency = getattr(self.business, "currency", "CAD") or "CAD"
+        fx_rate = Decimal("1.00")
+        # Persist details; totals already applied to fields during recalc.
+        TaxEngine.calculate_for_line(
+            business=self.business,
+            transaction_line=self,
+            tax_group=self.tax_group,
+            txn_date=self.date or timezone.now().date(),
+            currency=currency,
+            fx_rate=fx_rate,
+            persist=True,
+        )
 
     def __str__(self):
         return f"{self.date} – {self.description} – {self.amount}"
@@ -754,6 +894,15 @@ class JournalLine(models.Model):
     debit = models.DecimalField(max_digits=19, decimal_places=4, default=Decimal("0.0000"))
     credit = models.DecimalField(max_digits=19, decimal_places=4, default=Decimal("0.0000"))
     description = models.CharField(max_length=255, blank=True)
+    is_reconciled = models.BooleanField(default=False)
+    reconciled_at = models.DateTimeField(null=True, blank=True)
+    reconciliation_session = models.ForeignKey(
+        "core.ReconciliationSession",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="journal_lines",
+    )
 
     class Meta:
         ordering = ["id"]
@@ -977,6 +1126,15 @@ class BankTransaction(models.Model):
         blank=True,
         related_name="source_bank_transactions",
     )
+    is_reconciled = models.BooleanField(default=False)
+    reconciled_at = models.DateTimeField(null=True, blank=True)
+    reconciliation_session = models.ForeignKey(
+        "core.ReconciliationSession",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="bank_transactions",
+    )
 
     class Meta:
         unique_together = ("bank_account", "external_id")
@@ -994,6 +1152,19 @@ class BankTransaction(models.Model):
 
 
 class BankReconciliationMatch(models.Model):
+    """
+    Links bank transactions to journal entries during reconciliation.
+    Supports one-to-one, one-to-many, and many-to-many matching patterns.
+    """
+
+    MATCH_TYPE_CHOICES = [
+        ("ONE_TO_ONE", "One bank transaction to one journal entry"),
+        ("ONE_TO_MANY", "One bank transaction split across multiple entries"),
+        ("MANY_TO_ONE", "Multiple bank transactions to one entry"),
+        ("MANY_TO_MANY", "Complex multi-to-multi match"),
+    ]
+
+    # Core relationships
     bank_transaction = models.ForeignKey(
         BankTransaction,
         on_delete=models.CASCADE,
@@ -1004,21 +1175,141 @@ class BankReconciliationMatch(models.Model):
         on_delete=models.CASCADE,
         related_name="bank_matches",
     )
+
+    # Match metadata
+    match_type = models.CharField(
+        max_length=20,
+        choices=MATCH_TYPE_CHOICES,
+        default="ONE_TO_ONE",
+    )
+    match_confidence = models.DecimalField(
+        max_digits=3,
+        decimal_places=2,
+        default=Decimal("1.00"),
+        help_text="0.00 to 1.00, where 1.00 is deterministic match",
+    )
     matched_amount = models.DecimalField(
         max_digits=19,
         decimal_places=4,
         help_text="Absolute value allocated from the bank transaction.",
     )
+
+    # Adjustments (for fees, FX differences, etc.)
+    adjustment_journal_entry = models.ForeignKey(
+        JournalEntry,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="bank_match_adjustments",
+        help_text="Optional adjustment entry for fees or FX discrepancies",
+    )
+
+    # Audit trail
+    reconciled_at = models.DateTimeField(auto_now_add=True)
+    reconciled_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="bank_reconciliations",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ["-created_at", "id"]
+        ordering = ["-reconciled_at", "id"]
         constraints = [
             models.CheckConstraint(
                 check=models.Q(matched_amount__gt=0),
                 name="brm_amount_positive",
-            )
+            ),
+            models.CheckConstraint(
+                check=models.Q(match_confidence__gte=0) & models.Q(match_confidence__lte=1),
+                name="brm_confidence_range",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["bank_transaction", "reconciled_at"]),
+            models.Index(fields=["journal_entry"]),
         ]
 
     def __str__(self):
         return f"{self.bank_transaction_id} → {self.journal_entry_id} ({self.matched_amount})"
+
+
+class ReconciliationSession(models.Model):
+    class Status(models.TextChoices):
+        DRAFT = "DRAFT", "Draft"
+        IN_PROGRESS = "IN_PROGRESS", "In progress"
+        COMPLETED = "COMPLETED", "Completed"
+
+    business = models.ForeignKey(
+        "core.Business",
+        on_delete=models.CASCADE,
+        related_name="reconciliation_sessions",
+    )
+    bank_account = models.ForeignKey(
+        BankAccount,
+        on_delete=models.CASCADE,
+        related_name="reconciliation_sessions",
+    )
+    statement_start_date = models.DateField()
+    statement_end_date = models.DateField()
+    opening_balance = models.DecimalField(max_digits=19, decimal_places=4, default=Decimal("0.0000"))
+    closing_balance = models.DecimalField(max_digits=19, decimal_places=4, default=Decimal("0.0000"))
+    status = models.CharField(
+        max_length=16,
+        choices=Status.choices,
+        default=Status.DRAFT,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-statement_end_date", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["bank_account", "statement_start_date", "statement_end_date"],
+                name="uniq_reco_session_per_period",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.bank_account.name} {self.statement_start_date} – {self.statement_end_date}"
+
+
+class BankRule(models.Model):
+    """
+    Minimal rule for recurring merchant categorizations during reconciliation.
+    """
+
+    business = models.ForeignKey(
+        "core.Business",
+        on_delete=models.CASCADE,
+        related_name="bank_rules",
+    )
+    merchant_name = models.CharField(max_length=255)
+    category_label = models.CharField(max_length=255, blank=True)
+    account = models.ForeignKey(
+        Account,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="bank_rules",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="bank_rules_created",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("business", "merchant_name")
+        ordering = ["merchant_name"]
+
+    def __str__(self):
+        return f"{self.merchant_name} ({self.business_id})"

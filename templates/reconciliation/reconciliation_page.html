@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% load static mb_extras %}
+
+{% block content %}
+<div id="reconciliation-root" data-bank-account-id="{{ bank_account_id }}"></div>
+
+{% vite_asset 'reconciliation' as js_path %}
+{% if js_path %}
+<script type="module" src="{% static js_path %}"></script>
+{% else %}
+<!-- Vite asset not found for reconciliation -->
+{% endif %}
+
+{% vite_asset 'reconciliation' 'css' as css_path %}
+{% if css_path %}
+<link rel="stylesheet" href="{% static css_path %}">
+{% endif %}
+{% endblock %}

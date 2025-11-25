@@ -105,6 +105,30 @@
     </div>
     <p class="kpi-subtext">Bills logged but not yet marked as paid.</p>
   </div>
+  <div class="card kpi-card">
+    <div class="kpi-label">Net tax position</div>
+    <div class="kpi-value">
+      {{ tax_position.net_tax|default:0|floatformat:2 }} {{ business.currency|default:"" }}
+    </div>
+    <p class="kpi-subtext">{{ tax_position_label }}</p>
+    <a class="card-meta" href="{% url 'gst_hst_report' %}" style="text-decoration:none;">View GST/HST report →</a>
+  </div>
+  {% if bank_reconciliation %}
+  <div class="card kpi-card">
+    {% with bank=bank_reconciliation.0 %}
+      <div class="kpi-label">Bank reconciliation</div>
+      <div class="kpi-value">
+        {% if bank.unreconciled %}
+          {{ bank.unreconciled }} unreconciled
+        {% else %}
+          All reconciled
+        {% endif %}
+      </div>
+      <p class="kpi-subtext">{{ bank.name }}</p>
+      <a class="card-meta" href="{% url 'reconcile_bank_account' bank.id %}" style="text-decoration:none;">Reconcile →</a>
+    {% endwith %}
+  </div>
+  {% endif %}
 </section>
 
 <section class="dashboard-main-grid" style="margin-top:10px;">
@@ -152,6 +176,14 @@
         <span class="mix-amount">{{ taxes_month|default:0|floatformat:2 }} {{ business.currency }}</span>
         <span class="mix-percent">{{ taxes_share_percent|default:0|floatformat:1 }}%</span>
       </div>
+    </div>
+  </div>
+  <div class="card" style="padding:16px;margin-top:10px;">
+    <h3 class="card-title">Tax reports</h3>
+    <p class="card-meta">Jump to tax summaries.</p>
+    <div style="display:flex;flex-direction:column;gap:6px;">
+      <a class="card-meta" href="{% url 'gst_hst_report' %}">GST/HST filing summary →</a>
+      <a class="card-meta" href="{% url 'us_sales_tax_report' %}">US sales tax summary →</a>
     </div>
   </div>
  </section>

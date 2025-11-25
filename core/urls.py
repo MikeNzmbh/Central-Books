@@ -1,6 +1,7 @@
 from django.urls import path
 
 from . import views
+from taxes import views as tax_views
 from .views import (
     CustomerListView,
     InvoiceListView,
@@ -17,6 +18,17 @@ from .views_accounts import (
     api_account_ledger,
     api_account_toggle_favorite,
     api_account_manual_transaction,
+)
+from .views_reconciliation import reconcile_bank_account
+from .views_reconciliation import (
+    api_reconciliation_overview,
+    api_reconciliation_transactions,
+    api_reconciliation_matches,
+    api_reconciliation_confirm_match,
+    api_reconciliation_create_split,
+    api_reconciliation_audit,
+    api_reconciliation_create_rule,
+    api_ledger_search,
 )
 
 urlpatterns = [
@@ -65,6 +77,8 @@ urlpatterns = [
     path("reports/cashflow/", views.cashflow_report_view, name="cashflow_report"),
     path("reports/pl-shadow/", views.pl_shadow_view, name="pl_shadow"),
     path("reports/pl-export/", views.pl_export_csv, name="pl_export_csv"),
+    path("reports/tax/gst-hst/", tax_views.gst_hst_report, name="gst_hst_report"),
+    path("reports/tax/us-sales/", tax_views.us_sales_tax_report, name="us_sales_tax_report"),
     path("bank-accounts/", views.bank_account_list, name="bank_account_list"),
     path("bank-accounts/new/", views.bank_account_create, name="bank_account_create"),
     path(
@@ -72,6 +86,15 @@ urlpatterns = [
         views.bank_account_edit,
         name="bank_account_edit",
     ),
+    path("bank-accounts/<int:pk>/reconcile/", reconcile_bank_account, name="reconcile_bank_account"),
+    path("api/bank-accounts/<int:pk>/reconciliation/overview/", api_reconciliation_overview, name="api_reco_overview"),
+    path("api/bank-accounts/<int:pk>/reconciliation/transactions/", api_reconciliation_transactions, name="api_reco_transactions"),
+    path("api/reconciliation/matches/", api_reconciliation_matches, name="api_reco_matches"),
+    path("api/reconciliation/confirm-match/", api_reconciliation_confirm_match, name="api_reco_confirm_match"),
+    path("api/reconciliation/create-split/", api_reconciliation_create_split, name="api_reco_create_split"),
+    path("api/reconciliation/audit/", api_reconciliation_audit, name="api_reco_audit"),
+    path("api/reconciliation/rules/", api_reconciliation_create_rule, name="api_reco_rule"),
+    path("api/ledger/search/", api_ledger_search, name="api_ledger_search"),
     path("bank/import/", views.BankStatementImportView.as_view(), name="bank_import"),
     path(
         "bank-feeds/new/",
@@ -100,6 +123,10 @@ urlpatterns = [
         name="bank_feed_exclude_tx",
     ),
     path("bank-feed/react/", views.bank_feed_spa, name="bank_feed_spa"),
+    # Reconciliation
+    path("reconciliation/", views.reconciliation_entry, name="reconciliation_entry"),
+    path("reconciliation/<int:bank_account_id>/", views.reconciliation_page, name="reconciliation_page"),
+    # Banking accounts feed
     path("banking/", views.banking_accounts_feed_spa, name="banking_accounts_feed"),
     path("api/banking/overview/", views.api_banking_overview, name="api_banking_overview"),
     path(

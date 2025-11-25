@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}GST/HST Filing{% endblock %}
+
+{% block content %}
+<header class="app-header">
+  <div class="app-title-row">
+    <div>
+      <span class="app-page-title">GST/HST Filing Summary</span>
+      {% if business %}<span class="app-currency-pill">{{ business.currency }}</span>{% endif %}
+    </div>
+    <div class="app-header-actions">
+      <form method="get" class="form-inline" style="display:flex;gap:8px;flex-wrap:wrap;">
+        <label>
+          Start
+          <input type="date" name="start_date" value="{{ period.start }}" required>
+        </label>
+        <label>
+          End
+          <input type="date" name="end_date" value="{{ period.end }}" required>
+        </label>
+        <label>
+          Jurisdiction
+          <select name="jurisdiction">
+            <option value="ALL" {% if jurisdiction == "ALL" %}selected{% endif %}>All</option>
+            <option value="CRA" {% if jurisdiction == "CRA" %}selected{% endif %}>CRA (GST/HST)</option>
+            <option value="RQ" {% if jurisdiction == "RQ" %}selected{% endif %}>Revenu Québec (QST)</option>
+          </select>
+        </label>
+        <button class="btn-pill btn-primary" type="submit">Apply</button>
+        <a class="btn-pill btn-secondary" href="?start_date={{ period.start }}&end_date={{ period.end }}&jurisdiction={{ jurisdiction }}&format=json">Export JSON</a>
+      </form>
+    </div>
+  </div>
+  <p class="app-header-subtitle">Accrual basis. Uses journal lines (2300/2200, 1400) and transaction tax details.</p>
+</header>
+
+<section class="card kpi-grid-4" style="margin-top:12px;">
+  <div class="kpi-card">
+    <div class="kpi-label">Line 101 – Taxable sales</div>
+    <div class="kpi-value">{{ summary.line_101_taxable_sales|floatformat:2 }} {{ business.currency }}</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Line 105 – GST/HST collected</div>
+    <div class="kpi-value">{{ summary.line_105_tax_collected|floatformat:2 }} {{ business.currency }}</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Line 108 – ITCs (recoverable)</div>
+    <div class="kpi-value">{{ summary.line_108_itcs|floatformat:2 }} {{ business.currency }}</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Line 109 – Net tax</div>
+    <div class="kpi-value">{{ summary.line_109_net_tax|floatformat:2 }} {{ business.currency }}</div>
+  </div>
+</section>
+
+<section class="card" style="margin-top:16px;">
+  <div class="card-header">
+    <h2 class="card-title">Details</h2>
+    <a class="btn-pill btn-secondary" href="?start_date={{ period.start }}&end_date={{ period.end }}&jurisdiction={{ jurisdiction }}&format=json">Export CSV (use JSON endpoint)</a>
+  </div>
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Type</th>
+          <th>Doc ID</th>
+          <th>Net amount</th>
+          <th>Tax components</th>
+          <th>Total tax</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in details %}
+          <tr>
+            <td>{{ row.date }}</td>
+            <td>{{ row.document_type }}</td>
+            <td>{{ row.document_id }}</td>
+            <td>{{ row.net_amount|floatformat:2 }}</td>
+            <td>
+              {% for comp in row.tax_components %}
+                <div>{{ comp.name }} ({{ comp.authority }}): {{ comp.amount|floatformat:2 }}</div>
+              {% endfor %}
+            </td>
+            <td>{{ row.total_tax|floatformat:2 }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6">No tax activity in this period.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

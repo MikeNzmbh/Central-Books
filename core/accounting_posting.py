@@ -5,6 +5,8 @@ from django.db import transaction
 
 from core.models import Account, JournalEntry, JournalLine, Invoice, Expense
 from core.accounting_defaults import ensure_default_accounts
+from taxes.models import TransactionLineTaxDetail
+from taxes.postings import add_sales_tax_lines
 from .accounting_posting_expenses import (
     post_expense_paid as _post_expense_paid_impl,
     remove_expense_entry as _remove_expense_entry_impl,
@@ -72,7 +74,24 @@ def post_invoice_sent(invoice):
     JournalLine.objects.create(journal_entry=entry, account=ar_account, debit=total, credit=0)
     JournalLine.objects.create(journal_entry=entry, account=income_account, debit=0, credit=net)
 
-    if tax > 0:
+    tax_details = []
+    if invoice.tax_group_id and invoice.pk:
+        ct = ContentType.objects.get_for_model(Invoice)
+        tax_details = list(
+            TransactionLineTaxDetail.objects.filter(
+                business=invoice.business,
+                transaction_line_content_type=ct,
+                transaction_line_object_id=invoice.pk,
+            )
+        )
+
+    if tax_details:
+        total_tax_home, _ = add_sales_tax_lines(entry, tax_details)
+        # Adjust A/R debit if tax_details totals differ from invoice.grand_total
+        recomputed_total = net + total_tax_home
+        if recomputed_total != total:
+            entry.lines.filter(account=ar_account).update(debit=recomputed_total)
+    elif tax > 0:
         tax_account = _get_account(business, "2200")
         JournalLine.objects.create(journal_entry=entry, account=tax_account, debit=0, credit=tax)
 

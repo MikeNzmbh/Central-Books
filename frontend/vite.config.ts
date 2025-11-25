@@ -5,6 +5,11 @@ import path from "path";
 export default defineConfig({
   plugins: [react()],
   root: path.resolve(__dirname, "src"),
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "src"),
+    },
+  },
   build: {
     outDir: path.resolve(__dirname, "static/frontend"),
     emptyOutDir: false,
@@ -37,6 +42,10 @@ export default defineConfig({
         "cashflow-report": path.resolve(
           __dirname,
           "src/reports/cashflow-report-entry.tsx"
+        ),
+        reconciliation: path.resolve(
+          __dirname,
+          "src/reconciliation/reconciliation-entry.tsx"
         ),
       },
       output: {
