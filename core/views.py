@@ -800,7 +800,54 @@ def dashboard(request):
 
     recent_invoices = invoices_qs.select_related("customer").order_by("-issue_date")[:5]
     recent_customers = Customer.objects.filter(business=business).order_by("-created_at")[:5]
-    recent_suppliers = Supplier.objects.filter(business=business).order_by("-created_at")[:5]
+
+    supplier_stats_qs = (
+        Supplier.objects.filter(business=business)
+        .annotate(
+            payment_count=Count(
+                "expenses",
+                filter=Q(expenses__status=Expense.Status.PAID),
+            ),
+            mtd_spend=Sum(
+                "expenses__amount",
+                filter=Q(
+                    expenses__status=Expense.Status.PAID,
+                    expenses__date__gte=month_start,
+                    expenses__date__lte=month_end,
+                ),
+            ),
+            last_payment=Max(
+                "expenses__date",
+                filter=Q(expenses__status=Expense.Status.PAID),
+            ),
+        )
+        .order_by("-payment_count", "-mtd_spend", "-last_payment", "-id")[:5]
+    )
+    supplier_ids = [s.id for s in supplier_stats_qs]
+    supplier_recent_category = {}
+    if supplier_ids:
+        for row in (
+            Expense.objects.filter(
+                business=business, supplier_id__in=supplier_ids, category__isnull=False
+            )
+            .order_by("-date", "-id")
+            .values("supplier_id", "category__name")
+        ):
+            supplier_recent_category.setdefault(row["supplier_id"], row["category__name"])
+
+    recent_suppliers = []
+    for supplier in supplier_stats_qs:
+        supplier.mtd_spend = supplier.mtd_spend or Decimal("0")
+        supplier.payment_count = supplier.payment_count or 0
+        supplier.default_category_name = supplier_recent_category.get(supplier.id)
+        recent_suppliers.append(supplier)
+
+    if not recent_suppliers:
+        fallback_suppliers = Supplier.objects.filter(business=business).order_by("-created_at")[:5]
+        for supplier in fallback_suppliers:
+            supplier.mtd_spend = Decimal("0")
+            supplier.payment_count = 0
+        recent_suppliers = list(fallback_suppliers)
 
     unpaid_expenses_total = (
         expenses_all_qs.filter(status__in=[Expense.Status.UNPAID, Expense.Status.PARTIAL]).aggregate(total=Sum("amount"))["total"]
@@ -940,6 +987,15 @@ def dashboard(request):
                 "income": income_series,
                 "expenses": expense_series,
             },
+            "topSuppliers": [
+                {
+                    "name": supplier.name,
+                    "mtdSpend": _decimal_to_float(getattr(supplier, "mtd_spend", Decimal("0"))),
+                    "paymentCount": getattr(supplier, "payment_count", 0),
+                    "category": getattr(supplier, "default_category_name", None) or "",
+                }
+                for supplier in recent_suppliers
+            ],
             "urls": {
                 "newInvoice": reverse("invoice_create"),
                 "invoices": reverse("invoice_list"),
@@ -3714,9 +3770,10 @@ def api_banking_feed_add_entry(request, tx_id):
 
         amount_override = payload.get("amount")
         try:
-            base_amount = Decimal(
-                str(amount_override if amount_override not in (None, "", "0") else bank_abs)
-            )
+            # Sanitize amount input: remove commas to support locale formatting (e.g., "1,234.50" or "15,50")
+            amount_str = str(amount_override if amount_override not in (None, "", "0") else bank_abs)
+            amount_str = amount_str.replace(",", "")
+            base_amount = Decimal(amount_str)
         except (InvalidOperation, ValueError):
             return JsonResponse({"detail": "Invalid amount."}, status=400)
         rate_pct = tax_rate.percentage if tax_rate else Decimal("0.00")
