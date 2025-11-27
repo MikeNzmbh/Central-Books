@@ -1,4 +1,4 @@
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 import json
 
 from django.contrib.auth.decorators import login_required
@@ -8,6 +8,7 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 from django.views.decorators.http import require_POST
 
 from .ledger_reports import account_balances_for_business
@@ -254,5 +255,69 @@ def api_account_toggle_favorite(request, account_id):
 @login_required
 @require_POST
 def api_account_manual_transaction(request, account_id):
-    # Placeholder for future manual posting logic
-    return JsonResponse({"ok": True})
+    business = get_current_business(request.user)
+    if business is None:
+        return JsonResponse({"ok": False, "error": "No business."}, status=400)
+
+    account = get_object_or_404(Account, pk=account_id, business=business)
+    bank_account = getattr(account, "bank_account", None)
+    if bank_account is None:
+        return JsonResponse(
+            {"ok": False, "error": "This account is not linked to a bank account."},
+            status=400,
+        )
+
+    try:
+        payload = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        payload = {}
+    if not isinstance(payload, dict):
+        payload = {}
+
+    description = (payload.get("description") or "").strip()
+    memo = (payload.get("memo") or "").strip()
+    if not description:
+        return JsonResponse({"ok": False, "error": "Description is required."}, status=400)
+
+    amount_raw = payload.get("amount")
+    try:
+        amount = Decimal(str(amount_raw))
+    except (InvalidOperation, TypeError, ValueError):
+        return JsonResponse({"ok": False, "error": "Enter a valid amount."}, status=400)
+    if amount == 0:
+        return JsonResponse({"ok": False, "error": "Amount must be non-zero."}, status=400)
+
+    side = str(payload.get("side") or "").upper()
+    if side == "OUT" and amount > 0:
+        amount = -amount
+    if side == "IN" and amount < 0:
+        amount = abs(amount)
+
+    date_str = (payload.get("date") or "").strip()
+    tx_date = parse_date(date_str) or timezone.localdate()
+
+    description_text = description if not memo else f"{description} · {memo}"
+
+    with db_transaction.atomic():
+        tx = BankTransaction.objects.create(
+            bank_account=bank_account,
+            date=tx_date,
+            description=description_text[:512],
+            amount=amount,
+            status=BankTransaction.TransactionStatus.NEW,
+            allocated_amount=Decimal("0.00"),
+        )
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "transaction": {
+                "id": tx.id,
+                "date": tx.date.isoformat(),
+                "description": tx.description,
+                "amount": float(tx.amount),
+                "status": tx.status,
+            },
+        },
+        status=201,
+    )

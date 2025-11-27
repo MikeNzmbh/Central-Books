@@ -76,7 +76,7 @@ class ReconciliationEngine:
         bank_line.is_reconciled = True
         bank_line.reconciled_at = ts
         bank_line.reconciliation_session = session
-        bank_line.status = BankTransaction.TransactionStatus.MATCHED_SINGLE
+        bank_line.status = BankTransaction.TransactionStatus.MATCHED
         bank_line.allocated_amount = abs(bank_line.amount or Decimal("0.00"))
         bank_line.save(
             update_fields=[

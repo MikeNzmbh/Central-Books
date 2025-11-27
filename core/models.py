@@ -23,6 +23,7 @@ class Business(models.Model):
         related_name="businesses",
     )
     created_at = models.DateTimeField(auto_now_add=True)
+    bank_setup_completed = models.BooleanField(default=False)
 
     class Meta:
         constraints = [
@@ -1050,12 +1051,14 @@ class BankStatementImport(models.Model):
 class BankTransaction(models.Model):
     class TransactionStatus(models.TextChoices):
         NEW = "NEW", "New"
+        SUGGESTED = "SUGGESTED", "Suggested"
         PARTIAL = "PARTIAL", "Partially allocated"
-        MATCHED_SINGLE = "MATCHED_SINGLE", "Matched (single entry)"
-        MATCHED_MULTI = "MATCHED_MULTI", "Matched (multi entry)"
+        MATCHED_SINGLE = "MATCHED_SINGLE", "Matched (single)"
+        MATCHED_MULTI = "MATCHED_MULTI", "Matched (split)"
+        LEGACY_CREATED = "LEGACY_CREATED", "Created (legacy)"
+        MATCHED = "MATCHED", "Matched"
+        RECONCILED = "RECONCILED", "Reconciled"
         EXCLUDED = "EXCLUDED", "Excluded"
-        LEGACY_CREATED = "CREATED", "Created (legacy)"
-        LEGACY_MATCHED = "MATCHED", "Matched (legacy)"
 
     bank_account = models.ForeignKey(
         BankAccount,
@@ -1081,11 +1084,26 @@ class BankTransaction(models.Model):
         blank=True,
         db_index=True,
     )
+    normalized_hash = models.CharField(
+        max_length=64,
+        blank=True,
+        db_index=True,
+        help_text="Hash for deduplication (date + amount + description)",
+    )
     status = models.CharField(
         max_length=20,
         choices=TransactionStatus.choices,
         default=TransactionStatus.NEW,
         db_index=True,
+    )
+    suggestion_confidence = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="0-100 confidence score from suggestion engine",
+    )
+    suggestion_reason = models.TextField(
+        blank=True,
+        help_text="Explanation for the suggestion",
     )
     category = models.ForeignKey(
         Category,
@@ -1280,7 +1298,7 @@ class ReconciliationSession(models.Model):
 
 class BankRule(models.Model):
     """
-    Minimal rule for recurring merchant categorizations during reconciliation.
+    Rule for recurring merchant categorizations during reconciliation.
     """
 
     business = models.ForeignKey(
@@ -1288,8 +1306,17 @@ class BankRule(models.Model):
         on_delete=models.CASCADE,
         related_name="bank_rules",
     )
-    merchant_name = models.CharField(max_length=255)
-    category_label = models.CharField(max_length=255, blank=True)
+    merchant_name = models.CharField(max_length=255, help_text="Name to display/match")
+    pattern = models.CharField(max_length=255, default="", help_text="Regex or substring to match description")
+    
+    # Actions
+    category = models.ForeignKey(
+        Category,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="bank_rules",
+    )
     account = models.ForeignKey(
         Account,
         on_delete=models.SET_NULL,
@@ -1297,6 +1324,8 @@ class BankRule(models.Model):
         blank=True,
         related_name="bank_rules",
     )
+    auto_confirm = models.BooleanField(default=False)
+    
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,

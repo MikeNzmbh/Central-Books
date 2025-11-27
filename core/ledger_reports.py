@@ -1,6 +1,7 @@
 from decimal import Decimal
 
-from django.db.models import Sum
+from django.db.models import Q, Sum, Value
+from django.db.models.functions import Coalesce
 
 from .models import Account, JournalLine
 
@@ -53,30 +54,42 @@ def ledger_pnl_for_period(business, start_date, end_date):
 
 
 def account_balances_for_business(business, upto_date=None):
-    base = (
-        JournalLine.objects.select_related("account", "journal_entry")
-        .filter(
-            journal_entry__business=business,
-            journal_entry__is_void=False,
-        )
-    )
-
+    """
+    Return every active account for the business with its running balance, even if
+    the account has no journal lines yet (e.g., freshly created cash/bank accounts).
+    """
+    date_filter = Q()
     if upto_date:
-        base = base.filter(journal_entry__date__lte=upto_date)
+        date_filter = Q(journal_lines__journal_entry__date__lte=upto_date)
 
-    rows = (
-        base.values("account_id", "account__code", "account__name", "account__type")
-        .annotate(total_debit=Sum("debit"), total_credit=Sum("credit"))
-        .order_by("account__type", "account__code")
+    accounts_qs = (
+        Account.objects.filter(business=business, is_active=True)
+        .annotate(
+            total_debit=Coalesce(
+                Sum(
+                    "journal_lines__debit",
+                    filter=Q(journal_lines__journal_entry__is_void=False) & date_filter,
+                ),
+                Value(Decimal("0.00")),
+            ),
+            total_credit=Coalesce(
+                Sum(
+                    "journal_lines__credit",
+                    filter=Q(journal_lines__journal_entry__is_void=False) & date_filter,
+                ),
+                Value(Decimal("0.00")),
+            ),
+        )
+        .order_by("type", "code", "name")
     )
 
     accounts = []
     totals_by_type = {}
 
-    for row in rows:
-        acc_type = row["account__type"]
-        debit = row["total_debit"] or Decimal("0.00")
-        credit = row["total_credit"] or Decimal("0.00")
+    for acc in accounts_qs:
+        acc_type = acc.type
+        debit = acc.total_debit or Decimal("0.00")
+        credit = acc.total_credit or Decimal("0.00")
 
         if acc_type in (Account.AccountType.ASSET, Account.AccountType.EXPENSE):
             balance = debit - credit
@@ -85,9 +98,9 @@ def account_balances_for_business(business, upto_date=None):
 
         accounts.append(
             {
-                "id": row["account_id"],
-                "code": row["account__code"],
-                "name": row["account__name"],
+                "id": acc.id,
+                "code": acc.code,
+                "name": acc.name,
                 "type": acc_type,
                 "balance": balance,
             }

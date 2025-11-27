@@ -33,6 +33,12 @@ export const CardFooter = ({ className, children, ...props }: React.HTMLAttribut
     </div>
 );
 
+export const CardTitle = ({ className, children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => (
+    <h3 className={cn("text-lg font-semibold leading-none tracking-tight", className)} {...props}>
+        {children}
+    </h3>
+);
+
 // Button Component
 export const Button = React.forwardRef<
     HTMLButtonElement,
@@ -222,7 +228,15 @@ export const Separator = ({ className, orientation = "horizontal", ...props }: R
 
 // Tabs Components
 export const Tabs = ({ value, onValueChange, children, className, ...props }: React.HTMLAttributes<HTMLDivElement> & { value?: string; onValueChange?: (value: string) => void }) => {
-    return <div className={cn("w-full", className)} {...props}>{React.Children.map(children, child => React.isValidElement(child) ? React.cloneElement(child as any, { value, onValueChange }) : child)}</div>;
+    return (
+        <div className={cn("w-full", className)} {...props}>
+            {React.Children.map(children, child =>
+                React.isValidElement(child)
+                    ? React.cloneElement(child as any, { currentValue: value, onValueChange })
+                    : child
+            )}
+        </div>
+    );
 };
 
 export const TabsList = ({ className, children, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
@@ -231,7 +245,7 @@ export const TabsList = ({ className, children, ...props }: React.HTMLAttributes
     </div>
 );
 
-export const TabsTrigger = ({ value, className, children, onValueChange, value: currentValue, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { value: string; onValueChange?: (value: string) => void; value?: string }) => {
+export const TabsTrigger = ({ value, className, children, onValueChange, currentValue, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { value: string; onValueChange?: (value: string) => void; currentValue?: string }) => {
     const isActive = currentValue === value;
     return (
         <button
@@ -249,7 +263,7 @@ export const TabsTrigger = ({ value, className, children, onValueChange, value: 
     );
 };
 
-export const TabsContent = ({ value, className, children, value: currentValue, ...props }: React.HTMLAttributes<HTMLDivElement> & { value: string; value?: string }) => {
+export const TabsContent = ({ value, className, children, currentValue, ...props }: React.HTMLAttributes<HTMLDivElement> & { value: string; currentValue?: string }) => {
     if (currentValue !== value) return null;
     return (
         <div className={cn("mt-2", className)} {...props}>

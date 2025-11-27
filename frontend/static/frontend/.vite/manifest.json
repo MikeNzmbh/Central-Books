@@ -1,103 +1,121 @@
 {
-  "_index-!~{00b}~.js": {
-    "file": "assets/index-Dyt6W3Za.css",
-    "src": "_index-!~{00b}~.js"
+  "_index-!~{00d}~.js": {
+    "file": "assets/index-DKNT6Wss.css",
+    "src": "_index-!~{00d}~.js"
   },
-  "_index-BWXGasTk.js": {
-    "file": "assets/index-BWXGasTk.js",
+  "_index-BH7PkO1S.js": {
+    "file": "assets/index-BH7PkO1S.js",
     "name": "index",
     "css": [
-      "assets/index-Dyt6W3Za.css"
+      "assets/index-DKNT6Wss.css"
     ]
   },
   "auth/login-entry.tsx": {
-    "file": "assets/login-CWo4V4if.js",
+    "file": "assets/login-DPqag1BR.js",
     "name": "login",
     "src": "auth/login-entry.tsx",
     "isEntry": true,
     "imports": [
-      "_index-BWXGasTk.js"
+      "_index-BH7PkO1S.js"
     ]
   },
   "auth/signup-entry.tsx": {
-    "file": "assets/signup-Bc_5h4ZU.js",
+    "file": "assets/signup-0EsTZvk2.js",
     "name": "signup",
     "src": "auth/signup-entry.tsx",
     "isEntry": true,
     "imports": [
-      "_index-BWXGasTk.js"
+      "_index-BH7PkO1S.js"
     ]
   },
   "bank-feed.tsx": {
-    "file": "assets/bank-feed-6uMZKyLA.js",
+    "file": "assets/bank-feed-COdIawqq.js",
     "name": "bank-feed",
     "src": "bank-feed.tsx",
     "isEntry": true,
     "imports": [
-      "_index-BWXGasTk.js"
+      "_index-BH7PkO1S.js"
     ]
   },
   "banking-accounts-feed.tsx": {
-    "file": "assets/banking-accounts-feed-clric12g.js",
+    "file": "assets/banking-accounts-feed-Dgh9BvJ0.js",
     "name": "banking-accounts-feed",
     "src": "banking-accounts-feed.tsx",
     "isEntry": true,
     "imports": [
-      "_index-BWXGasTk.js"
+      "_index-BH7PkO1S.js"
+    ]
+  },
+  "banking/bank-setup-entry.tsx": {
+    "file": "assets/bank-setup-BDZO2Uin.js",
+    "name": "bank-setup",
+    "src": "banking/bank-setup-entry.tsx",
+    "isEntry": true,
+    "imports": [
+      "_index-BH7PkO1S.js"
     ]
   },
   "chart-of-accounts.tsx": {
-    "file": "assets/chart-of-accounts-BkN4XR21.js",
+    "file": "assets/chart-of-accounts-q0VngvDN.js",
     "name": "chart-of-accounts",
     "src": "chart-of-accounts.tsx",
     "isEntry": true,
     "imports": [
-      "_index-BWXGasTk.js"
+      "_index-BH7PkO1S.js"
     ]
   },
   "coa-account-detail.tsx": {
-    "file": "assets/coa-account-detail-DLgc8PgA.js",
+    "file": "assets/coa-account-detail-4hhK_-Zn.js",
     "name": "coa-account-detail",
     "src": "coa-account-detail.tsx",
     "isEntry": true,
     "imports": [
-      "_index-BWXGasTk.js"
+      "_index-BH7PkO1S.js"
     ]
   },
   "dashboard/dashboard-entry.tsx": {
-    "file": "assets/dashboard-_BFKHIiH.js",
+    "file": "assets/dashboard-_2IbSRzD.js",
     "name": "dashboard",
     "src": "dashboard/dashboard-entry.tsx",
     "isEntry": true,
     "imports": [
-      "_index-BWXGasTk.js"
+      "_index-BH7PkO1S.js"
+    ]
+  },
+  "pages/workspace-home-entry.tsx": {
+    "file": "assets/workspace-home-CY1u4iUD.js",
+    "name": "workspace-home",
+    "src": "pages/workspace-home-entry.tsx",
+    "isEntry": true,
+    "imports": [
+      "_index-BH7PkO1S.js"
     ]
   },
   "reconciliation/reconciliation-entry.tsx": {
-    "file": "assets/reconciliation-CpEvP_YZ.js",
+    "file": "assets/reconciliation-DoIyf78G.js",
     "name": "reconciliation",
     "src": "reconciliation/reconciliation-entry.tsx",
     "isEntry": true,
     "imports": [
-      "_index-BWXGasTk.js"
+      "_index-BH7PkO1S.js"
     ]
   },
   "reports/cashflow-report-entry.tsx": {
-    "file": "assets/cashflow-report-D5J7ecqo.js",
+    "file": "assets/cashflow-report-CtYFiFUH.js",
     "name": "cashflow-report",
     "src": "reports/cashflow-report-entry.tsx",
     "isEntry": true,
     "imports": [
-      "_index-BWXGasTk.js"
+      "_index-BH7PkO1S.js"
     ]
   },
   "settings/account-settings-entry.tsx": {
-    "file": "assets/account-settings-D6bXGUpG.js",
+    "file": "assets/account-settings-DPXehJg4.js",
     "name": "account-settings",
     "src": "settings/account-settings-entry.tsx",
     "isEntry": true,
     "imports": [
-      "_index-BWXGasTk.js"
+      "_index-BH7PkO1S.js"
     ]
   }
 }

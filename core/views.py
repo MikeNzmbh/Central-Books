@@ -61,9 +61,10 @@ from .models import (
     BankStatementImport,
     BankTransaction,
     Business,
+    TaxRate,
+    BankReconciliationMatch,
 )
 from .ledger_services import compute_ledger_pl
-from taxes.reporting import net_tax_position
 from .ledger_reports import account_balances_for_business
 from .utils import get_current_business, is_empty_workspace
 
@@ -132,6 +133,7 @@ from .reconciliation import (
     allocate_bank_transaction,
     recompute_bank_transaction_status,
 )
+from .tax_utils import compute_tax_breakdown
 
 
 def _first_day_of_month(d: date) -> date:
@@ -269,8 +271,57 @@ def _status_counts_for_account(bank_account: BankAccount):
         .annotate(count=Count("id"))
     }
 
+def net_tax_position(business):
+    """
+    Compute a simple net tax position for the given business.
 
-def _post_income_entry(business, bank_account, category, amount: Decimal, description: str, tx_date):
+    This returns a dict containing:
+      - sales_tax_payable: total sales tax (invoices)
+      - recoverable_tax_asset: total recoverable tax (expenses)
+      - net_tax: sales_tax_payable - recoverable_tax_asset
+
+    If any lookup fails, the function falls back to zero values so callers
+    (like the dashboard) do not raise NameError or unexpected exceptions.
+    """
+    sales_tax_payable = Decimal("0.00")
+    recoverable_tax_asset = Decimal("0.00")
+
+    try:
+        sales_tax_payable = (
+            Invoice.objects.filter(business=business).aggregate(total=Sum("tax_total"))["total"]
+            or Decimal("0.00")
+        )
+    except Exception:
+        sales_tax_payable = Decimal("0.00")
+
+    try:
+        recoverable_tax_asset = (
+            Expense.objects.filter(business=business).aggregate(total=Sum("tax_amount"))["total"]
+            or Decimal("0.00")
+        )
+    except Exception:
+        recoverable_tax_asset = Decimal("0.00")
+
+    net_tax = sales_tax_payable - recoverable_tax_asset
+
+    return {
+        "sales_tax_payable": sales_tax_payable,
+        "recoverable_tax_asset": recoverable_tax_asset,
+        "net_tax": net_tax,
+    }
+
+def _post_income_entry(
+    business,
+    bank_account,
+    category,
+    amount: Decimal,
+    description: str,
+    tx_date,
+    *,
+    tax_treatment: str = "NONE",
+    tax_rate: TaxRate | None = None,
+    base_amount: Decimal | None = None,
+):
     defaults = ensure_default_accounts(business)
     cash_account = bank_account.account or defaults.get("cash")
     if cash_account is None:
@@ -282,6 +333,15 @@ def _post_income_entry(business, bank_account, category, amount: Decimal, descri
     if income_account is None:
         raise ValueError("The selected category is not linked to an income account.")
 
+    base_value = Decimal(base_amount) if base_amount is not None else Decimal(amount)
+    rate_pct = tax_rate.percentage if tax_rate else Decimal("0.00")
+    net_amount, tax_amount, gross_amount = compute_tax_breakdown(
+        base_value, (tax_treatment or "NONE"), rate_pct
+    )
+    tax_account = defaults.get("tax")
+    if tax_amount and tax_amount != 0 and not tax_account:
+        raise ValueError("Configure a sales tax account to post tax.")
+
     entry = JournalEntry.objects.create(
         business=business,
         date=tx_date,
@@ -290,7 +350,7 @@ def _post_income_entry(business, bank_account, category, amount: Decimal, descri
     JournalLine.objects.create(
         journal_entry=entry,
         account=cash_account,
-        debit=amount,
+        debit=gross_amount,
         credit=Decimal("0.00"),
         description="Bank feed deposit",
     )
@@ -298,9 +358,17 @@ def _post_income_entry(business, bank_account, category, amount: Decimal, descri
         journal_entry=entry,
         account=income_account,
         debit=Decimal("0.00"),
-        credit=amount,
+        credit=net_amount,
         description="Income recognition",
     )
+    if tax_amount and tax_account:
+        JournalLine.objects.create(
+            journal_entry=entry,
+            account=tax_account,
+            debit=Decimal("0.00"),
+            credit=tax_amount,
+            description="Tax collected",
+        )
     entry.check_balance()
     return entry
 
@@ -316,9 +384,27 @@ def _decimal_from_form(form, field_name: str) -> Decimal:
         return Decimal("0.00")
 
 
-def _invoice_preview(form) -> dict:
+def _invoice_preview(form, business=None) -> dict:
     amount = _decimal_from_form(form, "total_amount")
     tax = _decimal_from_form(form, "tax_amount")
+
+    # Auto-compute tax from selected rate when present so the preview mirrors save logic.
+    tax_rate_id = None
+    if form is not None:
+        if form.is_bound:
+            tax_rate_id = form.data.get("tax_rate") or form.data.get("tax_rate_id")
+        else:
+            tax_rate_id = form.initial.get("tax_rate")
+
+    if tax_rate_id:
+        try:
+            tax_qs = form.fields["tax_rate"].queryset
+            rate = tax_qs.get(pk=tax_rate_id)
+            tax = (amount * (rate.percentage / Decimal("100"))).quantize(Decimal("0.01"))
+        except Exception:
+            # Leave tax as entered if lookup fails
+            pass
+
     return {
         "amount": amount,
         "tax": tax,
@@ -458,19 +544,33 @@ def logout_view(request):
 
 @login_required
 def business_setup(request):
-    existing = get_current_business(request.user)
-    if existing is not None:
-        return redirect("dashboard")
-    if request.method == "POST":
-        form = BusinessForm(request.POST, user=request.user)
-        if form.is_valid():
-            business = form.save(commit=False)
-            business.owner_user = request.user
-            business.save()
-            return redirect("dashboard")
-    else:
-        form = BusinessForm(user=request.user)
-    return render(request, "business_setup.html", {"form": form})
+    business = get_current_business(request.user)
+    if business is None:
+        # Auto-create business if it doesn't exist
+        business_name = request.session.get("signup_business_name") or "My Business"
+        # Ensure name is unique for the user (or globally unique if constraint requires)
+        # The model has unique=True globally. We might need to handle duplicates.
+        # For now, let's try to create it.
+        base_name = business_name
+        counter = 1
+        while Business.objects.filter(name=business_name).exists():
+            business_name = f"{base_name} ({counter})"
+            counter += 1
+            
+        business = Business.objects.create(
+            owner_user=request.user,
+            name=business_name,
+            currency="CAD", # Default
+            fiscal_year_start="01-01"
+        )
+        # Ensure default accounts
+        ensure_default_accounts(business)
+        
+    if business.bank_setup_completed and request.GET.get("force") != "true":
+        return redirect("workspace_home")
+
+    # New onboarding flow: render the Bank Setup React shell.
+    return render(request, "bank_setup.html")
 
 
 @login_required
@@ -1808,6 +1908,7 @@ def invoice_create(request):
             return redirect("invoice_list")
     else:
         form = InvoiceForm(business=business)
+    tax_rate_field = cast(ModelChoiceField, form.fields["tax_rate"])
     return render(
         request,
         "invoice_form.html",
@@ -1816,9 +1917,11 @@ def invoice_create(request):
             "form": form,
             "invoice": None,
             "invoice_preview": _invoice_preview(form),
+            "tax_rates": list(
+                tax_rate_field.queryset.values("id", "name", "percentage")
+            ),
         },
     )
-
 
 @login_required
 def invoice_update(request, pk):
@@ -1834,6 +1937,7 @@ def invoice_update(request, pk):
             return redirect("invoice_list")
     else:
         form = InvoiceForm(instance=invoice, business=business)
+    tax_rate_field = cast(ModelChoiceField, form.fields["tax_rate"])
     return render(
         request,
         "invoice_form.html",
@@ -1842,6 +1946,9 @@ def invoice_update(request, pk):
             "form": form,
             "invoice": invoice,
             "invoice_preview": _invoice_preview(form),
+            "tax_rates": list(
+                tax_rate_field.queryset.values("id", "name", "percentage")
+            ),
         },
     )
 
@@ -3024,11 +3131,24 @@ def api_allocate_bank_transaction(request, bank_tx_id):
         )
         if kind_raw not in allowed_kinds:
             raise ValidationError("Invalid allocation type.")
+        tax_treatment = str(raw.get("tax_treatment") or "").upper() or None
+        if tax_treatment and tax_treatment not in ("NONE", "INCLUDED", "ON_TOP"):
+            raise ValidationError("Invalid tax treatment.")
+        tax_rate_id = raw.get("tax_rate_id")
+        if tax_rate_id not in (None, "", 0, "0"):
+            try:
+                tax_rate_id = int(tax_rate_id)
+            except (TypeError, ValueError):
+                raise ValidationError("Invalid tax rate id.")
+        else:
+            tax_rate_id = None
         return Allocation(
             kind=cast(AllocationKind, kind_raw),
             id=raw.get("id"),
             account_id=raw.get("account_id"),
             amount=amount,
+            tax_treatment=tax_treatment,
+            tax_rate_id=tax_rate_id,
         )
 
     try:
@@ -3102,6 +3222,8 @@ def api_banking_feed_metadata(request):
     if business is None:
         return JsonResponse({"detail": "No business"}, status=400)
 
+    defaults = ensure_default_accounts(business)
+
     expense_categories = list(
         Category.objects.filter(
             business=business,
@@ -3130,12 +3252,40 @@ def api_banking_feed_metadata(request):
         .order_by("name")
         .values("id", "name")
     )
+    expense_accounts = list(
+        Account.objects.filter(business=business, type=Account.AccountType.EXPENSE)
+        .order_by("code", "name")
+        .values("id", "name", "code")
+    )
+    income_accounts = list(
+        Account.objects.filter(business=business, type=Account.AccountType.INCOME)
+        .order_by("code", "name")
+        .values("id", "name", "code")
+    )
+    equity_accounts = list(
+        Account.objects.filter(business=business, type=Account.AccountType.EQUITY)
+        .order_by("code", "name")
+        .values("id", "name", "code")
+    )
+    tax_rates = list(
+        TaxRate.objects.filter(business=business, is_active=True)
+        .order_by("name")
+        .values("id", "name", "code", "percentage")
+    )
     return JsonResponse(
         {
             "expense_categories": expense_categories,
             "income_categories": income_categories,
             "suppliers": suppliers,
             "customers": customers,
+            "expense_accounts": expense_accounts,
+            "income_accounts": income_accounts,
+            "equity_accounts": equity_accounts,
+            "tax_rates": tax_rates,
+            "tax_accounts": {
+                "sales_tax_payable_id": getattr(defaults.get("tax"), "id", None),
+                "tax_recoverable_id": getattr(defaults.get("tax_recoverable"), "id", None),
+            },
         }
     )
 
@@ -3169,6 +3319,19 @@ def api_banking_feed_create_entry(request, tx_id):
         return JsonResponse({"detail": "Category not found"}, status=404)
 
     memo = (payload.get("memo") or "").strip()
+    tax_treatment = str(payload.get("tax_treatment") or "NONE").upper()
+    if tax_treatment not in ("NONE", "INCLUDED", "ON_TOP"):
+        return JsonResponse({"detail": "Invalid tax treatment."}, status=400)
+    tax_rate = None
+    tax_rate_id = payload.get("tax_rate_id")
+    if tax_treatment != "NONE" and tax_rate_id in (None, "", 0, "0"):
+        return JsonResponse({"detail": "Select a tax code when tax is enabled."}, status=400)
+    if tax_rate_id not in (None, "", 0, "0"):
+        try:
+            tax_rate = TaxRate.objects.get(pk=int(tax_rate_id), business=business)
+        except (TaxRate.DoesNotExist, ValueError, TypeError):
+            return JsonResponse({"detail": "Tax rate not found."}, status=404)
+    amount_override = payload.get("amount")
 
     with db_transaction.atomic():
         bank_tx = _get_bank_tx_for_business(business, tx_id, for_update=True)
@@ -3181,6 +3344,29 @@ def api_banking_feed_create_entry(request, tx_id):
             )
         if bank_tx.amount == 0:
             return JsonResponse({"detail": "Transaction amount is zero."}, status=400)
+
+        bank_abs = abs(bank_tx.amount)
+        try:
+            base_amount = Decimal(
+                str(amount_override if amount_override not in (None, "", "0") else bank_abs)
+            )
+        except (InvalidOperation, ValueError):
+            return JsonResponse({"detail": "Invalid amount."}, status=400)
+        rate_pct = tax_rate.percentage if tax_rate else Decimal("0.00")
+        if tax_treatment == "ON_TOP" and amount_override in (None, "", "0"):
+            divisor = Decimal("1.00") + (rate_pct / Decimal("100"))
+            if divisor != 0:
+                base_amount = (bank_abs / divisor).quantize(Decimal("0.01"))
+        try:
+            net_amount, tax_amount, gross_amount = compute_tax_breakdown(
+                base_amount, tax_treatment, rate_pct
+            )
+        except Exception as exc:
+            return JsonResponse({"detail": str(exc)}, status=400)
+        if (gross_amount - bank_abs).copy_abs() > Decimal("0.01"):
+            return JsonResponse(
+                {"detail": "Amounts do not reconcile with the bank transaction."}, status=400
+            )
 
         if bank_tx.amount < 0:
             if category.type != Category.CategoryType.EXPENSE:
@@ -3198,16 +3384,18 @@ def api_banking_feed_create_entry(request, tx_id):
                     )
                 except (Supplier.DoesNotExist, ValueError, TypeError):
                     return JsonResponse({"detail": "Supplier not found."}, status=404)
+
             expense = Expense(
                 business=business,
                 supplier=supplier,
                 category=category,
                 date=bank_tx.date,
                 description=memo or bank_tx.description,
-                amount=abs(bank_tx.amount),
+                amount=net_amount,
                 status=Expense.Status.PAID,
                 paid_date=bank_tx.date,
             )
+            expense.tax_rate = tax_rate  # type: ignore[assignment]  # assign FK directly
             try:
                 expense.save()
             except Exception as exc:  # pragma: no cover - surfaced to UI
@@ -3258,6 +3446,9 @@ def api_banking_feed_create_entry(request, tx_id):
                     Decimal(bank_tx.amount),
                     memo or bank_tx.description,
                     bank_tx.date,
+                    tax_treatment=tax_treatment,
+                    tax_rate=tax_rate,
+                    base_amount=base_amount,
                 )
             except ValueError as exc:
                 return JsonResponse({"detail": str(exc)}, status=400)
@@ -3448,6 +3639,210 @@ def api_banking_feed_exclude(request, tx_id):
 
 
 @login_required
+@require_POST
+def api_banking_feed_add_entry(request, tx_id):
+    """
+    Add a simple one-line ledger posting for the bank transaction (bank + category + optional tax).
+    """
+    business = get_current_business(request.user)
+    if business is None:
+        return JsonResponse({"detail": "No business"}, status=400)
+
+    payload = _json_from_body(request)
+    if not isinstance(payload, dict):
+        return JsonResponse({"detail": "Invalid payload."}, status=400)
+
+    direction_raw = str(payload.get("direction") or "").upper()
+    account_id = payload.get("account_id")
+    if not account_id:
+        return JsonResponse({"detail": "account_id is required"}, status=400)
+    try:
+        account = Account.objects.get(pk=int(account_id), business=business)
+    except (Account.DoesNotExist, ValueError, TypeError):
+        return JsonResponse({"detail": "Account not found"}, status=404)
+
+    tax_treatment = str(payload.get("tax_treatment") or "NONE").upper()
+    if tax_treatment not in ("NONE", "INCLUDED", "ON_TOP"):
+        return JsonResponse({"detail": "Invalid tax treatment."}, status=400)
+    tax_rate = None
+    tax_rate_id = payload.get("tax_rate_id")
+    if tax_treatment != "NONE" and tax_rate_id in (None, "", 0, "0"):
+        return JsonResponse({"detail": "Select a tax code when tax is enabled."}, status=400)
+    if tax_rate_id not in (None, "", 0, "0"):
+        try:
+            tax_rate = TaxRate.objects.get(pk=int(tax_rate_id), business=business)
+        except (TaxRate.DoesNotExist, ValueError, TypeError):
+            return JsonResponse({"detail": "Tax rate not found."}, status=404)
+
+    memo = (payload.get("memo") or "").strip()
+    contact_customer_id = payload.get("customer_id")
+    contact_supplier_id = payload.get("supplier_id")
+    customer = None
+    supplier = None
+    if contact_customer_id:
+        try:
+            customer = Customer.objects.get(pk=int(contact_customer_id), business=business)
+        except (Customer.DoesNotExist, ValueError, TypeError):
+            return JsonResponse({"detail": "Customer not found."}, status=404)
+    if contact_supplier_id:
+        try:
+            supplier = Supplier.objects.get(pk=int(contact_supplier_id), business=business)
+        except (Supplier.DoesNotExist, ValueError, TypeError):
+            return JsonResponse({"detail": "Supplier not found."}, status=404)
+
+    with db_transaction.atomic():
+        bank_tx = _get_bank_tx_for_business(business, tx_id, for_update=True)
+        if not bank_tx:
+            return JsonResponse({"detail": "Transaction not found"}, status=404)
+        if bank_tx.status not in (
+            BankTransaction.TransactionStatus.NEW,
+            BankTransaction.TransactionStatus.PARTIAL,
+        ):
+            return JsonResponse({"detail": "Only new transactions can be added."}, status=400)
+
+        bank_abs = abs(bank_tx.amount or Decimal("0.00"))
+        if bank_abs == 0:
+            return JsonResponse({"detail": "Transaction amount is zero."}, status=400)
+
+        direction = direction_raw or ("IN" if bank_tx.amount >= 0 else "OUT")
+        if direction not in ("IN", "OUT"):
+            return JsonResponse({"detail": "Invalid direction."}, status=400)
+        if bank_tx.amount >= 0 and direction == "OUT":
+            return JsonResponse({"detail": "Deposit cannot be posted as money out."}, status=400)
+        if bank_tx.amount < 0 and direction == "IN":
+            return JsonResponse({"detail": "Withdrawal cannot be posted as money in."}, status=400)
+
+        amount_override = payload.get("amount")
+        try:
+            base_amount = Decimal(
+                str(amount_override if amount_override not in (None, "", "0") else bank_abs)
+            )
+        except (InvalidOperation, ValueError):
+            return JsonResponse({"detail": "Invalid amount."}, status=400)
+        rate_pct = tax_rate.percentage if tax_rate else Decimal("0.00")
+        if tax_treatment == "ON_TOP" and amount_override in (None, "", "0"):
+            divisor = Decimal("1.00") + (rate_pct / Decimal("100"))
+            if divisor != 0:
+                base_amount = (bank_abs / divisor).quantize(Decimal("0.01"))
+        try:
+            net_amount, tax_amount, gross_amount = compute_tax_breakdown(
+                base_amount, tax_treatment, rate_pct
+            )
+        except Exception as exc:
+            return JsonResponse({"detail": str(exc)}, status=400)
+
+        if (gross_amount - bank_abs).copy_abs() > Decimal("0.01"):
+            return JsonResponse(
+                {"detail": "Amounts do not reconcile with the bank transaction."}, status=400
+            )
+
+        defaults = ensure_default_accounts(business)
+        bank_account = bank_tx.bank_account.account or defaults.get("cash")
+        if bank_account is None:
+            return JsonResponse({"detail": "Link this bank account to a ledger account."}, status=400)
+        tax_account = defaults.get("tax")
+        recoverable_account = defaults.get("tax_recoverable") or tax_account
+        if direction == "IN" and tax_amount and tax_amount != 0 and not tax_account:
+            return JsonResponse({"detail": "Configure a sales tax account before posting tax."}, status=400)
+        if direction == "OUT" and tax_amount and tax_amount != 0 and not recoverable_account:
+            return JsonResponse({"detail": "Configure a recoverable tax account before posting tax."}, status=400)
+
+        entry = JournalEntry.objects.create(
+            business=business,
+            date=bank_tx.date,
+            description=(memo or bank_tx.description or "Bank entry")[:255],
+        )
+        if direction == "IN":
+            JournalLine.objects.create(
+                journal_entry=entry,
+                account=bank_account,
+                debit=gross_amount,
+                credit=Decimal("0.00"),
+                description="Bank deposit",
+            )
+            JournalLine.objects.create(
+                journal_entry=entry,
+                account=account,
+                debit=Decimal("0.00"),
+                credit=net_amount,
+                description="Category",
+            )
+            if tax_amount and tax_account:
+                JournalLine.objects.create(
+                    journal_entry=entry,
+                    account=tax_account,
+                    debit=Decimal("0.00"),
+                    credit=tax_amount,
+                    description="Tax",
+                )
+        else:
+            JournalLine.objects.create(
+                journal_entry=entry,
+                account=account,
+                debit=net_amount,
+                credit=Decimal("0.00"),
+                description="Category",
+            )
+            if tax_amount and recoverable_account:
+                JournalLine.objects.create(
+                    journal_entry=entry,
+                    account=recoverable_account,
+                    debit=tax_amount,
+                    credit=Decimal("0.00"),
+                    description="Tax",
+                )
+            JournalLine.objects.create(
+                journal_entry=entry,
+                account=bank_account,
+                debit=Decimal("0.00"),
+                credit=gross_amount,
+                description="Bank withdrawal",
+            )
+        entry.check_balance()
+
+        BankReconciliationMatch.objects.create(
+            bank_transaction=bank_tx,
+            journal_entry=entry,
+            match_type="ONE_TO_ONE",
+            match_confidence=Decimal("1.00"),
+            matched_amount=gross_amount,
+            reconciled_by=request.user,
+        )
+
+        bank_tx.posted_journal_entry = entry
+        bank_tx.category = None
+        bank_tx.customer = customer
+        bank_tx.supplier = supplier
+        bank_tx.is_reconciled = True
+        bank_tx.reconciled_at = timezone.now()
+        bank_tx.status = BankTransaction.TransactionStatus.MATCHED_SINGLE
+        bank_tx.allocated_amount = bank_tx.amount
+        bank_tx.save(
+            update_fields=[
+                "posted_journal_entry",
+                "category",
+                "customer",
+                "supplier",
+                "is_reconciled",
+                "reconciled_at",
+                "status",
+                "allocated_amount",
+            ]
+        )
+    return JsonResponse(
+        {
+            "success": True,
+            "journal_entry_id": entry.id,
+            "breakdown": {
+                "net": str(net_amount),
+                "tax": str(tax_amount),
+                "gross": str(gross_amount),
+            },
+        }
+    )
+
+
+@login_required
 def bank_feed_match_expense(request, bank_account_id, tx_id):
     business = get_current_business(request.user)
     if business is None:
@@ -3534,6 +3929,16 @@ def bank_feed_spa(request):
 @login_required
 def banking_accounts_feed_spa(request):
     return render(request, "banking_accounts_feed.html")
+
+
+@login_required
+def bank_setup_page(request):
+    return render(request, "bank_setup.html")
+
+
+@login_required
+def workspace_home(request):
+    return render(request, "workspace_home.html")
 
 
 @login_required
@@ -3629,3 +4034,123 @@ def reconciliation_page(request, bank_account_id):
             "bank_account_id": bank_account.id,
         },
     )
+
+
+@require_POST
+@login_required
+def api_create_category(request):
+    business = get_current_business(request.user)
+    if business is None:
+        return JsonResponse({"error": "Business not found"}, status=404)
+
+    data = _json_from_body(request)
+    form = CategoryForm(data, business=business)
+    if form.is_valid():
+        category = form.save(commit=False)
+        category.business = business
+        category.save()
+        return JsonResponse({
+            "id": category.id,
+            "name": category.name,
+            "type": category.type,
+            "account_id": category.account_id,
+        })
+    
+    return JsonResponse({"errors": form.errors}, status=400)
+
+
+@login_required
+@require_POST
+def api_bank_setup_save(request):
+    business = get_current_business(request.user)
+    if not business:
+        return JsonResponse({"detail": "No business found."}, status=400)
+
+    payload = _json_from_body(request)
+    accounts_data = payload.get("accounts", [])
+
+    with db_transaction.atomic():
+        for acc in accounts_data:
+            name = (acc.get("accountName") or "Bank Account").strip()
+            label = (acc.get("bankLabel") or "").strip()
+            currency = (acc.get("currency") or "CAD").strip()
+            opening_balance_str = acc.get("openingBalance") or "0"
+            
+            try:
+                opening_balance = Decimal(opening_balance_str)
+            except (InvalidOperation, ValueError):
+                opening_balance = Decimal("0.00")
+
+            # Create Ledger Account
+            ledger_account = Account.objects.create(
+                business=business,
+                name=name,
+                code=f"10{Account.objects.filter(business=business, code__startswith='10').count() + 1:02d}", # Simple auto-code
+                type=Account.AccountType.ASSET,
+                description=f"Bank account - {label}" if label else "Bank account",
+                currency=currency
+            )
+
+            # Create Bank Account linked to it
+            bank_account = BankAccount.objects.create(
+                business=business,
+                account=ledger_account,
+                name=label or name,
+                currency=currency,
+                bank_name=label or "Manual Bank",
+                account_number=acc.get("id")[-4:] # Dummy last 4
+            )
+
+            # Post Opening Balance if non-zero
+            if opening_balance != 0:
+                je = JournalEntry.objects.create(
+                    business=business,
+                    date=timezone.now().date(),
+                    description="Opening Balance Migration",
+                )
+                # Debit Bank, Credit Opening Balance Equity (or Retained Earnings)
+                defaults = ensure_default_accounts(business)
+                equity_account = defaults.get("equity") # We might need a specific opening balance equity account
+                
+                if not equity_account:
+                    # Fallback to creating one
+                    equity_account = Account.objects.create(
+                        business=business,
+                        name="Opening Balance Equity",
+                        code="3999",
+                        type=Account.AccountType.EQUITY
+                    )
+
+                JournalLine.objects.create(
+                    journal_entry=je,
+                    account=ledger_account,
+                    debit=opening_balance if opening_balance > 0 else Decimal("0"),
+                    credit=abs(opening_balance) if opening_balance < 0 else Decimal("0"),
+                    description="Opening Balance"
+                )
+                JournalLine.objects.create(
+                    journal_entry=je,
+                    account=equity_account,
+                    debit=abs(opening_balance) if opening_balance < 0 else Decimal("0"),
+                    credit=opening_balance if opening_balance > 0 else Decimal("0"),
+                    description="Opening Balance Offset"
+                )
+                je.check_balance()
+
+        business.bank_setup_completed = True
+        business.save(update_fields=["bank_setup_completed"])
+
+    return JsonResponse({"success": True})
+
+
+@login_required
+@require_POST
+def api_bank_setup_skip(request):
+    business = get_current_business(request.user)
+    if not business:
+        return JsonResponse({"detail": "No business found."}, status=400)
+    
+    business.bank_setup_completed = True
+    business.save(update_fields=["bank_setup_completed"])
+    
+    return JsonResponse({"success": True})

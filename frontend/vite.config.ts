@@ -39,9 +39,17 @@ export default defineConfig({
           __dirname,
           "src/settings/account-settings-entry.tsx"
         ),
+        "workspace-home": path.resolve(
+          __dirname,
+          "src/pages/workspace-home-entry.tsx"
+        ),
         "cashflow-report": path.resolve(
           __dirname,
           "src/reports/cashflow-report-entry.tsx"
+        ),
+        "bank-setup": path.resolve(
+          __dirname,
+          "src/banking/bank-setup-entry.tsx"
         ),
         reconciliation: path.resolve(
           __dirname,

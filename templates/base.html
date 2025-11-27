@@ -389,10 +389,6 @@
             </div>
           </a>
 
-          <button class="sidebar-logo-cta" type="button">
-            <span>＋ Upload business logo</span>
-          </button>
-
           <div class="sidebar-new-wrapper">
             <button id="globalNewButton" class="sidebar-new-btn" type="button">
               <span class="sidebar-new-plus">+</span>
@@ -400,6 +396,7 @@
               <span class="sidebar-new-caret">⌄</span>
             </button>
             <div id="globalNewMenu" class="sidebar-new-menu">
+              <a href="#" class="sidebar-new-item sidebar-new-item-logo">＋ Upload business logo</a>
               <a href="{% url 'invoice_create' %}" class="sidebar-new-item">Invoice</a>
               <a href="{% url 'expense_create' %}" class="sidebar-new-item">Expense</a>
               <div class="sidebar-new-separator"></div>
@@ -451,7 +448,7 @@
             <span class="sidebar-link-dot"></span> Banking
           </a>
           <a href="{% url 'reconciliation_entry' %}"
-            class="sidebar-link{% if current == 'reconciliation' %} active{% endif %}">
+            class="sidebar-link{% if current == 'reconciliation_entry' %} active{% endif %}">
             <span class="sidebar-link-dot"></span> Reconciliation
           </a>
           {% endwith %}
@@ -469,6 +466,7 @@
             class="sidebar-link{% if request.resolver_match.url_name == 'account_list' %} active{% endif %}">
             <span class="sidebar-link-dot"></span> Chart of Accounts
           </a>
+
           <div class="sidebar-nav-section-label">Account</div>
           {% if request.user.is_authenticated %}
           <a href="{% url 'account_settings' %}"

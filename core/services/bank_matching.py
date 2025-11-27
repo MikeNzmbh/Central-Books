@@ -79,32 +79,30 @@ class BankMatchingEngine:
     """
 
     @staticmethod
+    def apply_suggestions(bank_transaction: BankTransaction) -> None:
+        """
+        Run matching engine and update bank_transaction suggestion fields.
+        """
+        matches = BankMatchingEngine.find_matches(bank_transaction, limit=1)
+        if matches:
+            best = matches[0]
+            bank_transaction.suggestion_confidence = int(best["confidence"] * 100)
+            bank_transaction.suggestion_reason = best["reason"]
+            bank_transaction.status = BankTransaction.TransactionStatus.SUGGESTED
+            bank_transaction.save(update_fields=["suggestion_confidence", "suggestion_reason", "status"])
+        else:
+            # No matches found
+            if bank_transaction.status == BankTransaction.TransactionStatus.NEW:
+                # Keep as NEW if no suggestions
+                pass
+
+    @staticmethod
     def find_matches(
         bank_transaction: BankTransaction,
         limit: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         """
-        Find potential journal entry matches for a bank transaction.
-
-        Returns list of candidate matches ordered by confidence (highest first).
-        
-        Args:
-            bank_transaction: The bank transaction to match
-            limit: Maximum number of candidates to return (defaults to MatchingConfig.DEFAULT_MAX_CANDIDATES)
-
-        Returns:
-            List of dicts with keys:
-                - journal_entry: JournalEntry instance
-                - confidence: Decimal (0.00 to 1.00)
-                - match_type: str ("ONE_TO_ONE", etc.)
-                - reason: str (human-readable explanation)
-                
-        Example:
-            >>> tx = BankTransaction.objects.get(id=123)
-            >>> matches = BankMatchingEngine.find_matches(tx, limit=3)
-            >>> if matches:
-            ...     best_match = matches[0]
-            ...     print(f"Best match: {best_match['journal_entry']} ({best_match['confidence']*100}%)")
+        Find potential matches (Rules or Journal Entries).
         """
         if limit is None:
             limit = MatchingConfig.DEFAULT_MAX_CANDIDATES
@@ -112,11 +110,17 @@ class BankMatchingEngine:
         business = bank_transaction.bank_account.business
         candidates: List[Dict[str, Any]] = []
 
+        # Tier 0: Bank Rules (Highest priority)
+        tier0 = BankMatchingEngine._tier0_rule_match(bank_transaction, business)
+        if tier0:
+            candidates.extend(tier0)
+            # Rules are definitive suggestions
+            return candidates[:limit]
+
         # Tier 1: Deterministic ID match
         tier1 = BankMatchingEngine._tier1_id_match(bank_transaction, business)
         if tier1:
             candidates.extend(tier1)
-            # If we found a deterministic match, return immediately
             return candidates[:limit]
 
         # Tier 2: Invoice/expense reference in description
@@ -127,33 +131,56 @@ class BankMatchingEngine:
         tier3 = BankMatchingEngine._tier3_amount_date_match(bank_transaction, business)
         candidates.extend(tier3)
 
-        # Deduplicate by journal_entry.id and sort by confidence
+        # Deduplicate and sort
         seen = set()
         unique_candidates = []
         for candidate in sorted(candidates, key=lambda x: x["confidence"], reverse=True):
-            je_id = candidate["journal_entry"].id
-            if je_id not in seen:
-                seen.add(je_id)
+            # Use a unique key for deduplication
+            if "rule" in candidate:
+                key = f"rule_{candidate['rule'].id}"
+            else:
+                key = f"je_{candidate['journal_entry'].id}"
+                
+            if key not in seen:
+                seen.add(key)
                 unique_candidates.append(candidate)
 
         return unique_candidates[:limit]
 
     @staticmethod
+    def _tier0_rule_match(tx: BankTransaction, business) -> List[Dict[str, Any]]:
+        """
+        Tier 0: Match against BankRules.
+        """
+        from core.models import BankRule
+        
+        candidates = []
+        rules = BankRule.objects.filter(business=business)
+        
+        for rule in rules:
+            if rule.pattern and re.search(rule.pattern, tx.description, re.IGNORECASE):
+                candidates.append({
+                    "rule": rule,
+                    "confidence": Decimal("1.00"),
+                    "match_type": "RULE",
+                    "reason": f"Rule: {rule.merchant_name}",
+                    "auto_confirm": rule.auto_confirm,
+                })
+            elif rule.merchant_name.lower() in tx.description.lower():
+                 candidates.append({
+                    "rule": rule,
+                    "confidence": Decimal("0.90"),
+                    "match_type": "RULE",
+                    "reason": f"Rule: {rule.merchant_name} (Name match)",
+                    "auto_confirm": rule.auto_confirm,
+                })
+                
+        return candidates
+
+    @staticmethod
     def _tier1_id_match(tx: BankTransaction, business) -> List[Dict[str, Any]]:
         """
         Tier 1: Match by external_id or check number.
-        
-        Looks for exact match between bank_transaction.external_id and:
-        - Invoice.invoice_number
-        - Expense.expense_number
-        
-        Args:
-            tx: Bank transaction to match
-            business: Business to search within
-            
-        Returns:
-            List with single candidate if found, empty list otherwise
-            Confidence: MatchingConfig.CONFIDENCE_TIER1 (1.00)
         """
         if not tx.external_id:
             return []
@@ -221,18 +248,6 @@ class BankMatchingEngine:
     def _tier2_reference_match(tx: BankTransaction, business) -> List[Dict[str, Any]]:
         """
         Tier 2: Parse description for invoice/expense references.
-        
-        Uses regex patterns to find invoice/expense numbers in the transaction description:
-        - INV-1234, #INV1234, Invoice 1234
-        - EXP-1234, #EXP1234, Expense 1234
-        
-        Args:
-            tx: Bank transaction to match
-            business: Business to search within
-            
-        Returns:
-            List of candidates (may be multiple if multiple references found)
-            Confidence: MatchingConfig.CONFIDENCE_TIER2 (0.95)
         """
         candidates = []
 
@@ -310,20 +325,6 @@ class BankMatchingEngine:
     def _tier3_amount_date_match(tx: BankTransaction, business) -> List[Dict[str, Any]]:
         """
         Tier 3: Match by amount + date proximity.
-        
-        Finds journal entries with:
-        - Matching amount (within MatchingConfig.AMOUNT_TOLERANCE)
-        - Date within ±MatchingConfig.DATE_TOLERANCE_DAYS
-        
-        Args:
-            tx: Bank transaction to match
-            business: Business to search within
-            
-        Returns:
-            List of candidates
-            Confidence:
-                - Single match: MatchingConfig.CONFIDENCE_TIER3_SINGLE (0.80)
-                - Multiple matches: MatchingConfig.CONFIDENCE_TIER3_AMBIGUOUS (0.50)
         """
         amount_abs = abs(tx.amount)
 

@@ -404,19 +404,19 @@
                 </div>
                 <div class="mb-side-row">
                   <dt>Amount (excl. tax)</dt>
-                  <dd class="amount">
+                  <dd class="amount" id="summary-amount" data-currency="{{ business.currency|default:'USD' }}">
                     {{ summary.amount|floatformat:2 }} {{ business.currency|default:"USD" }}
                   </dd>
                 </div>
                 <div class="mb-side-row">
                   <dt>Tax</dt>
-                  <dd>
+                  <dd id="summary-tax" data-currency="{{ business.currency|default:'USD' }}">
                     {{ summary.tax|floatformat:2 }} {{ business.currency|default:"USD" }}
                   </dd>
                 </div>
                 <div class="mb-side-row">
                   <dt>Grand total</dt>
-                  <dd class="amount">
+                  <dd class="amount" id="summary-grand" data-currency="{{ business.currency|default:'USD' }}">
                     {{ summary.grand|floatformat:2 }} {{ business.currency|default:"USD" }}
                   </dd>
                 </div>
@@ -431,6 +431,54 @@
 
       </div>
     </form>
-  </div>
 </div>
+</div>
+
+{{ tax_rates|json_script:"tax-rates-data" }}
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const amountInput = document.getElementById("id_total_amount");
+    const taxSelect = document.getElementById("id_tax_rate");
+    const taxAmountInput = document.getElementById("id_tax_amount");
+
+    const summaryAmount = document.getElementById("summary-amount");
+    const summaryTax = document.getElementById("summary-tax");
+    const summaryGrand = document.getElementById("summary-grand");
+
+    let taxRates = [];
+    const taxDataEl = document.getElementById("tax-rates-data");
+    if (taxDataEl) {
+      try {
+        taxRates = JSON.parse(taxDataEl.textContent || "[]");
+      } catch (e) {
+        console.warn("Could not parse tax rates data", e);
+      }
+    }
+
+    function formatMoney(value, currency) {
+      const num = Number.isFinite(value) ? value : 0;
+      return `${num.toFixed(2)} ${currency || ""}`.trim();
+    }
+
+    function updateTotals() {
+      const amount = parseFloat(amountInput?.value || "0") || 0;
+      const selectedId = taxSelect?.value || "";
+      const rate = taxRates.find((r) => String(r.id) === String(selectedId));
+      const tax = rate ? Number((amount * (Number(rate.percentage) / 100)).toFixed(2)) : 0;
+      if (taxAmountInput) {
+        taxAmountInput.value = tax.toFixed(2);
+      }
+      const grand = amount + tax;
+
+      const currency = summaryAmount?.dataset?.currency || "";
+      if (summaryAmount) summaryAmount.textContent = formatMoney(amount, currency);
+      if (summaryTax) summaryTax.textContent = formatMoney(tax, currency);
+      if (summaryGrand) summaryGrand.textContent = formatMoney(grand, currency);
+    }
+
+    if (amountInput) amountInput.addEventListener("input", updateTotals);
+    if (taxSelect) taxSelect.addEventListener("change", updateTotals);
+    updateTotals();
+  });
+</script>
 {% endblock %}

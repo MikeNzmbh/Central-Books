@@ -1,5 +1,115 @@
-{% extends "base.html" %}{% block content %}
-<h2 style="margin-top:0">Business setup</h2>
-{% if form.errors %}<div class="form-errors">Please fix the errors below.</div>{% endif %}
-<form method="post" class="row">{% csrf_token %}{{ form.as_p }}<button class="button">Create</button></form>
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="flex min-h-screen w-full flex-col bg-slate-50">
+    <header class="sticky top-0 z-20 border-b bg-white/80 backdrop-blur-sm">
+        <div class="mx-auto flex max-w-4xl items-center justify-between gap-4 px-4 py-4">
+            <div class="space-y-1">
+                <h1 class="text-xl font-semibold tracking-tight text-slate-900 md:text-2xl">
+                    Business Setup
+                </h1>
+                <p class="max-w-xl text-sm text-slate-500">
+                    Let's get your business profile set up. This helps us personalize your experience.
+                </p>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1">
+        <div class="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-6 md:gap-8 md:py-8">
+            {% if form.errors %}
+            <div class="rounded-2xl border border-red-200 bg-red-50/80 px-4 py-3.5">
+                <p class="text-sm font-medium text-red-900">Please fix the errors below before continuing.</p>
+            </div>
+            {% endif %}
+
+            <form method="post" class="space-y-6">
+                {% csrf_token %}
+
+                <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                    <div class="border-b border-slate-100 px-4 py-3.5 md:px-6 md:py-4">
+                        <h2 class="text-sm font-semibold text-slate-900">Business information</h2>
+                        <p class="text-xs text-slate-500">
+                            Enter your business details to get started with Mini-Books.
+                        </p>
+                    </div>
+
+                    <div class="space-y-4 px-4 py-4 md:px-6 md:py-5">
+                        {% for field in form %}
+                        {% if not field.is_hidden %}
+                        <div class="flex flex-col">
+                            <label for="{{ field.id_for_label }}" class="mb-1.5 text-sm font-medium text-slate-900">
+                                {{ field.label }}{% if field.field.required %}<span class="text-red-500">*</span>{%
+                                endif %}
+                            </label>
+
+                            {% if field.help_text %}
+                            <p class="mb-1.5 text-xs text-slate-500">{{ field.help_text }}</p>
+                            {% endif %}
+
+                            {% if field.field.widget.input_type == 'select' %}
+                            <select name="{{ field.name }}" id="{{ field.id_for_label }}"
+                                class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/5 {% if field.errors %}border-red-300{% endif %}">
+                                {{ field }}
+                            </select>
+                            {% elif field.field.widget.input_type == 'textarea' %}
+                            <textarea name="{{ field.name }}" id="{{ field.id_for_label }}" rows="3"
+                                class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/5 {% if field.errors %}border-red-300{% endif %}">{{ field.value|default:'' }}</textarea>
+                            {% else %}
+                            <input type="{{ field.field.widget.input_type|default:'text' }}" name="{{ field.name }}"
+                                id="{{ field.id_for_label }}" value="{{ field.value|default:'' }}"
+                                class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/5 {% if field.errors %}border-red-300{% endif %}"
+                                {% if field.field.required %}required{% endif %} />
+                            {% endif %}
+
+                            {% if field.errors %}
+                            <p class="mt-1 text-xs text-red-600">{{ field.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-3 md:flex-row md:justify-between">
+                    <a href="{% url 'workspace_home' %}"
+                        class="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/50 focus-visible:ring-offset-1">
+                        Skip for now · I'll set this up later
+                    </a>
+
+                    <button type="submit"
+                        class="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-slate-50 shadow-sm hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900/50 focus-visible:ring-offset-1">
+                        Create business
+                    </button>
+                </div>
+            </form>
+
+            <div
+                class="rounded-2xl border border-slate-200 bg-slate-900 text-slate-50 shadow-sm px-4 py-4 md:px-5 md:py-5 space-y-3">
+                <h2 class="text-sm font-semibold">What happens next?</h2>
+                <p class="text-xs text-slate-200/85">
+                    After creating your business, you'll land on your workspace home where you can start creating
+                    invoices,
+                    recording expenses, and exploring Mini-Books. You can complete bank setup and other configurations
+                    anytime.
+                </p>
+                <ul class="mt-2 space-y-1.5 text-xs text-slate-200/90">
+                    <li class="flex gap-2">
+                        <span class="mt-0.5 inline-block h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
+                        Create your first invoice or expense
+                    </li>
+                    <li class="flex gap-2">
+                        <span class="mt-0.5 inline-block h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
+                        Set up bank accounts when you're ready
+                    </li>
+                    <li class="flex gap-2">
+                        <span class="mt-0.5 inline-block h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
+                        Explore reports and insights
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </main>
+</div>
 {% endblock %}

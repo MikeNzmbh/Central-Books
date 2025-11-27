@@ -10,6 +10,7 @@ from django.db import transaction as db_transaction
 from django.db.models import Sum
 
 from .accounting_defaults import ensure_default_accounts
+from .tax_utils import compute_tax_breakdown
 from .models import (
     Account,
     BankReconciliationMatch,
@@ -18,6 +19,7 @@ from .models import (
     Invoice,
     JournalEntry,
     JournalLine,
+    TaxRate,
 )
 
 AllocationKind = Literal[
@@ -35,6 +37,8 @@ class Allocation:
     amount: Decimal
     id: int | None = None
     account_id: int | None = None
+    tax_treatment: str | None = None
+    tax_rate_id: int | None = None
 
 
 def recompute_bank_transaction_status(bank_tx: BankTransaction) -> BankTransaction:
@@ -171,6 +175,8 @@ def allocate_bank_transaction(
     bank_account = bank_tx.bank_account.account or defaults.get("cash")
     if bank_account is None:
         raise ValidationError("Set a ledger account for this bank before reconciling.")
+    sales_tax_account = defaults.get("tax")
+    recoverable_tax_account = defaults.get("tax_recoverable") or sales_tax_account
 
     ar_account = defaults.get("ar")
     ap_account = defaults.get("ap")
@@ -182,6 +188,7 @@ def allocate_bank_transaction(
     bill_allocations: list[tuple[Expense, Decimal]] = []
     credit_lines: list[tuple[Account, Decimal]] = []
     debit_lines: list[tuple[Account, Decimal]] = []
+    tax_lines: list[tuple[Account, Decimal, Decimal]] = []
     direct_income_allocations: list[tuple[Account, Decimal]] = []
     direct_expense_allocations: list[tuple[Account, Decimal]] = []
     credit_note_allocations: list[tuple[Account, Decimal]] = []
@@ -252,6 +259,47 @@ def allocate_bank_transaction(
         else:  # pragma: no cover - safeguard
             raise ValidationError(f"Unsupported allocation kind: {alloc.kind}")
 
+        # Apply tax after the base validation so both income/expense share logic.
+        if alloc.kind in ("DIRECT_INCOME", "DIRECT_EXPENSE") and (alloc.tax_treatment or alloc.tax_rate_id):
+            treatment = (alloc.tax_treatment or "NONE").upper()
+            if treatment not in ("NONE", "INCLUDED", "ON_TOP"):
+                raise ValidationError("Invalid tax treatment.")
+            if treatment != "NONE":
+                if not alloc.tax_rate_id:
+                    raise ValidationError("Tax rate is required when tax is enabled.")
+                tax_rate = (
+                    TaxRate.objects.filter(business=business, pk=alloc.tax_rate_id)
+                    .only("percentage")
+                    .first()
+                )
+                if not tax_rate:
+                    raise ValidationError("Tax rate not found for this business.")
+                net_value, tax_value, gross_value = compute_tax_breakdown(
+                    amount, treatment, tax_rate.percentage
+                )
+            else:
+                net_value, tax_value, gross_value = amount, Decimal("0.00"), amount
+
+            if alloc.kind == "DIRECT_INCOME":
+                # Replace the previously added credit line with net and attach tax.
+                credit_lines.pop()
+                credit_lines.append((account, net_value))
+                if tax_value and tax_value != 0:
+                    if not sales_tax_account:
+                        raise ValidationError("Configure a sales tax account before posting tax.")
+                    tax_lines.append((sales_tax_account, Decimal("0.00"), tax_value))
+                allocation_sum = allocation_sum - amount + gross_value
+                match_targets[-1] = ("direct_income", None, gross_value)
+            elif alloc.kind == "DIRECT_EXPENSE":
+                debit_lines.pop()
+                debit_lines.append((account, net_value))
+                if tax_value and tax_value != 0:
+                    if not recoverable_tax_account:
+                        raise ValidationError("Configure a tax recoverable account before posting tax.")
+                    tax_lines.append((recoverable_tax_account, tax_value, Decimal("0.00")))
+                allocation_sum = allocation_sum - amount + gross_value
+                match_targets[-1] = ("direct_expense", None, gross_value)
+
     fee_amount = Decimal("0.00")
     fee_account = None
     if fees is not None:
@@ -296,6 +344,18 @@ def allocate_bank_transaction(
     else:
         expected_bank = allocation_sum + fee_amount + rounding_amount
 
+    difference = bank_portion - expected_bank
+    if difference.copy_abs() > tolerance:
+        if rounding_account is None:
+            rounding_account = defaults.get("sales") if is_deposit else defaults.get("opex")
+        if rounding_account is None:
+            raise ValidationError("Allocations do not reconcile with the bank amount.")
+        if is_deposit:
+            rounding_amount -= difference
+        else:
+            rounding_amount += difference
+        expected_bank = bank_portion
+
     if (expected_bank - bank_portion).copy_abs() > tolerance:
         raise ValidationError("Allocations do not reconcile with the bank amount.")
 
@@ -333,6 +393,9 @@ def allocate_bank_transaction(
 
     for account, amount in debit_lines:
         add_line(account, amount, Decimal("0.00"))
+
+    for account, debit, credit in tax_lines:
+        add_line(account, debit, credit)
 
     if fee_account and fee_amount > 0:
         add_line(fee_account, fee_amount, Decimal("0.00"))

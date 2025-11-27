@@ -2,6 +2,7 @@ from django.urls import path
 
 from . import views
 from taxes import views as tax_views
+from . import views_reconciliation
 from .views import (
     CustomerListView,
     InvoiceListView,
@@ -92,6 +93,12 @@ urlpatterns = [
     path("api/reconciliation/matches/", api_reconciliation_matches, name="api_reco_matches"),
     path("api/reconciliation/confirm-match/", api_reconciliation_confirm_match, name="api_reco_confirm_match"),
     path("api/reconciliation/create-split/", api_reconciliation_create_split, name="api_reco_create_split"),
+    path("api/reconciliation/create-rule/", views_reconciliation.api_reconciliation_create_rule, name="api_reconciliation_create_rule"),
+    path("api/reconciliation/config/", views_reconciliation.api_reconciliation_config, name="api_reconciliation_config"),
+    path("api/reconciliation/session/", views_reconciliation.api_reconciliation_session, name="api_reconciliation_session"),
+    path("api/reconciliation/complete/", views_reconciliation.api_reconciliation_complete, name="api_reconciliation_complete"),
+    path("api/reconciliation/toggle-include/", views_reconciliation.api_reconciliation_toggle_include, name="api_reconciliation_toggle_include"),
+    path("api/reconciliation/create-adjustment/", views_reconciliation.api_reconciliation_create_adjustment, name="api_reconciliation_create_adjustment"),
     path("api/reconciliation/audit/", api_reconciliation_audit, name="api_reco_audit"),
     path("api/reconciliation/rules/", api_reconciliation_create_rule, name="api_reco_rule"),
     path("api/ledger/search/", api_ledger_search, name="api_ledger_search"),
@@ -128,6 +135,10 @@ urlpatterns = [
     path("reconciliation/<int:bank_account_id>/", views.reconciliation_page, name="reconciliation_page"),
     # Banking accounts feed
     path("banking/", views.banking_accounts_feed_spa, name="banking_accounts_feed"),
+    path("bank/setup/", views.bank_setup_page, name="bank_setup"),
+    path("api/bank/setup/save/", views.api_bank_setup_save, name="api_bank_setup_save"),
+    path("api/bank/setup/skip/", views.api_bank_setup_skip, name="api_bank_setup_skip"),
+    path("workspace/", views.workspace_home, name="workspace_home"),
     path("api/banking/overview/", views.api_banking_overview, name="api_banking_overview"),
     path(
         "api/banking/feed/transactions/",
@@ -139,6 +150,7 @@ urlpatterns = [
         views.api_banking_feed_metadata,
         name="api_banking_feed_metadata",
     ),
+    path("api/categories/", views.api_create_category, name="api_create_category"),
     path(
         "api/banking/feed/transactions/<int:tx_id>/create/",
         views.api_banking_feed_create_entry,
@@ -158,6 +170,11 @@ urlpatterns = [
         "api/banking/feed/transactions/<int:tx_id>/exclude/",
         views.api_banking_feed_exclude,
         name="api_banking_feed_exclude",
+    ),
+    path(
+        "api/banking/feed/transactions/<int:tx_id>/add/",
+        views.api_banking_feed_add_entry,
+        name="api_banking_feed_add_entry",
     ),
     path(
         "api/banking/transactions/<int:bank_tx_id>/allocate/",

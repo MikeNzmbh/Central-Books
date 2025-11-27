@@ -37,9 +37,10 @@ class ReconciliationTemplateTest(TestCase):
     def test_reconciliation_page_renders_successfully(self):
         """Authenticated user with business should see the reconciliation page"""
         self.client.login(username='testuser', password='testpass123')
-        response = self.client.get('/reconciliation/')
+        # Should redirect to the specific account page if an account exists
+        response = self.client.get('/reconciliation/', follow=True)
         
-        # Should render successfully (200)
+        # Should render successfully (200) after redirect
         self.assertEqual(response.status_code, 200)
         
         # Check for the React mount point in the HTML
@@ -83,7 +84,7 @@ class ReconciliationTemplateTest(TestCase):
         self.client.login(username='testuser', password='testpass123')
         
         # This should not raise TemplateSyntaxError about 'vite' tag library
-        response = self.client.get('/reconciliation/')
+        response = self.client.get('/reconciliation/', follow=True)
         self.assertEqual(response.status_code, 200)
         
         # The response should include static assets loaded via mb_extras
