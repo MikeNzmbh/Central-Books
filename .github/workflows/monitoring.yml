@@ -34,5 +34,4 @@ jobs:
           MONITORING_MODEL: ${{ secrets.MONITORING_MODEL }}
           MONITORING_ENV: ${{ secrets.MONITORING_ENV }}
         run: |
-          python manage.py migrate --noinput
           python manage.py run_monitoring_agent
