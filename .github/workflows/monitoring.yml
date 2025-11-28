@@ -42,6 +42,7 @@ jobs:
           MONITORING_MODEL: ${{ secrets.MONITORING_MODEL }}
           MONITORING_ENV: ${{ secrets.MONITORING_ENV }}
           DJANGO_DEBUG: 'False'
+          PYTHONIOENCODING: "utf-8"
         run: |
           python manage.py run_monitoring_agent
       
@@ -49,8 +50,8 @@ jobs:
         if: always()
         run: |
           if [ $? -eq 0 ]; then
-            echo "✅ Monitoring report sent successfully"
+            echo "[OK] Monitoring report sent successfully"
           else
-            echo "❌ Monitoring report failed"
+            echo "[FAIL] Monitoring report failed"
             exit 1
           fi
