@@ -1,121 +1,121 @@
 {
   "_index-!~{00d}~.js": {
-    "file": "assets/index-DKNT6Wss.css",
+    "file": "assets/index-zTt2st2O.css",
     "src": "_index-!~{00d}~.js"
   },
-  "_index-BH7PkO1S.js": {
-    "file": "assets/index-BH7PkO1S.js",
+  "_index-D3mTtVyf.js": {
+    "file": "assets/index-D3mTtVyf.js",
     "name": "index",
     "css": [
-      "assets/index-DKNT6Wss.css"
+      "assets/index-zTt2st2O.css"
     ]
   },
   "auth/login-entry.tsx": {
-    "file": "assets/login-DPqag1BR.js",
+    "file": "assets/login-CHwMIiCR.js",
     "name": "login",
     "src": "auth/login-entry.tsx",
     "isEntry": true,
     "imports": [
-      "_index-BH7PkO1S.js"
+      "_index-D3mTtVyf.js"
     ]
   },
   "auth/signup-entry.tsx": {
-    "file": "assets/signup-0EsTZvk2.js",
+    "file": "assets/signup-Ck1nNtok.js",
     "name": "signup",
     "src": "auth/signup-entry.tsx",
     "isEntry": true,
     "imports": [
-      "_index-BH7PkO1S.js"
+      "_index-D3mTtVyf.js"
     ]
   },
   "bank-feed.tsx": {
-    "file": "assets/bank-feed-COdIawqq.js",
+    "file": "assets/bank-feed-JpN1KtfL.js",
     "name": "bank-feed",
     "src": "bank-feed.tsx",
     "isEntry": true,
     "imports": [
-      "_index-BH7PkO1S.js"
+      "_index-D3mTtVyf.js"
     ]
   },
   "banking-accounts-feed.tsx": {
-    "file": "assets/banking-accounts-feed-Dgh9BvJ0.js",
+    "file": "assets/banking-accounts-feed-B4LSCm9-.js",
     "name": "banking-accounts-feed",
     "src": "banking-accounts-feed.tsx",
     "isEntry": true,
     "imports": [
-      "_index-BH7PkO1S.js"
+      "_index-D3mTtVyf.js"
     ]
   },
   "banking/bank-setup-entry.tsx": {
-    "file": "assets/bank-setup-BDZO2Uin.js",
+    "file": "assets/bank-setup-CiD926NA.js",
     "name": "bank-setup",
     "src": "banking/bank-setup-entry.tsx",
     "isEntry": true,
     "imports": [
-      "_index-BH7PkO1S.js"
+      "_index-D3mTtVyf.js"
     ]
   },
   "chart-of-accounts.tsx": {
-    "file": "assets/chart-of-accounts-q0VngvDN.js",
+    "file": "assets/chart-of-accounts-DWogpYlU.js",
     "name": "chart-of-accounts",
     "src": "chart-of-accounts.tsx",
     "isEntry": true,
     "imports": [
-      "_index-BH7PkO1S.js"
+      "_index-D3mTtVyf.js"
     ]
   },
   "coa-account-detail.tsx": {
-    "file": "assets/coa-account-detail-4hhK_-Zn.js",
+    "file": "assets/coa-account-detail-BbEiaGb3.js",
     "name": "coa-account-detail",
     "src": "coa-account-detail.tsx",
     "isEntry": true,
     "imports": [
-      "_index-BH7PkO1S.js"
+      "_index-D3mTtVyf.js"
     ]
   },
   "dashboard/dashboard-entry.tsx": {
-    "file": "assets/dashboard-BRDKM5zj.js",
+    "file": "assets/dashboard-CEsBjWCg.js",
     "name": "dashboard",
     "src": "dashboard/dashboard-entry.tsx",
     "isEntry": true,
     "imports": [
-      "_index-BH7PkO1S.js"
+      "_index-D3mTtVyf.js"
     ]
   },
   "pages/workspace-home-entry.tsx": {
-    "file": "assets/workspace-home-CY1u4iUD.js",
+    "file": "assets/workspace-home-BMpVEcBw.js",
     "name": "workspace-home",
     "src": "pages/workspace-home-entry.tsx",
     "isEntry": true,
     "imports": [
-      "_index-BH7PkO1S.js"
+      "_index-D3mTtVyf.js"
     ]
   },
   "reconciliation/reconciliation-entry.tsx": {
-    "file": "assets/reconciliation-DoIyf78G.js",
+    "file": "assets/reconciliation-DX081JuF.js",
     "name": "reconciliation",
     "src": "reconciliation/reconciliation-entry.tsx",
     "isEntry": true,
     "imports": [
-      "_index-BH7PkO1S.js"
+      "_index-D3mTtVyf.js"
     ]
   },
   "reports/cashflow-report-entry.tsx": {
-    "file": "assets/cashflow-report-CtYFiFUH.js",
+    "file": "assets/cashflow-report-BXeDQCbt.js",
     "name": "cashflow-report",
     "src": "reports/cashflow-report-entry.tsx",
     "isEntry": true,
     "imports": [
-      "_index-BH7PkO1S.js"
+      "_index-D3mTtVyf.js"
     ]
   },
   "settings/account-settings-entry.tsx": {
-    "file": "assets/account-settings-DPXehJg4.js",
+    "file": "assets/account-settings-C-G5zvSU.js",
     "name": "account-settings",
     "src": "settings/account-settings-entry.tsx",
     "isEntry": true,
     "imports": [
-      "_index-BH7PkO1S.js"
+      "_index-D3mTtVyf.js"
     ]
   }
 }
