@@ -236,7 +236,7 @@ SOCIALACCOUNT_PROVIDERS = {
             "profile",
         ],
         "AUTH_PARAMS": {
-            "access_type": "online",
+            "access_type": "offline",
         },
     }
 }

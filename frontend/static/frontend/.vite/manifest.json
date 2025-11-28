@@ -11,7 +11,7 @@
     ]
   },
   "auth/login-entry.tsx": {
-    "file": "assets/login-CiPrAxDF.js",
+    "file": "assets/login-BFHKQzzU.js",
     "name": "login",
     "src": "auth/login-entry.tsx",
     "isEntry": true,
@@ -20,7 +20,7 @@
     ]
   },
   "auth/signup-entry.tsx": {
-    "file": "assets/signup-CDdJ0gKN.js",
+    "file": "assets/signup-Lk7xsbJ7.js",
     "name": "signup",
     "src": "auth/signup-entry.tsx",
     "isEntry": true,
