@@ -22,42 +22,42 @@ const CentralBooksCreateAccount: React.FC<CentralBooksCreateAccountProps> = ({
           <div className="space-y-6">
             <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-slate-100">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-              <span>Central-Books workspace</span>
+              <span>CERN Books workspace</span>
             </div>
             <div className="space-y-3">
               <h1 className="text-3xl font-semibold tracking-tight">
-                Create your Central-Books account
+                Create your CERN Books account
               </h1>
               <p className="text-sm text-slate-200/80 max-w-sm">
                 Spin up a clean, lightweight accounting workspace. Perfect for small studios, contractors, and solo founders.
               </p>
             </div>
-          </div>
-          <div className="mt-6 rounded-2xl bg-slate-900/40 border border-white/10 p-4 space-y-4">
-            <div className="flex items-center justify-between text-xs text-slate-200/90">
-              <span className="font-medium">Your first 10 minutes</span>
-              <span className="text-slate-300/80">3 quick steps</span>
-            </div>
-            <div className="space-y-2 text-[11px] text-slate-200/80">
-              <div className="flex items-center gap-2">
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/20 text-[10px]">1</span>
-                <div>
-                  <p className="font-medium">Create your account</p>
-                  <p className="text-slate-300/80">Email, name, and a secure password.</p>
-                </div>
+            <div className="mt-6 rounded-2xl bg-slate-900/40 border border-white/10 p-4 space-y-4">
+              <div className="flex items-center justify-between text-xs text-slate-200/90">
+                <span className="font-medium">Your first 10 minutes</span>
+                <span className="text-slate-300/80">3 quick steps</span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-sky-500/20 text-[10px]">2</span>
-                <div>
-                  <p className="font-medium">Tell us about your business</p>
-                  <p className="text-slate-300/80">Currency, year-end, and base country.</p>
+              <div className="space-y-2 text-[11px] text-slate-200/80">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/20 text-[10px]">1</span>
+                  <div>
+                    <p className="font-medium">Create your account</p>
+                    <p className="text-slate-300/80">Email, name, and a secure password.</p>
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-500/20 text-[10px]">3</span>
-                <div>
-                  <p className="font-medium">Connect money or import CSV</p>
-                  <p className="text-slate-300/80">Start with a bank feed or sample data.</p>
+                <div className="flex items-center gap-2">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-sky-500/20 text-[10px]">2</span>
+                  <div>
+                    <p className="font-medium">Tell us about your business</p>
+                    <p className="text-slate-300/80">Currency, year-end, and base country.</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-500/20 text-[10px]">3</span>
+                  <div>
+                    <p className="font-medium">Connect money or import CSV</p>
+                    <p className="text-slate-300/80">Start with a bank feed or sample data.</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -71,8 +71,7 @@ const CentralBooksCreateAccount: React.FC<CentralBooksCreateAccountProps> = ({
                 MB
               </div>
               <div className="flex flex-col">
-                <span className="text-xs font-medium tracking-wide text-slate-500 uppercase">Mini-Books</span>
-                <span className="text-sm font-medium text-slate-900">Central-Books</span>
+                <span className="text-sm font-medium text-slate-900">CERN Books</span>
               </div>
             </div>
             <h2 className="text-xl sm:text-2xl font-semibold tracking-tight text-slate-900 mt-4">Create your account</h2>
@@ -202,12 +201,12 @@ const CentralBooksCreateAccount: React.FC<CentralBooksCreateAccountProps> = ({
               Create account
             </button>
 
-            <p className="pt-3 text-xs text-slate-500 text-center">
-              Already using Central-Books?{" "}
+            <span className="text-xs text-slate-500">
+              Already using CERN Books?{" "}
               <a href="/login/" className="font-medium text-slate-900 hover:underline">
                 Sign in
               </a>
-            </p>
+            </span>
           </form>
         </section>
       </div>
