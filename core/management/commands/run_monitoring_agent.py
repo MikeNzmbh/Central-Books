@@ -23,42 +23,42 @@ MONITORING_SYSTEM_PROMPT = """You are the Central-Books Monitoring Agent. You an
 Analyze the provided metrics JSON and generate a monitoring report in this EXACT format:
 
 ```
-📊 CENTRAL-BOOKS MONITORING REPORT
+CENTRAL-BOOKS MONITORING REPORT
 Generated: [timestamp]
 Environment: [environment]
 
 === OVERVIEW ===
 [2-3 sentence executive summary of overall system health]
 
-=== 🛠️ Product & Engineering ===
+=== Product & Engineering ===
 [Status and key metrics for features, bugs, deployments, uptime]
 
-=== 📒 Ledger & Accounting ===
+=== Ledger & Accounting ===
 [Status of journal entries, account balances, and ledger health]
 
-=== 🏦 Banking & Reconciliation ===
+=== Banking & Reconciliation ===
 [Bank transaction volume, reconciliation status, unreconciled items]
 
-=== 💰 Tax & FX ===
+=== Tax & FX ===
 [Tax rate configuration, multi-currency status, recent calculations]
 
-=== 📈 Business & Revenue ===
+=== Business & Revenue ===
 [Revenue, expenses, profit, receivables, customer/supplier counts]
 
-=== 📢 Marketing & Traffic ===
+=== Marketing & Traffic ===
 [User acquisition, signups, page views, conversion rates]
 
-=== 💬 Support & Feedback ===
+=== Support & Feedback ===
 [Open tickets, response times, satisfaction scores]
 ```
 
 **CRITICAL RULES:**
 1. Use ONLY the data provided in the metrics JSON
 2. If a metric is 0 or missing, state "No data available" or "Not yet tracked"
-3. Highlight concerning metrics with ⚠️ emoji
+3. Highlight concerning metrics with a clear WARN: prefix
 4. Keep each section to 2-3 lines maximum
 5. NO RECOMMENDATIONS ALLOWED - This is a status report only
-6. Use exact section headers shown above with emojis
+6. Use exact section headers shown above
 7. Be factual and concise
 
 **OUTPUT FORMAT:**
@@ -89,14 +89,14 @@ class Command(BaseCommand):
             # Import here to avoid circular dependencies
             from core.metrics import build_central_books_metrics
             
-            self.stdout.write(self.style.SUCCESS('🔄 Collecting metrics...'))
+            self.stdout.write(self.style.SUCCESS('[*] Collecting metrics...'))
             
             # Collect metrics
             metrics = build_central_books_metrics()
             
             # Pretty print metrics in dry-run mode
             if dry_run:
-                self.stdout.write(self.style.WARNING('\n📊 METRICS COLLECTED:'))
+                self.stdout.write(self.style.WARNING('\n[METRICS] Collected:'))
                 self.stdout.write(json.dumps(metrics, indent=2, default=str))
                 self.stdout.write('\n')
             
@@ -105,7 +105,7 @@ class Command(BaseCommand):
             if not api_key:
                 if dry_run:
                     self.stdout.write(self.style.WARNING(
-                        '⚠️  No OPENAI_API_KEY found - skipping AI analysis in dry-run mode'
+                        'Warning: No OPENAI_API_KEY found - skipping AI analysis in dry-run mode'
                     ))
                     return
                 else:
@@ -114,27 +114,27 @@ class Command(BaseCommand):
                         'Set it in your .env file or environment.'
                     )
             
-            model = options['model'] or os.getenv('MONITORING_MODEL', 'gpt-5.1-mini')
+            model = options['model'] or os.getenv('MONITORING_MODEL', 'gpt-4o-mini')
             
-            self.stdout.write(self.style.SUCCESS(f'🤖 Calling OpenAI ({model})...'))
+            self.stdout.write(self.style.SUCCESS(f'[*] Calling OpenAI ({model})...'))
             
             # Call OpenAI
             report = self._call_openai(metrics, model, api_key)
             
             # Output report
             if dry_run:
-                self.stdout.write(self.style.SUCCESS('\n📄 GENERATED REPORT:'))
+                self.stdout.write(self.style.SUCCESS('\n[REPORT] Generated report:'))
                 self.stdout.write(self.style.SUCCESS('=' * 80))
                 self.stdout.write(report)
                 self.stdout.write(self.style.SUCCESS('=' * 80))
             else:
                 # Send to Slack/Discord
                 self._deliver_report(report)
-                self.stdout.write(self.style.SUCCESS('✅ Report delivered successfully'))
+                self.stdout.write(self.style.SUCCESS('[OK] Report delivered successfully'))
         
         except Exception as e:
             if dry_run:
-                self.stdout.write(self.style.ERROR(f'❌ Error: {str(e)}'))
+                self.stdout.write(self.style.ERROR(f'Error: {str(e)}'))
                 import traceback
                 traceback.print_exc()
             else:
@@ -181,28 +181,28 @@ class Command(BaseCommand):
         delivered = False
         
         if slack_webhook:
-            self.stdout.write('📤 Sending to Slack...')
+            self.stdout.write('Sending to Slack...')
             self._send_to_slack(slack_webhook, report)
             delivered = True
         else:
             self.stdout.write(self.style.WARNING(
-                '⚠️  SLACK_WEBHOOK_URL not set - skipping Slack notification'
+                'Warning: SLACK_WEBHOOK_URL not set - skipping Slack notification'
             ))
         
         if discord_webhook:
-            self.stdout.write('📤 Sending to Discord...')
+            self.stdout.write('Sending to Discord...')
             self._send_to_discord(discord_webhook, report)
             delivered = True
         else:
             self.stdout.write(self.style.WARNING(
-                '⚠️  DISCORD_WEBHOOK_URL not set - skipping Discord notification'
+                'Warning: DISCORD_WEBHOOK_URL not set - skipping Discord notification'
             ))
         
         if not delivered:
             self.stdout.write(self.style.WARNING(
-                '\n⚠️  No webhook URLs configured. Set SLACK_WEBHOOK_URL or DISCORD_WEBHOOK_URL to enable notifications.'
+                '\nWarning: No webhook URLs configured. Set SLACK_WEBHOOK_URL or DISCORD_WEBHOOK_URL to enable notifications.'
             ))
-            self.stdout.write(self.style.SUCCESS('\n📄 REPORT OUTPUT:'))
+            self.stdout.write(self.style.SUCCESS('\n[REPORT] Output:'))
             self.stdout.write('\n' + report)
     
     def _send_to_slack(self, webhook_url: str, report: str):
