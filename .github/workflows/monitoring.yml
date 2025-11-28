@@ -1,0 +1,38 @@
+name: Central-Books Monitoring
+
+on:
+  schedule:
+    # Every 2 hours
+    - cron: "0 */2 * * *"
+  # Allow manual runs from the Actions tab
+  workflow_dispatch: {}
+
+jobs:
+  run-monitoring-agent:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Monitoring Agent
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+          MONITORING_MODEL: ${{ secrets.MONITORING_MODEL }}
+          MONITORING_ENV: ${{ secrets.MONITORING_ENV }}
+        run: |
+          python manage.py migrate --noinput
+          python manage.py run_monitoring_agent
