@@ -220,6 +220,9 @@ ACCOUNT_EMAIL_REQUIRED = True
 ACCOUNT_USERNAME_REQUIRED = False
 ACCOUNT_EMAIL_VERIFICATION = "none"  # Change to "mandatory" in production if needed
 
+# Skip intermediate allauth pages - go directly to Google OAuth
+SOCIALACCOUNT_LOGIN_ON_GET = True
+
 # Google OAuth provider configuration
 # Required environment variables:
 # - GOOGLE_CLIENT_ID: OAuth 2.0 Client ID from Google Cloud Console
