@@ -224,16 +224,10 @@ ACCOUNT_EMAIL_VERIFICATION = "none"  # Change to "mandatory" in production if ne
 SOCIALACCOUNT_LOGIN_ON_GET = True
 
 # Google OAuth provider configuration
-# Required environment variables:
-# - GOOGLE_CLIENT_ID: OAuth 2.0 Client ID from Google Cloud Console
-# - GOOGLE_CLIENT_SECRET: OAuth 2.0 Client Secret from Google Cloud Console
+# Credentials are stored in the database via SocialApp (use setup_google_oauth command)
+# This configuration only sets the OAuth scope and parameters
 SOCIALACCOUNT_PROVIDERS = {
     "google": {
-        "APP": {
-            "client_id": os.environ.get("GOOGLE_CLIENT_ID", ""),
-            "secret": os.environ.get("GOOGLE_CLIENT_SECRET", ""),
-            "key": "",
-        },
         "SCOPE": [
             "email",
             "profile",
