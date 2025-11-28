@@ -1,277 +1,157 @@
-"""
-Django management command to run the Central-Books monitoring agent.
-
-This command:
-1. Collects metrics across 7 business domains
-2. Sends metrics to OpenAI for analysis
-3. Delivers formatted report to Slack/Discord
-4. Supports --dry-run mode for testing
-
-Usage:
-    python manage.py run_monitoring_agent
-    python manage.py run_monitoring_agent --dry-run
-"""
-import json
 import os
-import sys
+import json
+import logging
+
 from django.core.management.base import BaseCommand, CommandError
-from django.utils import timezone
+from openai import OpenAI
 
-MONITORING_SYSTEM_PROMPT = """You are the Central-Books Monitoring Agent. You analyze business health metrics across 7 domains and produce a concise, actionable status report.
+from core.metrics import build_central_books_metrics
 
-**YOUR TASK:**
-Analyze the provided metrics JSON and generate a monitoring report in this EXACT format:
+import requests
 
-```
-CENTRAL-BOOKS MONITORING REPORT
-Generated: [timestamp]
-Environment: [environment]
 
-=== OVERVIEW ===
-[2-3 sentence executive summary of overall system health]
+logger = logging.getLogger(__name__)
 
-=== Product & Engineering ===
-[Status and key metrics for features, bugs, deployments, uptime]
 
-=== Ledger & Accounting ===
-[Status of journal entries, account balances, and ledger health]
+def send_to_slack(report: str) -> None:
+    """
+    Send the monitoring report to Slack via incoming webhook.
+    If SLACK_WEBHOOK_URL is not set, print to stdout instead.
+    """
+    webhook_url = os.getenv("SLACK_WEBHOOK_URL")
+    if not webhook_url:
+        # Fallback: just print the report
+        logger.info("SLACK_WEBHOOK_URL not set; printing report to stdout")
+        print(report)
+        return
 
-=== Banking & Reconciliation ===
-[Bank transaction volume, reconciliation status, unreconciled items]
+    payload = {
+        "text": report  # plain ASCII text only (enforced by prompt)
+    }
 
-=== Tax & FX ===
-[Tax rate configuration, multi-currency status, recent calculations]
-
-=== Business & Revenue ===
-[Revenue, expenses, profit, receivables, customer/supplier counts]
-
-=== Marketing & Traffic ===
-[User acquisition, signups, page views, conversion rates]
-
-=== Support & Feedback ===
-[Open tickets, response times, satisfaction scores]
-```
-
-**CRITICAL RULES:**
-1. Use ONLY the data provided in the metrics JSON
-2. If a metric is 0 or missing, state "No data available" or "Not yet tracked"
-3. Highlight concerning metrics with a clear WARN: prefix
-4. Keep each section to 2-3 lines maximum
-5. NO RECOMMENDATIONS ALLOWED - This is a status report only
-6. Use exact section headers shown above
-7. Be factual and concise
-
-**OUTPUT FORMAT:**
-Plain text only, no markdown code blocks, no extra formatting.
-"""
+    try:
+        resp = requests.post(webhook_url, json=payload, timeout=10)
+        resp.raise_for_status()
+    except Exception as e:
+        logger.error("Failed to send report to Slack: %r", e)
+        # do not raise, this should not break the command
 
 
 class Command(BaseCommand):
-    help = 'Run Central-Books monitoring agent and deliver report'
+    help = "Run Central-Books monitoring agent and send report to Slack"
 
     def add_arguments(self, parser):
         parser.add_argument(
-            '--dry-run',
-            action='store_true',
-            help='Print report to stdout without sending to Slack/Discord',
-        )
-        parser.add_argument(
-            '--model',
-            type=str,
-            default=None,
-            help='OpenAI model to use (default: from env MONITORING_MODEL)',
+            "--dry-run",
+            action="store_true",
+            help="Print metrics and prompt, do not call OpenAI or Slack",
         )
 
     def handle(self, *args, **options):
-        dry_run = options['dry_run']
-        
+        dry_run = options.get("dry_run", False)
+
         try:
-            # Import here to avoid circular dependencies
-            from core.metrics import build_central_books_metrics
-            
-            self.stdout.write(self.style.SUCCESS('[*] Collecting metrics...'))
-            
-            # Collect metrics
+            self.stdout.write("[*] Collecting metrics...")
             metrics = build_central_books_metrics()
-            
-            # Pretty print metrics in dry-run mode
-            if dry_run:
-                self.stdout.write(self.style.WARNING('\n[METRICS] Collected:'))
-                self.stdout.write(json.dumps(metrics, indent=2, default=str))
-                self.stdout.write('\n')
-            
-            # Get OpenAI configuration
-            api_key = os.getenv('OPENAI_API_KEY')
-            if not api_key:
-                if dry_run:
-                    self.stdout.write(self.style.WARNING(
-                        'Warning: No OPENAI_API_KEY found - skipping AI analysis in dry-run mode'
-                    ))
-                    return
-                else:
-                    raise CommandError(
-                        'OPENAI_API_KEY environment variable is required. '
-                        'Set it in your .env file or environment.'
-                    )
-            
-            model = options['model'] or os.getenv('MONITORING_MODEL', 'gpt-4o-mini')
-            
-            self.stdout.write(self.style.SUCCESS(f'[*] Calling OpenAI ({model})...'))
-            
-            # Call OpenAI
-            report = self._call_openai(metrics, model, api_key)
-            
-            # Output report
-            if dry_run:
-                self.stdout.write(self.style.SUCCESS('\n[REPORT] Generated report:'))
-                self.stdout.write(self.style.SUCCESS('=' * 80))
-                self.stdout.write(report)
-                self.stdout.write(self.style.SUCCESS('=' * 80))
-            else:
-                # Send to Slack/Discord
-                self._deliver_report(report)
-                self.stdout.write(self.style.SUCCESS('[OK] Report delivered successfully'))
-        
-        except Exception as e:
-            if dry_run:
-                self.stdout.write(self.style.ERROR(f'Error: {str(e)}'))
-                import traceback
-                traceback.print_exc()
-            else:
-                raise CommandError(f'Monitoring agent failed: {str(e)}')
-    
-    def _call_openai(self, metrics: dict, model: str, api_key: str) -> str:
-        """Call OpenAI API to analyze metrics and generate report."""
-        try:
-            from openai import OpenAI
-        except ImportError:
-            raise CommandError(
-                'OpenAI Python SDK is not installed. '
-                'Install it with: pip install openai>=1.46.0'
+
+            # Make metrics JSON ASCII-safe so no encoding issues occur
+            metrics_json = json.dumps(
+                metrics,
+                ensure_ascii=True,
+                indent=2,
+                sort_keys=True,
             )
-        
-        client = OpenAI(api_key=api_key)
-        
-        # Format metrics as ASCII-safe JSON string
-        # ensure_ascii=True escapes non-ASCII characters as \uXXXX
-        metrics_json = json.dumps(metrics, indent=2, ensure_ascii=True, default=str)
-        
-        # Call OpenAI Chat Completions API
-        try:
-            response = client.chat.completions.create(
-                model=model,
-                messages=[
-                    {"role": "system", "content": MONITORING_SYSTEM_PROMPT},
-                    {"role": "user", "content": f"Analyze these metrics and generate the monitoring report:\n\n{metrics_json}"}
-                ],
-                temperature=0.3,  # Lower temperature for more consistent reports
-                max_tokens=1500,
+
+            openai_api_key = os.environ.get("OPENAI_API_KEY")
+            if not openai_api_key:
+                raise CommandError("OPENAI_API_KEY is not set")
+
+            model_name = os.getenv("MONITORING_MODEL", "gpt-4o-mini")
+            monitoring_env = os.getenv("MONITORING_ENV", "production")
+
+            prompt = (
+                "You are the Central-Books monitoring agent.\n"
+                "You receive a JSON metrics payload with 7 domains:\n"
+                "- meta\n"
+                "- product_engineering\n"
+                "- ledger_accounting\n"
+                "- banking_reconciliation\n"
+                "- tax_fx\n"
+                "- business_revenue\n"
+                "- marketing_traffic\n"
+                "- support_feedback\n\n"
+                "Task:\n"
+                "1. Analyze the metrics.\n"
+                "2. Produce a concise status report in plain ASCII text.\n"
+                "3. Use headings like:\n"
+                "   OVERVIEW\n"
+                "   PRODUCT AND ENGINEERING\n"
+                "   LEDGER AND ACCOUNTING\n"
+                "   BANKING AND RECONCILIATION\n"
+                "   TAX AND FX\n"
+                "   BUSINESS AND REVENUE\n"
+                "   MARKETING AND TRAFFIC\n"
+                "   SUPPORT AND FEEDBACK\n"
+                "4. Do NOT use emojis or any non-ASCII characters.\n"
+                "5. Do NOT give recommendations, only observations.\n\n"
+                f"Environment: {monitoring_env}\n\n"
+                "Here is the metrics JSON:\n"
+                f"{metrics_json}\n"
             )
-            
-            report = response.choices[0].message.content
-            return report
-        
-        except Exception as e:
-            raise CommandError(f'OpenAI API call failed: {str(e)}')
-    
-    def _deliver_report(self, report: str):
-        """Deliver report to configured channels (Slack/Discord)."""
-        slack_webhook = os.getenv('SLACK_WEBHOOK_URL')
-        discord_webhook = os.getenv('DISCORD_WEBHOOK_URL')
-        
-        delivered = False
-        
-        if slack_webhook:
-            self.stdout.write('Sending to Slack...')
-            self._send_to_slack(slack_webhook, report)
-            delivered = True
-        else:
-            self.stdout.write(self.style.WARNING(
-                'Warning: SLACK_WEBHOOK_URL not set - skipping Slack notification'
-            ))
-        
-        if discord_webhook:
-            self.stdout.write('Sending to Discord...')
-            self._send_to_discord(discord_webhook, report)
-            delivered = True
-        else:
-            self.stdout.write(self.style.WARNING(
-                'Warning: DISCORD_WEBHOOK_URL not set - skipping Discord notification'
-            ))
-        
-        if not delivered:
-            self.stdout.write(self.style.WARNING(
-                '\nWarning: No webhook URLs configured. Set SLACK_WEBHOOK_URL or DISCORD_WEBHOOK_URL to enable notifications.'
-            ))
-            self.stdout.write(self.style.SUCCESS('\n[REPORT] Output:'))
-            self.stdout.write('\n' + report)
-    
-    def _send_to_slack(self, webhook_url: str, report: str):
-        """Send report to Slack via webhook."""
-        try:
-            import requests
-        except ImportError:
-            raise CommandError('requests library is required. Install with: pip install requests')
-        
-        payload = {
-            "text": report,
-            "unfurl_links": False,
-            "unfurl_media": False,
-        }
-        
-        try:
-            response = requests.post(webhook_url, json=payload, timeout=10)
-            response.raise_for_status()
-        except Exception as e:
-            raise CommandError(f'Failed to send to Slack: {str(e)}')
-    
-    def _send_to_discord(self, webhook_url: str, report: str):
-        """Send report to Discord via webhook."""
-        try:
-            import requests
-        except ImportError:
-            raise CommandError('requests library is required. Install with: pip install requests')
-        
-        # Discord has a 2000 character limit, split if needed
-        if len(report) > 1900:
-            chunks = self._split_report(report, 1900)
-            for i, chunk in enumerate(chunks):
-                payload = {
-                    "content": f"**Part {i+1}/{len(chunks)}**\n```\n{chunk}\n```"
-                }
-                try:
-                    response = requests.post(webhook_url, json=payload, timeout=10)
-                    response.raise_for_status()
-                except Exception as e:
-                    raise CommandError(f'Failed to send to Discord: {str(e)}')
-        else:
-            payload = {
-                "content": f"```\n{report}\n```"
-            }
+
+            if dry_run:
+                self.stdout.write("=== DRY RUN ===")
+                self.stdout.write(prompt)
+                return
+
+            self.stdout.write("[*] Calling OpenAI for monitoring report...")
+
+            client = OpenAI(api_key=openai_api_key)
+
             try:
-                response = requests.post(webhook_url, json=payload, timeout=10)
-                response.raise_for_status()
-            except Exception as e:
-                raise CommandError(f'Failed to send to Discord: {str(e)}')
-    
-    def _split_report(self, report: str, max_length: int) -> list:
-        """Split report into chunks that fit within max_length."""
-        lines = report.split('\n')
-        chunks = []
-        current_chunk = []
-        current_length = 0
-        
-        for line in lines:
-            line_length = len(line) + 1  # +1 for newline
-            if current_length + line_length > max_length and current_chunk:
-                chunks.append('\n'.join(current_chunk))
-                current_chunk = [line]
-                current_length = line_length
-            else:
-                current_chunk.append(line)
-                current_length += line_length
-        
-        if current_chunk:
-            chunks.append('\n'.join(current_chunk))
-        
-        return chunks
+                response = client.responses.create(
+                    model=model_name,
+                    input=prompt,
+                )
+            except Exception as api_err:
+                # Ensure the error string is ASCII-safe
+                safe_err = repr(api_err)
+                raise CommandError(
+                    f"Monitoring agent failed: OpenAI API call failed: {safe_err}"
+                )
+
+            # Extract text from response in an ASCII-safe way
+            try:
+                # For openai>=1.46.0 responses API
+                content_item = response.output[0].content[0]
+                if hasattr(content_item, "text") and hasattr(content_item.text, "value"):
+                    report_text = content_item.text.value
+                else:
+                    # Fallback: best-effort string conversion
+                    report_text = str(response)
+
+                # Force ASCII (replace non-ASCII with ?)
+                report_ascii = report_text.encode("ascii", errors="replace").decode(
+                    "ascii"
+                )
+            except Exception as parse_err:
+                safe_err = repr(parse_err)
+                raise CommandError(
+                    f"Monitoring agent failed: could not parse OpenAI response: {safe_err}"
+                )
+
+            # Send to Slack or stdout
+            try:
+                send_to_slack(report_ascii)
+            except Exception as slack_err:
+                logger.error("Slack sending failed: %r", slack_err)
+
+            self.stdout.write("[OK] Monitoring report generated and dispatched.")
+
+        except CommandError:
+            # Re-raise CommandError as-is
+            raise
+        except Exception as err:
+            # Final catch-all with ASCII-safe error message
+            safe_err = repr(err)
+            raise CommandError(f"Monitoring agent failed: {safe_err}")
