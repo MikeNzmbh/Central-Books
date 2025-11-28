@@ -152,8 +152,11 @@ class Command(BaseCommand):
         
         client = OpenAI(api_key=api_key)
         
-        # Format metrics as JSON string
-        metrics_json = json.dumps(metrics, indent=2, default=str)
+        # Sanitize metrics to prevent UTF-8 encoding errors
+        safe_metrics = json.loads(json.dumps(metrics, ensure_ascii=False))
+        
+        # Format metrics as JSON string with UTF-8 support
+        metrics_json = json.dumps(safe_metrics, indent=2, ensure_ascii=False, default=str)
         
         # Call OpenAI Chat Completions API
         try:
