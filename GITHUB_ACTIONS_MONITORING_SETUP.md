@@ -81,7 +81,7 @@ Click **"New repository secret"** for each:
 |-------------|-------|---------|
 | `OPENAI_API_KEY` | `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` | AI report generation |
 | `SLACK_WEBHOOK_URL` | `https://hooks.slack.com/services/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` | Report delivery to Slack |
-| `DATABASE_URL` | `postgresql://central_books_db_user:mrtUyGJLC5cTWKQte5pfMKo3tnauziZf@dpg-d4eqrdqdbo4c73dmf1cg-a/central_books_db` | Production database |
+| `DATABASE_URL` | `postgresql://central_books_db_user:mrtUyGJLC5cTWKQte5pfMKo3tnauziZf@dpg-d4eqrdqdbo4c73dmf1cg-a.oregon-postgres.render.com/central_books_db` | Production database |
 | `DJANGO_SECRET_KEY` | `3499c4e39ba81aa04d68a2dbc6ddd8bd` | Django settings |
 | `MONITORING_MODEL` | `gpt-4o-mini` | OpenAI model |
 | `MONITORING_ENV` | `production` | Environment identifier |

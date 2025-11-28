@@ -32,6 +32,11 @@ jobs:
           DJANGO_DEBUG: 'False'
         run: |
           python manage.py migrate --noinput
+
+      - name: Debug locale and encodings
+        run: |
+          locale
+          python -c "import sys, locale; print('sys.getdefaultencoding =', sys.getdefaultencoding()); print('preferred encoding =', locale.getpreferredencoding(False))"
       
       - name: Run monitoring agent
         env:
@@ -43,15 +48,18 @@ jobs:
           MONITORING_ENV: ${{ secrets.MONITORING_ENV }}
           DJANGO_DEBUG: 'False'
           PYTHONIOENCODING: "utf-8"
+          PYTHONUTF8: "1"
+          LANG: "en_US.UTF-8"
+          LC_ALL: "en_US.UTF-8"
         run: |
           python manage.py run_monitoring_agent
-      
-      - name: Report status
-        if: always()
+     
+      - name: Monitoring succeeded
+        if: success()
+        run: echo "Monitoring report sent successfully"
+
+      - name: Monitoring failed
+        if: failure()
         run: |
-          if [ $? -eq 0 ]; then
-            echo "[OK] Monitoring report sent successfully"
-          else
-            echo "[FAIL] Monitoring report failed"
-            exit 1
-          fi
+          echo "Monitoring report failed"
+          exit 1

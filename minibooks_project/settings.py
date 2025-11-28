@@ -69,6 +69,17 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    
+    # Sites framework (required by allauth)
+    "django.contrib.sites",
+    
+    # Allauth apps
+    "allauth",
+    "allauth.account",
+    "allauth.socialaccount",
+    "allauth.socialaccount.providers.google",
+    
+    # Project apps
     "core",
     "taxes",
 ]
@@ -82,7 +93,9 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "allauth.account.middleware.AccountMiddleware",  # Required for django-allauth
 ]
+
 
 ROOT_URLCONF = "minibooks_project.urls"
 
@@ -184,3 +197,46 @@ if not DEBUG:
     SECURE_CONTENT_TYPE_NOSNIFF = True
     SECURE_BROWSER_XSS_FILTER = True
     X_FRAME_OPTIONS = "DENY"
+
+# ===================================
+# Django Allauth Configuration
+# ===================================
+
+# Required for django.contrib.sites
+SITE_ID = 1
+
+# Authentication backends
+AUTHENTICATION_BACKENDS = [
+    "django.contrib.auth.backends.ModelBackend",  # Default Django auth
+    "allauth.account.auth_backends.AuthenticationBackend",  # Allauth
+]
+
+# Allauth settings
+LOGIN_REDIRECT_URL = "/dashboard"
+LOGOUT_REDIRECT_URL = "/"
+
+ACCOUNT_AUTHENTICATION_METHOD = "email"
+ACCOUNT_EMAIL_REQUIRED = True
+ACCOUNT_USERNAME_REQUIRED = False
+ACCOUNT_EMAIL_VERIFICATION = "none"  # Change to "mandatory" in production if needed
+
+# Google OAuth provider configuration
+# Required environment variables:
+# - GOOGLE_CLIENT_ID: OAuth 2.0 Client ID from Google Cloud Console
+# - GOOGLE_CLIENT_SECRET: OAuth 2.0 Client Secret from Google Cloud Console
+SOCIALACCOUNT_PROVIDERS = {
+    "google": {
+        "APP": {
+            "client_id": os.environ.get("GOOGLE_CLIENT_ID", ""),
+            "secret": os.environ.get("GOOGLE_CLIENT_SECRET", ""),
+            "key": "",
+        },
+        "SCOPE": [
+            "email",
+            "profile",
+        ],
+        "AUTH_PARAMS": {
+            "access_type": "online",
+        },
+    }
+}

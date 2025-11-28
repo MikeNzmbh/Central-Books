@@ -10,3 +10,6 @@ sentry-sdk==2.45.0
 # Monitoring Agent Dependencies
 openai>=1.46.0
 requests>=2.31.0
+
+# Google OAuth Login
+django-allauth==65.2.0

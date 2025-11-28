@@ -57,7 +57,7 @@ class Command(BaseCommand):
             # Make metrics JSON ASCII-safe so no encoding issues occur
             metrics_json = json.dumps(
                 metrics,
-                ensure_ascii=True,
+                ensure_ascii=False,
                 indent=2,
                 sort_keys=True,
             )
@@ -129,11 +129,6 @@ class Command(BaseCommand):
                 else:
                     # Fallback: best-effort string conversion
                     report_text = str(response)
-
-                # Force ASCII (replace non-ASCII with ?)
-                report_ascii = report_text.encode("ascii", errors="replace").decode(
-                    "ascii"
-                )
             except Exception as parse_err:
                 safe_err = repr(parse_err)
                 raise CommandError(
@@ -142,7 +137,7 @@ class Command(BaseCommand):
 
             # Send to Slack or stdout
             try:
-                send_to_slack(report_ascii)
+                send_to_slack(report_text)
             except Exception as slack_err:
                 logger.error("Slack sending failed: %r", slack_err)
 
