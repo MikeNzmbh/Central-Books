@@ -3,6 +3,7 @@ from django.urls import path
 from . import views
 from taxes import views as tax_views
 from . import views_reconciliation
+from . import views_monitoring  # Monitoring agent Slack endpoint
 from .views import (
     CustomerListView,
     InvoiceListView,
@@ -210,4 +211,6 @@ urlpatterns = [
     ),
     path("reports/pnl-ledger-debug/", pnl_ledger_debug, name="pnl_ledger_debug"),
     path("journal/", views.journal_entries, name="journal_entries"),
+    # Slack monitoring slash command endpoint
+    path("slack/monitoring/report/", views_monitoring.slack_monitoring_report, name="slack_monitoring_report"),
 ]

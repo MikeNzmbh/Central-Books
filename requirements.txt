@@ -7,3 +7,6 @@ psycopg2-binary==2.9.9; python_version < "3.13"
 psycopg[binary]==3.2.4; python_version >= "3.13"
 sentry-sdk==2.45.0
 
+# Monitoring Agent Dependencies
+openai>=1.46.0
+requests>=2.31.0

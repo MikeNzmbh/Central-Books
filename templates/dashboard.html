@@ -289,15 +289,26 @@
       <table class="table">
         <thead>
           <tr>
-            <th>Name</th><th>Category</th><th style="text-align:right;">MTD spend</th>
+            <th>Name</th>
+            <th>Payments</th>
+            <th style="text-align:right;">MTD spend</th>
           </tr>
         </thead>
         <tbody>
           {% for s in recent_suppliers %}
             <tr>
-              <td>{{ s.name }}</td>
-              <td>{{ s.default_category_name|default:"—" }}</td>
-              <td style="text-align:right;">{{ s.mtd_spend|default:"$0.00" }}</td>
+              <td>
+                <div style="display:flex; flex-direction:column;">
+                  <span>{{ s.name }}</span>
+                  <span class="card-meta">{{ s.default_category_name|default:"—" }}</span>
+                </div>
+              </td>
+              <td>
+                <span class="card-meta">{{ s.payment_count|default:0 }}</span>
+              </td>
+              <td style="text-align:right;">
+                <span style="font-weight:500;">{{ s.mtd_spend|default:0|floatformat:2 }} {{ business.currency|default:"" }}</span>
+              </td>
             </tr>
           {% empty %}
             <tr><td colspan="3">No suppliers yet.</td></tr>

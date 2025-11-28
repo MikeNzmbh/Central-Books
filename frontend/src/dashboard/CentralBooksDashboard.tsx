@@ -36,6 +36,13 @@ type ExpenseSummary = {
   total: number;
 };
 
+type SupplierSummary = {
+  name: string;
+  mtdSpend?: number;
+  paymentCount?: number;
+  category?: string;
+};
+
 type CashflowSeries = {
   labels?: string[];
   income?: number[];
@@ -49,6 +56,7 @@ export interface CentralBooksDashboardProps {
   recentInvoices?: InvoiceSummary[];
   bankFeed?: BankFeedItem[];
   expenseSummary?: ExpenseSummary[];
+  topSuppliers?: SupplierSummary[];
   cashflow?: CashflowSeries;
   urls?: {
     newInvoice?: string;
@@ -73,6 +81,7 @@ const CentralBooksDashboard: React.FC<CentralBooksDashboardProps> = ({
   recentInvoices = [],
   bankFeed = [],
   expenseSummary = [],
+  topSuppliers = [],
   cashflow,
   urls,
 }) => {
@@ -439,19 +448,25 @@ const CentralBooksDashboard: React.FC<CentralBooksDashboardProps> = ({
               </a>
             </div>
             <div className="space-y-1.5 text-xs">
-              {recentInvoices.slice(0, 3).map((inv) => (
-                <div key={`supplier-${inv.number}`} className="flex items-center justify-between rounded-2xl bg-slate-50 px-3 py-2">
+              {topSuppliers.slice(0, 4).map((supplier) => (
+                <div key={`supplier-${supplier.name}`} className="flex items-center justify-between rounded-2xl bg-slate-50 px-3 py-2">
                   <div className="flex flex-col">
-                    <span className="font-medium text-slate-900">{inv.customer || "Client"}</span>
-                    <span className="text-[11px] text-slate-500">Invoice #{inv.number}</span>
+                    <span className="font-medium text-slate-900">{supplier.name}</span>
+                    <span className="text-[11px] text-slate-500">
+                      {supplier.category ? supplier.category : "Uncategorized"}
+                    </span>
                   </div>
                   <div className="text-right">
-                    <p className="font-semibold text-slate-900">{formatMoney(inv.amount)}</p>
-                    <p className="text-[11px] text-slate-500">{inv.due_label}</p>
+                    <p className="font-semibold text-slate-900">
+                      {formatMoney(supplier.mtdSpend)}
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      {supplier.paymentCount || 0} payment{(supplier.paymentCount || 0) === 1 ? "" : "s"}
+                    </p>
                   </div>
                 </div>
               ))}
-              {!recentInvoices.length && (
+              {!topSuppliers.length && (
                 <div className="text-slate-500 text-sm px-2 py-3">Invite suppliers to start tracking them here.</div>
               )}
             </div>

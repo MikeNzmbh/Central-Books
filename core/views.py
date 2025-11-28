@@ -823,7 +823,7 @@ def dashboard(request):
         )
         .order_by("-payment_count", "-mtd_spend", "-last_payment", "-id")[:5]
     )
-    supplier_ids = [s.id for s in supplier_stats_qs]
+    supplier_ids = [s.id for s in supplier_stats_qs]  # type: ignore[attr-defined]
     supplier_recent_category = {}
     if supplier_ids:
         for row in (
@@ -837,16 +837,16 @@ def dashboard(request):
 
     recent_suppliers = []
     for supplier in supplier_stats_qs:
-        supplier.mtd_spend = supplier.mtd_spend or Decimal("0")
-        supplier.payment_count = supplier.payment_count or 0
-        supplier.default_category_name = supplier_recent_category.get(supplier.id)
+        supplier.mtd_spend = supplier.mtd_spend or Decimal("0")  # type: ignore[attr-defined]
+        supplier.payment_count = supplier.payment_count or 0  # type: ignore[attr-defined]
+        supplier.default_category_name = supplier_recent_category.get(supplier.id)  # type: ignore[attr-defined]
         recent_suppliers.append(supplier)
 
     if not recent_suppliers:
         fallback_suppliers = Supplier.objects.filter(business=business).order_by("-created_at")[:5]
         for supplier in fallback_suppliers:
-            supplier.mtd_spend = Decimal("0")
-            supplier.payment_count = 0
+            supplier.mtd_spend = Decimal("0")  # type: ignore[attr-defined]
+            supplier.payment_count = 0  # type: ignore[attr-defined]
         recent_suppliers = list(fallback_suppliers)
 
     unpaid_expenses_total = (
