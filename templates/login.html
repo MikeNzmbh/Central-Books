@@ -84,6 +84,14 @@
         </button>
 
         <!-- Google OAuth Login -->
+        {% comment %}
+        Only show Google OAuth if it's properly configured.
+        This prevents 500 errors on Render before setup_google_oauth runs.
+        {% endcomment %}
+        {% load socialaccount %}
+        {% get_providers as socialaccount_providers %}
+
+        {% if 'google' in socialaccount_providers %}
         <div class="relative py-3">
           <div class="absolute inset-0 flex items-center">
             <div class="w-full border-t border-slate-200"></div>
@@ -107,6 +115,7 @@
           </svg>
           Continue with Google
         </a>
+        {% endif %}
 
         <p class="pt-3 text-xs text-slate-500 text-center">
           No account yet?

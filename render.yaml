@@ -10,6 +10,7 @@ services:
     startCommand: gunicorn minibooks_project.wsgi:application
     postdeploy: |
       python manage.py migrate
+      python manage.py setup_google_oauth || echo "Google OAuth setup skipped (no credentials set)"
       python manage.py createsuperuser --noinput || true
     envVars:
       - key: DATABASE_URL
