@@ -480,22 +480,24 @@
       <div class="sidebar-footer">
         <div class="sidebar-user-row">
           <div class="sidebar-user-avatar">
-            {% if request.user.is_authenticated %}
-            {{ request.user.username|first|upper }}
+            {% if user.is_authenticated %}
+            {{ user.username|slice:":1"|upper }}
             {% else %}
             ?
             {% endif %}
           </div>
           <div>
             <div class="sidebar-user-name">
-              {% if request.user.is_authenticated %}
-              {{ request.user.username }}
+              {% if user.is_authenticated %}
+              {{ user.get_full_name|default:user.email|default:user.username }}
               {% else %}
               Guest
               {% endif %}
             </div>
             <div class="sidebar-user-caption">
-              {% if request.user.is_authenticated %}Signed in{% endif %}
+              {% if user.is_authenticated and user.email %}
+              {{ user.email }}
+              {% endif %}
             </div>
           </div>
         </div>
