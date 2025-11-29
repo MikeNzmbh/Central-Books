@@ -2,6 +2,7 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import CentralBooksDashboard, { type CentralBooksDashboardProps } from "./CentralBooksDashboard";
 import CentralBooksWelcomeOnboarding from "./CentralBooksWelcomeOnboarding";
+import { AuthProvider } from "../contexts/AuthContext";
 import "../index.css";
 
 const router = {
@@ -21,14 +22,16 @@ if (rootEl && dataEl) {
     const bankImportUrl = payload.urls?.bankImport || "/bank/import/";
     const root = createRoot(rootEl);
     root.render(
-      payload.is_empty_workspace ? (
-        <CentralBooksWelcomeOnboarding
-          onStartBooks={() => router.push(startBooksUrl)}
-          onUploadSampleCsv={() => router.push(bankImportUrl)}
-        />
-      ) : (
-        <CentralBooksDashboard {...payload} />
-      )
+      <AuthProvider>
+        {payload.is_empty_workspace ? (
+          <CentralBooksWelcomeOnboarding
+            onStartBooks={() => router.push(startBooksUrl)}
+            onUploadSampleCsv={() => router.push(bankImportUrl)}
+          />
+        ) : (
+          <CentralBooksDashboard {...payload} />
+        )}
+      </AuthProvider>
     );
     window.dispatchEvent(new Event("dashboard-mounted"));
   } catch (error) {
