@@ -4,6 +4,7 @@ from . import views
 from taxes import views as tax_views
 from . import views_reconciliation
 from . import views_monitoring  # Monitoring agent Slack endpoint
+from . import views_auth  # Auth API endpoints
 from .views import (
     CustomerListView,
     InvoiceListView,
@@ -41,6 +42,9 @@ urlpatterns = [
     path("business/setup/", views.business_setup, name="business_setup"),
     path("settings/account/", views.account_settings, name="account_settings"),
     path("dashboard/", views.dashboard, name="dashboard"),
+    
+    # Auth API
+    path("api/auth/me", views_auth.current_user, name="api_current_user"),
     # Customers
     path("customers/", CustomerListView.as_view(), name="customer_list"),
     path("customers/new/", views.customer_create, name="customer_create"),
