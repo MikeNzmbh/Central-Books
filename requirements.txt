@@ -14,3 +14,4 @@ requests>=2.31.0
 # Google OAuth Login
 django-allauth==65.2.0
 PyJWT>=2.0,<3.0
+cryptography>=42.0.0,<45.0.0
