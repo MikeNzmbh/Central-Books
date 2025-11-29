@@ -42,26 +42,62 @@ def _get_bool_env(name: str, default: bool) -> bool:
     return raw_value.lower() in {"1", "true", "yes", "on"}
 
 
+def _get_list_env(name: str) -> list[str]:
+    raw_value = os.getenv(name, "")
+    if not raw_value:
+        return []
+    parts = raw_value.replace(";", ",").split(",")
+    return [p.strip() for p in parts if p.strip()]
+
+
 DEBUG = _get_bool_env("DJANGO_DEBUG", _get_bool_env("DEBUG", True))
 SHOW_LOGIN_FALLBACK = os.getenv("SHOW_LOGIN_FALLBACK", "true").lower() == "true"
 
-# ALLOWED_HOSTS - Add Render domains
-ALLOWED_HOSTS = [
+# ALLOWED_HOSTS / CSRF_TRUSTED_ORIGINS (Render + env overrides)
+RENDER_EXTERNAL_HOSTNAME = os.environ.get("RENDER_EXTERNAL_HOSTNAME")
+
+base_allowed_hosts = [
     "localhost",
     "127.0.0.1",
     "central-books.onrender.com",
 ]
+env_allowed_hosts = _get_list_env("DJANGO_ALLOWED_HOSTS")
+ALLOWED_HOSTS = list(dict.fromkeys(base_allowed_hosts + env_allowed_hosts))
 
-# CSRF_TRUSTED_ORIGINS - Add Render domains
-CSRF_TRUSTED_ORIGINS = [
-    "https://central-books.onrender.com",
-]
-
-# Dynamic Render hostname support
-RENDER_EXTERNAL_HOSTNAME = os.environ.get("RENDER_EXTERNAL_HOSTNAME")
-if RENDER_EXTERNAL_HOSTNAME:
+if RENDER_EXTERNAL_HOSTNAME and RENDER_EXTERNAL_HOSTNAME not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
-    CSRF_TRUSTED_ORIGINS.append(f"https://{RENDER_EXTERNAL_HOSTNAME}")
+
+def _https_origin(host: str) -> str:
+    if host.startswith("http://") or host.startswith("https://"):
+        return host
+    return f"https://{host}"
+
+base_csrf_origins = ["https://central-books.onrender.com"]
+env_csrf_origins = _get_list_env("CSRF_TRUSTED_ORIGINS")
+CSRF_TRUSTED_ORIGINS = list(dict.fromkeys(base_csrf_origins + env_csrf_origins))
+
+# Add HTTPS versions of allowed hosts (exclude localhost)
+for host in ALLOWED_HOSTS:
+    if host in {"localhost", "127.0.0.1"}:
+        continue
+    origin = _https_origin(host)
+    if origin not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(origin)
+
+
+def _preferred_site_domain() -> str:
+    explicit = os.getenv("SITE_DOMAIN")
+    if explicit:
+        return explicit
+    if RENDER_EXTERNAL_HOSTNAME:
+        return RENDER_EXTERNAL_HOSTNAME
+    for host in ALLOWED_HOSTS:
+        if host not in {"localhost", "127.0.0.1"}:
+            return host
+    return ALLOWED_HOSTS[0] if ALLOWED_HOSTS else "localhost"
+
+
+SITE_DOMAIN = _preferred_site_domain()
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -95,6 +131,7 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "allauth.account.middleware.AccountMiddleware",  # Required for django-allauth
+    "core.middleware.GoogleOAuthLoggingMiddleware",
 ]
 
 
@@ -214,7 +251,8 @@ AUTHENTICATION_BACKENDS = [
 
 # Allauth settings
 LOGIN_REDIRECT_URL = "/dashboard"
-LOGOUT_REDIRECT_URL = "/"
+LOGOUT_REDIRECT_URL = "/login"
+ACCOUNT_LOGOUT_REDIRECT_URL = "/login"
 
 ACCOUNT_AUTHENTICATION_METHOD = "email"
 ACCOUNT_EMAIL_REQUIRED = True
@@ -224,9 +262,13 @@ ACCOUNT_EMAIL_VERIFICATION = "none"  # Change to "mandatory" in production if ne
 # Skip intermediate allauth pages - go directly to Google OAuth
 SOCIALACCOUNT_LOGIN_ON_GET = True
 
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
+
 # Google OAuth provider configuration
-# Credentials are stored in the database via SocialApp (use setup_google_oauth command)
-# This configuration only sets the OAuth scope and parameters
+# Credentials are stored in the database via SocialApp (use setup_google_oauth)
+# and also read from GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET as a fallback so
+# production keeps working even if the DB seed command was skipped.
 SOCIALACCOUNT_PROVIDERS = {
     "google": {
         "SCOPE": [
@@ -237,4 +279,28 @@ SOCIALACCOUNT_PROVIDERS = {
             "access_type": "offline",
         },
     }
+}
+
+if GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET:
+    SOCIALACCOUNT_PROVIDERS["google"]["APP"] = {
+        "client_id": GOOGLE_CLIENT_ID,
+        "secret": GOOGLE_CLIENT_SECRET,
+        "key": "",
+    }
+
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+        },
+    },
+    "loggers": {
+        "oauth.google": {
+            "handlers": ["console"],
+            "level": "INFO",
+        },
+    },
 }

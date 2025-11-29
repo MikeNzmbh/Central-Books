@@ -25,7 +25,7 @@ from django.utils import timezone
 from django.forms import ModelChoiceField
 from typing import cast, Any
 from django.utils.http import url_has_allowed_host_and_scheme
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_http_methods
 from django.views.generic import ListView, TemplateView, CreateView, UpdateView, View
 from django.urls import reverse, reverse_lazy, NoReverseMatch
 from django.utils.dateparse import parse_date
@@ -535,11 +535,21 @@ def login_view(request):
     return render(request, "login.html", context)
 
 
-@require_POST
+@require_http_methods(["GET", "POST"])
 @login_required
 def logout_view(request):
     logout(request)
-    return redirect("login")
+    candidate_next = request.GET.get("next") or request.POST.get("next")
+    if candidate_next and url_has_allowed_host_and_scheme(candidate_next, allowed_hosts={request.get_host()}):
+        redirect_to = candidate_next
+    else:
+        redirect_to = reverse("login")
+
+    wants_json = request.headers.get("x-requested-with", "").lower() == "xmlhttprequest" or "application/json" in request.headers.get("Accept", "")
+    if wants_json:
+        return JsonResponse({"detail": "Logged out", "redirect": redirect_to})
+
+    return redirect(redirect_to)
 
 
 @login_required
