@@ -45,22 +45,23 @@ def _get_bool_env(name: str, default: bool) -> bool:
 DEBUG = _get_bool_env("DJANGO_DEBUG", _get_bool_env("DEBUG", True))
 SHOW_LOGIN_FALLBACK = os.getenv("SHOW_LOGIN_FALLBACK", "true").lower() == "true"
 
+# ALLOWED_HOSTS - Add Render domains
+ALLOWED_HOSTS = [
+    "localhost",
+    "127.0.0.1",
+    "central-books.onrender.com",
+]
 
-def _parse_hosts(value: str | None) -> list[str]:
-    if not value:
-        return []
-    return [host.strip() for host in value.split(",") if host.strip()]
+# CSRF_TRUSTED_ORIGINS - Add Render domains
+CSRF_TRUSTED_ORIGINS = [
+    "https://central-books.onrender.com",
+]
 
-
-allowed_hosts = _parse_hosts(os.getenv("DJANGO_ALLOWED_HOSTS") or os.getenv("ALLOWED_HOSTS"))
-ALLOWED_HOSTS: list[str] = allowed_hosts or ["127.0.0.1", "localhost"]
-
-# Trust deployment hosts for CSRF-protected POSTs (Render + optional overrides)
-if not DEBUG:
-    CSRF_TRUSTED_ORIGINS = [
-        "https://central-books-web.onrender.com",
-        "https://central-books.onrender.com",
-    ]
+# Dynamic Render hostname support
+RENDER_EXTERNAL_HOSTNAME = os.environ.get("RENDER_EXTERNAL_HOSTNAME")
+if RENDER_EXTERNAL_HOSTNAME:
+    ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
+    CSRF_TRUSTED_ORIGINS.append(f"https://{RENDER_EXTERNAL_HOSTNAME}")
 
 INSTALLED_APPS = [
     "django.contrib.admin",
