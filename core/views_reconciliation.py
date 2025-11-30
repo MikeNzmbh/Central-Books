@@ -74,6 +74,51 @@ def reconcile_bank_account(request: HttpRequest, pk: int) -> HttpResponse:
 
 # --- API endpoints for React reconciliation page ---
 
+def _parse_period_id(period_id: str | None):
+    """
+    Accepts YYYY-MM and returns (start_date, end_date, label).
+    Raises ValueError if invalid.
+    """
+    import calendar
+    from datetime import date
+
+    if not period_id:
+        raise ValueError("period_id is required")
+    year, month = map(int, period_id.split("-"))
+    start_date = date(year, month, 1)
+    _, last_day = calendar.monthrange(year, month)
+    end_date = date(year, month, last_day)
+    label = start_date.strftime("%B %Y")
+    return start_date, end_date, label
+
+
+def _period_options_for_account(bank_account: BankAccount) -> list[dict]:
+    """
+    Build period options based on existing bank transactions; fall back to empty list.
+    """
+    tx_dates = BankTransaction.objects.filter(bank_account=bank_account).values_list("date", flat=True)
+    months = set()
+    for d in tx_dates:
+        if d:
+            months.add((d.year, d.month))
+
+    periods: list[dict] = []
+    for year, month in sorted(months, reverse=True):
+        pid = f"{year}-{month:02d}"
+        start, end, label = _parse_period_id(pid)
+        periods.append(
+            {
+                "id": pid,
+                "label": label,
+                "startDate": start.isoformat(),
+                "endDate": end.isoformat(),
+                "isCurrent": False,
+                "isLocked": False,
+            }
+        )
+    return periods
+
+
 def _json_error(message, status=400):
     return JsonResponse({"error": message}, status=status)
 
@@ -603,12 +648,16 @@ def api_reconciliation_config(request: HttpRequest):
         for acc in accounts
     ]
 
-    payload = {
-        "accounts": data,
-        "can_reconcile": bool(data),
-        "reason": None if data else "no_bank_accounts",
-    }
-    return JsonResponse(payload)
+    # Return plain list for compatibility; include metadata headers if needed
+    if request.GET.get("include_meta") == "1":
+        payload = {
+            "accounts": data,
+            "can_reconcile": bool(data),
+            "reason": None if data else "no_bank_accounts",
+        }
+        return JsonResponse(payload)
+
+    return JsonResponse(data, safe=False)
 
 @login_required
 def api_reconciliation_session(request: HttpRequest):
@@ -763,6 +812,153 @@ def api_reconciliation_session(request: HttpRequest):
         return JsonResponse({"status": "ok"})
 
     return _json_error("Method not allowed", 405)
+
+
+@login_required
+@require_GET
+def api_reconciliation_periods(request: HttpRequest):
+    """
+    Returns available statement periods for a bank account based on existing transactions.
+    """
+    business, error = _ensure_business(request)
+    if error:
+        return error
+
+    bank_account_id = request.GET.get("bank_account_id")
+    if not bank_account_id:
+        return _json_error("bank_account_id is required")
+
+    bank_account = get_object_or_404(BankAccount, pk=bank_account_id, business=business)
+    periods = _period_options_for_account(bank_account)
+    return JsonResponse({"bank_account_id": str(bank_account.id), "periods": periods})
+
+
+@login_required
+@require_GET
+def api_reconciliation_feed(request: HttpRequest):
+    """
+    Feed data for a bank account + period. Returns grouped transactions and balances.
+    """
+    business, error = _ensure_business(request)
+    if error:
+        return error
+
+    bank_account_id = request.GET.get("bank_account_id")
+    period_id = request.GET.get("period_id")
+    if not bank_account_id:
+        return _json_error("bank_account_id is required")
+    if not period_id:
+        return _json_error("period_id is required")
+
+    bank_account = get_object_or_404(BankAccount, pk=bank_account_id, business=business)
+
+    try:
+        start_date, end_date, label = _parse_period_id(period_id)
+    except Exception:
+        return _json_error("Invalid period_id format. Use YYYY-MM")
+
+    # Build periods for dropdown convenience
+    periods = _period_options_for_account(bank_account)
+
+    # Build or fetch session for this period (safe, idempotent)
+    from core.models import ReconciliationSession  # local import to avoid circular
+
+    session, _ = ReconciliationSession.objects.get_or_create(
+        business=business,
+        bank_account=bank_account,
+        statement_start_date=start_date,
+        statement_end_date=end_date,
+        defaults={"status": ReconciliationSession.Status.DRAFT},
+    )
+
+    qs = (
+        BankTransaction.objects.filter(
+            bank_account=bank_account,
+            date__gte=start_date,
+            date__lte=end_date,
+        )
+        .order_by("-date", "-id")
+    )
+
+    buckets = {
+        "new": [],
+        "suggested": [],
+        "matched": [],
+        "partial": [],
+        "excluded": [],
+    }
+
+    def _tx_payload(tx: BankTransaction) -> dict:
+        counterparty = None
+        if tx.customer:
+            counterparty = tx.customer.name
+        elif tx.supplier:
+            counterparty = tx.supplier.name
+
+        match_conf = tx.suggestion_confidence
+        engine_reason = tx.suggestion_reason
+        return {
+            "id": str(tx.id),
+            "date": tx.date.isoformat() if tx.date else "",
+            "description": tx.description or "",
+            "counterparty": counterparty,
+            "amount": float(tx.amount),
+            "currency": bank_account.business.currency or "USD",
+            "status": tx.status,
+            "match_confidence": float(match_conf) / 100.0 if match_conf else None,
+            "engine_reason": engine_reason,
+            "includedInSession": True,
+        }
+
+    for tx in qs:
+        payload = _tx_payload(tx)
+        if tx.status == BankTransaction.TransactionStatus.EXCLUDED:
+            buckets["excluded"].append(payload)
+        elif tx.status == BankTransaction.TransactionStatus.PARTIAL:
+            buckets["partial"].append(payload)
+        elif tx.is_reconciled or tx.status in (
+            BankTransaction.TransactionStatus.MATCHED,
+            BankTransaction.TransactionStatus.MATCHED_SINGLE,
+            BankTransaction.TransactionStatus.MATCHED_MULTI,
+        ):
+            buckets["matched"].append(payload)
+        elif tx.suggestion_confidence:
+            buckets["suggested"].append(payload)
+        else:
+            buckets["new"].append(payload)
+
+    cleared_sum = (
+        qs.filter(is_reconciled=True).aggregate(total=models.Sum("amount"))["total"] or Decimal("0")
+    )
+
+    opening_balance = float(session.opening_balance or Decimal("0"))
+    statement_ending_balance = float(session.closing_balance or Decimal("0"))
+    difference = statement_ending_balance - float(cleared_sum) - opening_balance
+
+    response = {
+        "bank_account": {
+            "id": str(bank_account.id),
+            "name": bank_account.name,
+            "currency": bank_account.business.currency or "USD",
+        },
+        "period": {
+            "id": period_id,
+            "label": label,
+            "startDate": start_date.isoformat(),
+            "endDate": end_date.isoformat(),
+        },
+        "periods": periods,
+        "session": {
+            "id": str(session.id),
+            "status": session.status,
+            "opening_balance": opening_balance,
+            "statement_ending_balance": statement_ending_balance,
+            "difference": difference,
+        },
+        "transactions": buckets,
+    }
+    return JsonResponse(response)
+
 
 @login_required
 @require_POST

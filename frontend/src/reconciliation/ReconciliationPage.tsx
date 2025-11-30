@@ -209,10 +209,15 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
     loadConfig();
   }, []);
 
-  // Load Session when Bank or Period changes
   useEffect(() => {
     if (state.activeBankId) {
-      loadSession(state.activeBankId, state.activePeriodId);
+      loadPeriods(state.activeBankId);
+    }
+  }, [state.activeBankId]);
+
+  useEffect(() => {
+    if (state.activeBankId && state.activePeriodId) {
+      loadFeed(state.activeBankId, state.activePeriodId);
     }
   }, [state.activeBankId, state.activePeriodId]);
 
@@ -237,38 +242,38 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
     }
   }
 
-  async function loadSession(bankId: string, periodId: string | null) {
+  async function loadPeriods(bankId: string) {
+    setState(prev => ({ ...prev, loading: true, error: null, periods: [], activePeriodId: null }));
+    try {
+      const data = await fetchJson<any>(`/api/reconciliation/periods/?bank_account_id=${bankId}`);
+      const periods: RecoPeriodOption[] = data.periods || [];
+      const nextPeriod = periods.length > 0 ? periods[0].id : null;
+      setState(prev => ({
+        ...prev,
+        periods,
+        activePeriodId: nextPeriod,
+        loading: false,
+      }));
+    } catch (e: any) {
+      console.error(e);
+      setState(prev => ({ ...prev, loading: false, error: e.message, periods: [], activePeriodId: null }));
+    }
+  }
+
+  async function loadFeed(bankId: string, periodId: string) {
     setState(prev => ({ ...prev, loading: true, error: null }));
     try {
-      const url = `/api/reconciliation/session/?bank_account_id=${bankId}${periodId ? `&period_id=${periodId}` : ""}`;
-      const sessionData = await fetchJson<any>(url);
+      const data = await fetchJson<any>(`/api/reconciliation/feed/?bank_account_id=${bankId}&period_id=${periodId}`);
+      const buckets = data.transactions || {};
+      const combined = ([] as any[]).concat(
+        buckets.new || [],
+        buckets.suggested || [],
+        buckets.matched || [],
+        buckets.partial || [],
+        buckets.excluded || [],
+      );
 
-      // Transform session data to match our types
-      const session: RecoSession = {
-        id: sessionData.id,
-        status: sessionData.status,
-        bankAccount: sessionData.bankAccount,
-        period: sessionData.period,
-        beginningBalance: sessionData.beginningBalance,
-        endingBalance: sessionData.endingBalance,
-        clearedBalance: sessionData.clearedBalance,
-        difference: sessionData.difference,
-        reconciledPercent: sessionData.reconciledPercent,
-        totalTransactions: sessionData.totalTransactions,
-        unreconciledCount: sessionData.unreconciledCount,
-      };
-
-      // Load transactions for this session
-      // We use the existing endpoint but might need to filter client-side or update endpoint
-      // For now, let's fetch transactions and map them
-      const txData = await fetchJson<any[]>(`/api/bank-accounts/${bankId}/reconciliation/transactions/?status=ALL`);
-
-      // Filter transactions relevant to this session (simple date filter for now + session check)
-      // In a real app, the backend should do this filtering based on the session logic
-      const startDate = new Date(session.period.startDate);
-      const endDate = new Date(session.period.endDate);
-
-      const mappedTxs: BankTransaction[] = txData.map((t: any) => ({
+      const mappedTxs: BankTransaction[] = combined.map((t: any) => ({
         id: String(t.id),
         date: t.date,
         description: t.description,
@@ -280,26 +285,43 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
         engine_reason: t.engine_reason,
         match_type: t.match_type,
         is_soft_locked: t.is_soft_locked,
-        includedInSession: true, // Default to true if returned? Or logic based on date?
-      })).filter(t => {
-        // Simple client-side filter to mimic "in this period"
-        // Ideally backend handles this
-        const d = new Date(t.date);
-        return d >= startDate && d <= endDate;
-      });
+        includedInSession: t.includedInSession ?? true,
+      }));
+
+      const totalTransactions = mappedTxs.length;
+      const reconciledCount = (buckets.matched || []).length;
+      const unreconciledCount = totalTransactions - reconciledCount;
+      const reconciledPercent = totalTransactions ? (reconciledCount / totalTransactions) * 100 : 0;
+
+      const session: RecoSession = {
+        id: data.session?.id || "",
+        status: data.session?.status || "DRAFT",
+        bankAccount: {
+          id: data.bank_account?.id || bankId,
+          name: data.bank_account?.name || "",
+          currency: data.bank_account?.currency || "USD",
+        },
+        period: data.period || { id: periodId, label: periodId, startDate: "", endDate: "", isCurrent: false, isLocked: false },
+        beginningBalance: data.session?.opening_balance ?? 0,
+        endingBalance: data.session?.statement_ending_balance ?? 0,
+        clearedBalance: 0,
+        difference: data.session?.difference ?? 0,
+        reconciledPercent,
+        totalTransactions,
+        unreconciledCount,
+      };
 
       setState(prev => ({
         ...prev,
-        periods: sessionData.periods,
-        activePeriodId: session.period.id,
+        periods: data.periods || prev.periods,
+        activePeriodId: periodId,
         session,
         transactions: mappedTxs,
-        loading: false
+        loading: false,
       }));
-
     } catch (e: any) {
       console.error(e);
-      setState(prev => ({ ...prev, loading: false, error: e.message }));
+      setState(prev => ({ ...prev, loading: false, error: e.message, transactions: [], session: null }));
     }
   }
 
@@ -432,6 +454,12 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
 
         {!state.loading && !state.error && state.bankAccounts.length === 0 && (
           <EmptyState canReconcile={state.canReconcile} reason={state.emptyReason} />
+        )}
+
+        {!state.loading && !state.error && state.bankAccounts.length > 0 && state.periods.length === 0 && (
+          <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-700">
+            No statement periods found for this bank account yet. Import a statement to start reconciling.
+          </div>
         )}
 
         <div className="flex flex-col gap-6">

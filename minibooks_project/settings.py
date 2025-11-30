@@ -235,6 +235,9 @@ if not DEBUG:
     SECURE_CONTENT_TYPE_NOSNIFF = True
     SECURE_BROWSER_XSS_FILTER = True
     X_FRAME_OPTIONS = "DENY"
+else:
+    # In DEBUG/tests, avoid manifest lookups for static files
+    STORAGES["staticfiles"]["BACKEND"] = "django.contrib.staticfiles.storage.StaticFilesStorage"
 
 # ===================================
 # Django Allauth Configuration
