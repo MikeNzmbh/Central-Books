@@ -116,6 +116,8 @@ interface ReconciliationPageState {
   activeBankId: string | null;
   periods: RecoPeriodOption[];
   activePeriodId: string | null;
+  canReconcile: boolean;
+  emptyReason: string | null;
   session: RecoSession | null;
   transactions: BankTransaction[];
   engineInsights: EngineInsights | null;
@@ -165,12 +167,34 @@ function formatAmount(amount: number, currency: string) {
 
 // --- Components ---
 
+function EmptyState({ canReconcile, reason }: { canReconcile: boolean; reason: string | null }) {
+  return (
+    <section className="mb-6 rounded-3xl border border-slate-200 bg-white shadow-sm p-6 flex flex-col items-center text-center gap-3">
+      <div className="h-12 w-12 rounded-full bg-slate-50 flex items-center justify-center text-2xl">🏦</div>
+      <h2 className="text-lg font-semibold text-slate-900">You don’t have any bank accounts yet</h2>
+      <p className="max-w-lg text-sm text-slate-600">
+        Add a bank account to start reconciling statements. We’ll bring you back here once it’s created.
+      </p>
+      <div className="flex items-center gap-2">
+        <Button asChild>
+          <a href="/bank-accounts/new/?returnTo=/reconciliation">+ Add a bank account</a>
+        </Button>
+      </div>
+      {!canReconcile && reason && (
+        <p className="text-xs text-slate-400">Reason: {reason}</p>
+      )}
+    </section>
+  );
+}
+
 export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: string }) {
   const [state, setState] = useState<ReconciliationPageState>({
     bankAccounts: [],
     activeBankId: bankAccountId || null,
     periods: [],
     activePeriodId: null,
+    canReconcile: true,
+    emptyReason: null,
     session: null,
     transactions: [],
     engineInsights: null,
@@ -195,11 +219,16 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
   async function loadConfig() {
     setState(prev => ({ ...prev, loading: true, error: null }));
     try {
-      const accounts = await fetchJson<BankAccountSummary[]>("/api/reconciliation/config/");
+      const raw = await fetchJson<any>("/api/reconciliation/config/");
+      const accounts: BankAccountSummary[] = Array.isArray(raw) ? raw : (raw.accounts || []);
+      const canReconcile = Array.isArray(raw) ? accounts.length > 0 : raw.can_reconcile !== false;
+      const emptyReason = Array.isArray(raw) ? null : raw.reason || null;
       setState(prev => ({
         ...prev,
         bankAccounts: accounts,
         activeBankId: prev.activeBankId || (accounts.length > 0 ? accounts[0].id : null),
+        canReconcile,
+        emptyReason,
         loading: false
       }));
     } catch (e: any) {
@@ -275,7 +304,7 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
   }
 
   const onSelectBank = (bankId: string) => {
-    setState((prev) => ({ ...prev, activeBankId: bankId, activePeriodId: null }));
+    setState((prev) => ({ ...prev, activeBankId: bankId, activePeriodId: null, error: null }));
   };
 
   const onSelectPeriod = (periodId: string) => {
@@ -390,10 +419,19 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
 
       <main className="flex-1 px-4 py-6 md:px-8">
         {state.error && (
-          <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4" />
-            {state.error}
+          <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 flex items-center gap-3 justify-between">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4" />
+              <span>{state.error}</span>
+            </div>
+            <Button size="sm" onClick={loadConfig} className="rounded-full bg-red-600 hover:bg-red-700">
+              Retry
+            </Button>
           </div>
+        )}
+
+        {!state.loading && !state.error && state.bankAccounts.length === 0 && (
+          <EmptyState canReconcile={state.canReconcile} reason={state.emptyReason} />
         )}
 
         <div className="flex flex-col gap-6">
@@ -512,6 +550,7 @@ function SessionSetupBar({
               <Select
                 value={activeBankId || ""}
                 onValueChange={onSelectBank}
+                disabled={bankAccounts.length === 0}
               >
                 <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-slate-50 text-sm font-medium">
                   <SelectValue placeholder="Select account" />
@@ -533,6 +572,7 @@ function SessionSetupBar({
               <Select
                 value={activePeriodId || ""}
                 onValueChange={onSelectPeriod}
+                disabled={!activeBankId || periods.length === 0}
               >
                 <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-slate-50 text-sm font-medium">
                   <SelectValue placeholder="Select period" />

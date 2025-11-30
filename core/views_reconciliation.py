@@ -569,18 +569,28 @@ def api_reconciliation_config(request: HttpRequest):
     if error:
         return error
     
-    accounts = BankAccount.objects.filter(business=business).select_related("account")
+    accounts = BankAccount.objects.filter(
+        business=business,
+        is_active=True,
+    ).select_related("account")
+
     data = [
         {
             "id": str(acc.id),
             "name": acc.name,
             "bankLabel": acc.bank_name,
-            "currency": acc.currency,
-            "isDefault": False, # Logic for default?
+            "currency": business.currency,
+            "isDefault": False,  # Placeholder for future default logic
         }
         for acc in accounts
     ]
-    return JsonResponse(data, safe=False)
+
+    payload = {
+        "accounts": data,
+        "can_reconcile": bool(data),
+        "reason": None if data else "no_bank_accounts",
+    }
+    return JsonResponse(payload)
 
 @login_required
 def api_reconciliation_session(request: HttpRequest):
@@ -615,14 +625,14 @@ def api_reconciliation_session(request: HttpRequest):
 
         # Find or create session
         session, created = ReconciliationSession.objects.get_or_create(
-            business=business,
-            bank_account=bank_account,
-            statement_start_date=start_date,
-            statement_end_date=end_date,
-            defaults={
-                "status": ReconciliationSession.Status.DRAFT
-            }
-        )
+        business=business,
+        bank_account=bank_account,
+        statement_start_date=start_date,
+        statement_end_date=end_date,
+        defaults={
+            "status": ReconciliationSession.Status.DRAFT
+        }
+    )
         
         # Calculate derived fields
         # Transactions in this session are those explicitly linked OR (in date range AND not linked to another session)
@@ -698,7 +708,7 @@ def api_reconciliation_session(request: HttpRequest):
             "bankAccount": {
                 "id": str(bank_account.id),
                 "name": bank_account.name,
-                "currency": bank_account.currency,
+                "currency": bank_account.business.currency,
             },
             "period": {
                 "id": period_id,
@@ -872,4 +882,3 @@ def api_reconciliation_create_adjustment(request: HttpRequest):
     )
     
     return JsonResponse({"status": "ok"})
-

@@ -108,3 +108,38 @@ class ReconciliationAPITests(TestCase):
         self.assertEqual(resp.status_code, 200)
         tx.refresh_from_db()
         self.assertTrue(tx.is_reconciled)
+
+
+class ReconciliationConfigTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="cfguser", password="pass")
+        self.business = Business.objects.create(
+            name="Cfg Co",
+            currency="USD",
+            owner_user=self.user,
+        )
+        self.client = Client()
+        self.client.force_login(self.user)
+
+    def test_config_no_bank_accounts(self):
+        resp = self.client.get(reverse("api_reconciliation_config"))
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertIn("accounts", data)
+        self.assertEqual(data["accounts"], [])
+        self.assertFalse(data["can_reconcile"])
+        self.assertEqual(data["reason"], "no_bank_accounts")
+
+    def test_config_with_bank_account(self):
+        defaults = ensure_default_accounts(self.business)
+        BankAccount.objects.create(
+            business=self.business,
+            name="Operating",
+            usage_role=BankAccount.UsageRole.OPERATING,
+            account=defaults["cash"],
+        )
+        resp = self.client.get(reverse("api_reconciliation_config"))
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data["can_reconcile"])
+        self.assertEqual(len(data["accounts"]), 1)
