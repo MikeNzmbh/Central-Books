@@ -259,35 +259,53 @@ def api_reconciliation_transactions(request: HttpRequest, pk: int):
         )
     data = []
     for tx in qs:
-        counterparty = tx.customer.name if tx.customer else (tx.supplier.name if tx.supplier else None)
-        status = "RECONCILED" if tx.is_reconciled else tx.status
-        
-        # Use stored suggestion data
-        match_confidence = tx.suggestion_confidence
-        engine_reason = tx.suggestion_reason
-        
-        # If no stored suggestion but status is NEW, try running engine (lazy load)
-        if not tx.is_reconciled and tx.status == "NEW" and not match_confidence:
-            BankMatchingEngine.apply_suggestions(tx)
-            tx.refresh_from_db()
+        try:
+            # Safely get counterparty name with null checks
+            counterparty = None
+            if tx.customer:
+                counterparty = tx.customer.name
+            elif tx.supplier:
+                counterparty = tx.supplier.name
+            
+            status = "RECONCILED" if tx.is_reconciled else tx.status
+            
+            # Use stored suggestion data
             match_confidence = tx.suggestion_confidence
             engine_reason = tx.suggestion_reason
+            
+            # If no stored suggestion but status is NEW, try running engine (lazy load)
+            if not tx.is_reconciled and tx.status == "NEW" and not match_confidence:
+                try:
+                    BankMatchingEngine.apply_suggestions(tx)
+                    tx.refresh_from_db()
+                    match_confidence = tx.suggestion_confidence
+                    engine_reason = tx.suggestion_reason
+                except Exception:
+                    # If suggestion engine fails, continue without suggestions
+                    pass
 
-        data.append(
-            {
-                "id": tx.id,
-                "date": tx.date.isoformat(),
-                "description": tx.description,
-                "counterparty": counterparty,
-                "amount": str(tx.amount),
-                "currency": bank_account.business.currency,
-                "status": status,
-                "match_confidence": float(match_confidence) / 100.0 if match_confidence else None,
-                "engine_reason": engine_reason,
-                "match_type": "SUGGESTION" if match_confidence else None,
-                "is_soft_locked": False,
-            }
-        )
+            data.append(
+                {
+                    "id": tx.id,
+                    "date": tx.date.isoformat() if tx.date else "",
+                    "description": tx.description or "",
+                    "counterparty": counterparty,
+                    "amount": str(tx.amount),
+                    "currency": bank_account.business.currency or "USD",
+                    "status": status,
+                    "match_confidence": float(match_confidence) / 100.0 if match_confidence else None,
+                    "engine_reason": engine_reason,
+                    "match_type": "SUGGESTION" if match_confidence else None,
+                    "is_soft_locked": False,
+                }
+            )
+        except Exception as e:
+            # Log error but continue processing other transactions
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error serializing transaction {tx.id}: {e}", exc_info=True)
+            continue
+            
     return JsonResponse(data, safe=False)
 
 
