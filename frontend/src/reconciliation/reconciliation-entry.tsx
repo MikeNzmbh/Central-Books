@@ -16,3 +16,5 @@ root.render(
     <ReconciliationPage bankAccountId={bankAccountId} />
   </React.StrictMode>
 );
+
+window.dispatchEvent(new Event("reconciliation-app-mounted"));
