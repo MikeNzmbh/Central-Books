@@ -113,29 +113,152 @@ export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttribute
 );
 Input.displayName = "Input";
 
-// Select Components
-export const Select = ({ children, value, onValueChange }: { children: React.ReactNode; value?: string; onValueChange?: (value: string) => void }) => {
-    return <div className="relative">{React.Children.map(children, child => React.isValidElement(child) ? React.cloneElement(child as any, { value, onValueChange }) : child)}</div>;
+// Select Components (simple controlled dropdown)
+type SelectContextType = {
+    value?: string;
+    open: boolean;
+    setOpen: (open: boolean) => void;
+    onSelect: (value: string, label?: string) => void;
+    setLabel: (label?: string) => void;
+    selectedLabel?: string;
+    disabled?: boolean;
 };
 
-export const SelectTrigger = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement> & { value?: string; onValueChange?: (value: string) => void }>(
-    ({ className, children, ...props }, ref) => (
-        <button ref={ref} type="button" className={cn("flex h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2 text-sm", className)} {...props}>
+const SelectContext = React.createContext<SelectContextType | null>(null);
+const useSelectContext = () => React.useContext<SelectContextType | null>(SelectContext);
+
+const textFromNode = (node: React.ReactNode): string => {
+    if (typeof node === "string" || typeof node === "number") return String(node);
+    if (Array.isArray(node)) return node.map(textFromNode).join("");
+    if (React.isValidElement(node)) return textFromNode(node.props.children);
+    return "";
+};
+
+export const Select = ({
+    children,
+    value,
+    onValueChange,
+    disabled,
+}: {
+    children: React.ReactNode;
+    value?: string;
+    onValueChange?: (value: string) => void;
+    disabled?: boolean;
+}) => {
+    const [open, setOpen] = React.useState(false);
+    const [selectedLabel, setSelectedLabel] = React.useState<string | undefined>();
+    const containerRef = React.useRef<HTMLDivElement>(null);
+
+    const handleSelect = React.useCallback(
+        (val: string, label?: string) => {
+            if (label) setSelectedLabel(label);
+            onValueChange?.(val);
+            setOpen(false);
+        },
+        [onValueChange]
+    );
+
+    React.useEffect(() => {
+        const handler = (event: MouseEvent) => {
+            if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+                setOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", handler);
+        return () => document.removeEventListener("mousedown", handler);
+    }, []);
+
+    return (
+        <SelectContext.Provider
+            value={{
+                value,
+                open,
+                setOpen: disabled ? () => undefined : setOpen,
+                onSelect: handleSelect,
+                setLabel: setSelectedLabel,
+                selectedLabel,
+                disabled,
+            }}
+        >
+            <div ref={containerRef} className="relative">
+                {children}
+            </div>
+        </SelectContext.Provider>
+    );
+};
+
+export const SelectTrigger = React.forwardRef<
+    HTMLButtonElement,
+    React.ButtonHTMLAttributes<HTMLButtonElement> & { value?: string; onValueChange?: (value: string) => void }
+>(({ className, children, ...props }, ref) => {
+    const ctx = useSelectContext();
+    const toggle = () => {
+        if (ctx?.disabled) return;
+        ctx?.setOpen(!ctx.open);
+    };
+    return (
+        <button
+            ref={ref}
+            type="button"
+            className={cn(
+                "flex h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2 text-sm",
+                ctx?.disabled ? "cursor-not-allowed opacity-60" : "",
+                className
+            )}
+            onClick={toggle}
+            {...props}
+        >
             {children}
         </button>
-    )
-);
+    );
+});
 SelectTrigger.displayName = "SelectTrigger";
 
-export const SelectValue = ({ placeholder }: { placeholder?: string }) => <span>{placeholder}</span>;
+export const SelectValue = ({ placeholder }: { placeholder?: string }) => {
+    const ctx = useSelectContext();
+    const display = ctx?.selectedLabel || placeholder || ctx?.value || "";
+    return <span className="truncate text-left">{display}</span>;
+};
 
-export const SelectContent = ({ children, className }: { children: React.ReactNode; className?: string }) => (
-    <div className={cn("rounded-md border border-slate-200 bg-white p-1 shadow-md", className)}>{children}</div>
-);
+export const SelectContent = ({ children, className }: { children: React.ReactNode; className?: string }) => {
+    const ctx = useSelectContext();
+    if (!ctx?.open) return null;
+    return (
+        <div className={cn("absolute z-20 mt-1 w-full rounded-md border border-slate-200 bg-white p-1 shadow-md", className)}>
+            {children}
+        </div>
+    );
+};
 
-export const SelectItem = ({ value, children }: { value: string; children: React.ReactNode }) => (
-    <div className="cursor-pointer rounded-sm px-2 py-1.5 text-sm hover:bg-slate-100">{children}</div>
-);
+export const SelectItem = ({ value, children }: { value: string; children: React.ReactNode }) => {
+    const ctx = useSelectContext();
+    const label = textFromNode(children) || value;
+    const isSelected = ctx?.value === value;
+
+    React.useEffect(() => {
+        if (isSelected && label && ctx && !ctx.selectedLabel) {
+            ctx.setLabel(label);
+        }
+    }, [isSelected, label, ctx]);
+
+    const handleClick = () => {
+        if (ctx?.disabled) return;
+        ctx?.setLabel(label);
+        ctx?.onSelect(value, label);
+    };
+
+    return (
+        <div
+            className={cn(
+                "cursor-pointer rounded-sm px-2 py-1.5 text-sm hover:bg-slate-100",
+                isSelected ? "bg-slate-100 text-slate-900" : "text-slate-700"
+            )}
+            onClick={handleClick}
+        >
+            {children}
+        </div>
+    );
+};
 
 // Dialog Components
 export const Dialog = ({ open, onOpenChange, children }: { open?: boolean; onOpenChange?: (open: boolean) => void; children: React.ReactNode }) => {

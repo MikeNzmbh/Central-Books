@@ -14,7 +14,12 @@ from .views import (
     ItemCreateView,
     ItemUpdateView,
 )
-from .views_reports import pnl_ledger_debug
+from .views_reports import (
+    pnl_ledger_debug,
+    reconciliation_report_view,
+    cashflow_report_print_view,
+    pl_report_print_view,
+)
 from .views_accounts import (
     account_detail_view,
     api_account_activity,
@@ -83,6 +88,21 @@ urlpatterns = [
     path("reports/cashflow/", views.cashflow_report_view, name="cashflow_report"),
     path("reports/pl-shadow/", views.pl_shadow_view, name="pl_shadow"),
     path("reports/pl-export/", views.pl_export_csv, name="pl_export_csv"),
+    path(
+        "reconciliation/<int:session_id>/report/",
+        reconciliation_report_view,
+        name="reconciliation_report",
+    ),
+    path(
+        "reports/cashflow/print/",
+        cashflow_report_print_view,
+        name="cashflow_report_print",
+    ),
+    path(
+        "reports/pl/print/",
+        pl_report_print_view,
+        name="pl_report_print",
+    ),
     path("reports/tax/gst-hst/", tax_views.gst_hst_report, name="gst_hst_report"),
     path("reports/tax/us-sales/", tax_views.us_sales_tax_report, name="us_sales_tax_report"),
     path("bank-accounts/", views.bank_account_list, name="bank_account_list"),
@@ -97,15 +117,38 @@ urlpatterns = [
     path("api/bank-accounts/<int:pk>/reconciliation/transactions/", api_reconciliation_transactions, name="api_reco_transactions"),
     path("api/reconciliation/matches/", api_reconciliation_matches, name="api_reco_matches"),
     path("api/reconciliation/confirm-match/", api_reconciliation_confirm_match, name="api_reco_confirm_match"),
+    path("api/reconciliation/add-as-new/", views_reconciliation.api_reconciliation_add_as_new, name="api_reco_add_as_new"),
     path("api/reconciliation/create-split/", api_reconciliation_create_split, name="api_reco_create_split"),
     path("api/reconciliation/create-rule/", views_reconciliation.api_reconciliation_create_rule, name="api_reconciliation_create_rule"),
     path("api/reconciliation/config/", views_reconciliation.api_reconciliation_config, name="api_reconciliation_config"),
     path("api/reconciliation/periods/", views_reconciliation.api_reconciliation_periods, name="api_reconciliation_periods"),
     path("api/reconciliation/feed/", views_reconciliation.api_reconciliation_feed, name="api_reconciliation_feed"),
-    path("api/reconciliation/session/", views_reconciliation.api_reconciliation_session, name="api_reconciliation_session"),
+    path("api/reconciliation/session/", views_reconciliation.api_reconciliation_session_v1, name="api_reconciliation_session"),
     path("api/reconciliation/complete/", views_reconciliation.api_reconciliation_complete, name="api_reconciliation_complete"),
     path("api/reconciliation/toggle-include/", views_reconciliation.api_reconciliation_toggle_include, name="api_reconciliation_toggle_include"),
     path("api/reconciliation/create-adjustment/", views_reconciliation.api_reconciliation_create_adjustment, name="api_reconciliation_create_adjustment"),
+    # Reconciliation v1 stable API
+    path("api/reconciliation/accounts/", views_reconciliation.api_reconciliation_accounts_v1, name="api_reco_accounts_v1"),
+    path(
+        "api/reconciliation/accounts/<int:account_id>/periods/",
+        views_reconciliation.api_reconciliation_periods_v1,
+        name="api_reco_periods_v1",
+    ),
+    path("api/reconciliation/session/<int:session_id>/set_statement_balance/", views_reconciliation.api_reconciliation_set_statement_balance_v1, name="api_reco_set_statement_balance_v1"),
+    path("api/reconciliation/session/<int:session_id>/match/", views_reconciliation.api_reconciliation_match_v1, name="api_reco_match_v1"),
+    path("api/reconciliation/session/<int:session_id>/unmatch/", views_reconciliation.api_reconciliation_unmatch_v1, name="api_reco_unmatch_v1"),
+    path("api/reconciliation/session/<int:session_id>/exclude/", views_reconciliation.api_reconciliation_exclude_v1, name="api_reco_exclude_v1"),
+    path("api/reconciliation/session/<int:session_id>/complete/", views_reconciliation.api_reconciliation_complete_v1, name="api_reco_complete_v1"),
+    path(
+        "api/reconciliation/sessions/<int:session_id>/complete/",
+        views_reconciliation.api_reconciliation_complete_v1,
+        name="reconciliation-complete-session",
+    ),
+    path(
+        "api/reconciliation/session/<int:session_id>/",
+        views_reconciliation.api_reconciliation_session_report,
+        name="api_reco_session_report",
+    ),
     path("api/reconciliation/audit/", api_reconciliation_audit, name="api_reco_audit"),
     path("api/reconciliation/rules/", api_reconciliation_create_rule, name="api_reco_rule"),
     path("api/ledger/search/", api_ledger_search, name="api_ledger_search"),

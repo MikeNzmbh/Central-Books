@@ -51,10 +51,11 @@ import { ScrollArea } from "../components/ui/scroll-area";
 import { Separator } from "../components/ui/separator";
 
 import "../index.css";
+import { ReportExportButton } from "../reports/ReportExportButton";
 
 // --- Types ---
 
-export type RecoStatus = "NEW" | "SUGGESTED" | "MATCHED" | "MATCHED_SINGLE" | "MATCHED_MULTI" | "RECONCILED" | "PARTIAL" | "EXCLUDED" | "IGNORED";
+export type RecoStatus = "new" | "matched" | "partial" | "excluded";
 export type RecoSessionStatus = "DRAFT" | "IN_PROGRESS" | "COMPLETED";
 
 export interface BankAccountSummary {
@@ -85,6 +86,7 @@ export interface RecoSession {
   difference: number; // endingBalance - clearedBalance
   reconciledPercent: number; // 0–100
   totalTransactions: number;
+  reconciledCount?: number;
   unreconciledCount: number;
 }
 
@@ -96,12 +98,10 @@ export interface BankTransaction {
   amount: number; // Numeric for calculation
   currency: string;
   status: RecoStatus;
-  match_confidence?: number | null; // 0-1
+  reconciliationStatus?: "reconciled" | "unreconciled";
+  match_confidence?: number | null;
   engine_reason?: string | null;
-  match_type?: string | null;
-  is_soft_locked?: boolean;
-
-  // Frontend specific
+  matchCandidates?: Array<{ journal_entry_id: number; confidence: number; reason?: string }>;
   includedInSession: boolean; // whether this line is checked into current session
 }
 
@@ -121,10 +121,11 @@ interface ReconciliationPageState {
   session: RecoSession | null;
   transactions: BankTransaction[];
   engineInsights: EngineInsights | null;
-  statusFilter: RecoStatus | "ALL";
+  statusFilter: RecoStatus | "all";
   search: string;
   loading: boolean;
   error: string | null;
+  completionError: string | null;
 }
 
 // --- Helper Functions ---
@@ -176,9 +177,12 @@ function EmptyState({ canReconcile, reason }: { canReconcile: boolean; reason: s
         Add a bank account to start reconciling statements. We’ll bring you back here once it’s created.
       </p>
       <div className="flex items-center gap-2">
-        <Button asChild>
-          <a href="/bank-accounts/new/?returnTo=/reconciliation">+ Add a bank account</a>
-        </Button>
+        <a
+          href="/bank-accounts/new/?returnTo=/reconciliation"
+          className="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-colors"
+        >
+          + Add a bank account
+        </a>
       </div>
       {!canReconcile && reason && (
         <p className="text-xs text-slate-400">Reason: {reason}</p>
@@ -198,15 +202,18 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
     session: null,
     transactions: [],
     engineInsights: null,
-    statusFilter: "ALL",
+    statusFilter: "all",
     search: "",
     loading: false,
     error: null,
+    completionError: null,
   });
+
+  const isLocked = state.session?.status === "COMPLETED";
 
   // Initial Load
   useEffect(() => {
-    loadConfig();
+    loadAccounts();
   }, []);
 
   useEffect(() => {
@@ -217,36 +224,58 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
 
   useEffect(() => {
     if (state.activeBankId && state.activePeriodId) {
-      loadFeed(state.activeBankId, state.activePeriodId);
+      // Clear previous state and reload session when bank/period changes
+      setState(prev => ({
+        ...prev,
+        session: null,
+        transactions: [],
+        loading: true,
+        completionError: null,
+      }));
+      loadSession(state.activeBankId, state.activePeriodId);
     }
   }, [state.activeBankId, state.activePeriodId]);
 
-  async function loadConfig() {
-    setState(prev => ({ ...prev, loading: true, error: null }));
+  async function loadAccounts() {
+    setState(prev => ({ ...prev, loading: true, error: null, completionError: null }));
     try {
-      const raw = await fetchJson<any>("/api/reconciliation/config/");
-      const accounts: BankAccountSummary[] = Array.isArray(raw) ? raw : (raw.accounts || []);
-      const canReconcile = Array.isArray(raw) ? accounts.length > 0 : raw.can_reconcile !== false;
-      const emptyReason = Array.isArray(raw) ? null : raw.reason || null;
+      const accounts = await fetchJson<BankAccountSummary[]>("/api/reconciliation/accounts/");
       setState(prev => ({
         ...prev,
         bankAccounts: accounts,
-        activeBankId: prev.activeBankId || (accounts.length > 0 ? accounts[0].id : null),
-        canReconcile,
-        emptyReason,
+        activeBankId: prev.activeBankId || (accounts[0]?.id ?? null),
+        canReconcile: accounts.length > 0,
+        emptyReason: accounts.length ? null : "no_bank_accounts",
         loading: false
       }));
     } catch (e: any) {
       console.error(e);
-      setState(prev => ({ ...prev, loading: false, error: e.message }));
+      setState(prev => ({
+        ...prev,
+        loading: false,
+        error: e.message,
+        bankAccounts: [],
+        canReconcile: false,
+        emptyReason: e.message
+      }));
     }
   }
 
+  const mapPeriod = (p: any): RecoPeriodOption => ({
+    id: String(p.id),
+    label: p.label || `${p.start_date || p.startDate}`,
+    startDate: p.start_date || p.startDate || "",
+    endDate: p.end_date || p.endDate || "",
+    isCurrent: Boolean(p.is_current ?? p.isCurrent),
+    isLocked: Boolean(p.is_locked ?? p.isLocked),
+  });
+
   async function loadPeriods(bankId: string) {
-    setState(prev => ({ ...prev, loading: true, error: null, periods: [], activePeriodId: null }));
+    setState(prev => ({ ...prev, loading: true, error: null, completionError: null, periods: [], activePeriodId: null, session: null, transactions: [] }));
     try {
-      const data = await fetchJson<any>(`/api/reconciliation/periods/?bank_account_id=${bankId}`);
-      const periods: RecoPeriodOption[] = data.periods || [];
+      const raw = await fetchJson<any>(`/api/reconciliation/accounts/${bankId}/periods/`);
+      const source = Array.isArray(raw) ? raw : raw?.periods || [];
+      const periods: RecoPeriodOption[] = source.map(mapPeriod);
       const nextPeriod = periods.length > 0 ? periods[0].id : null;
       setState(prev => ({
         ...prev,
@@ -260,63 +289,115 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
     }
   }
 
-  async function loadFeed(bankId: string, periodId: string) {
-    setState(prev => ({ ...prev, loading: true, error: null }));
+  async function loadSession(bankId: string, periodId: string | null) {
+    if (!periodId) return;
+    const period = state.periods.find(p => p.id === periodId);
+    if (!period) return;
+    setState(prev => ({ ...prev, loading: true, error: null, completionError: null }));
     try {
-      const data = await fetchJson<any>(`/api/reconciliation/feed/?bank_account_id=${bankId}&period_id=${periodId}`);
-      const buckets = data.transactions || {};
-      const combined = ([] as any[]).concat(
-        buckets.new || [],
-        buckets.suggested || [],
-        buckets.matched || [],
-        buckets.partial || [],
-        buckets.excluded || [],
+      const params = new URLSearchParams({
+        account: bankId,
+        start: period.startDate,
+        end: period.endDate,
+      });
+      const data = await fetchJson<any>(`/api/reconciliation/session/?${params.toString()}`);
+      const periods = (data.periods || state.periods || []).map(mapPeriod);
+      const responsePeriod = data.period
+        ? mapPeriod({
+          id: data.period.id || period.id,
+          label: data.period.label || period.label,
+          start_date: data.period.start_date || data.period.startDate || period.startDate,
+          end_date: data.period.end_date || data.period.endDate || period.endDate,
+          is_current: data.period.is_current ?? data.period.isCurrent ?? period.isCurrent,
+          is_locked: data.period.is_locked ?? data.period.isLocked ?? period.isLocked,
+        })
+        : null;
+      const activePeriod = periods.find((p: RecoPeriodOption) => p.id === periodId) || responsePeriod || period;
+
+      const feed = data.feed || {};
+      const combined = ([] as any[]).concat(feed.new || [], feed.matched || [], feed.partial || [], feed.excluded || []);
+
+      // Fetch match candidates for each transaction
+      const transactions: BankTransaction[] = await Promise.all(
+        combined.map(async (t: any) => {
+          const recStatusRaw = t.reconciliation_status || "unreconciled";
+          const recStatusLower = String(recStatusRaw).toLowerCase();
+          const reconciliationStatus =
+            recStatusLower === "reconciled" || recStatusLower === "reco_status_reconciled"
+              ? "reconciled"
+              : "unreconciled";
+
+          // Fetch candidates only for unmatched, non-excluded transactions
+          let matchCandidates: Array<{ journal_entry_id: number; confidence: number; reason?: string }> = [];
+          if (reconciliationStatus === "unreconciled" && t.status !== "excluded" && t.status !== "matched") {
+            try {
+              const candidates = await fetchJson<any[]>(`/api/reconciliation/matches/?transaction_id=${t.id}`);
+              matchCandidates = candidates.map((c: any) => ({
+                journal_entry_id: c.journal_entry_id,
+                confidence: c.confidence || 1.0,
+                reason: c.reason,
+              }));
+            } catch (e) {
+              console.warn(`Failed to fetch candidates for tx ${t.id}:`, e);
+            }
+          }
+
+          return {
+            id: String(t.id),
+            date: t.date,
+            description: t.description,
+            counterparty: t.counterparty,
+            amount: Number(t.amount),
+            currency: t.currency || data.bank_account?.currency || "USD",
+            status: (t.status || "new").toLowerCase() as RecoStatus,
+            reconciliationStatus,
+            match_confidence: t.match_confidence,
+            engine_reason: t.engine_reason,
+            matchCandidates,
+            includedInSession: t.includedInSession !== false,
+          };
+        })
       );
 
-      const mappedTxs: BankTransaction[] = combined.map((t: any) => ({
-        id: String(t.id),
-        date: t.date,
-        description: t.description,
-        counterparty: t.counterparty,
-        amount: Number(t.amount),
-        currency: t.currency,
-        status: t.status,
-        match_confidence: t.match_confidence,
-        engine_reason: t.engine_reason,
-        match_type: t.match_type,
-        is_soft_locked: t.is_soft_locked,
-        includedInSession: t.includedInSession ?? true,
-      }));
+      const sessionData = data.session || {};
+      const clearedBalance = Number(
+        sessionData.cleared_balance ??
+        sessionData.clearedBalance ??
+        sessionData.ledger_ending_balance ??
+        0
+      );
 
-      const totalTransactions = mappedTxs.length;
-      const reconciledCount = (buckets.matched || []).length;
-      const unreconciledCount = totalTransactions - reconciledCount;
-      const reconciledPercent = totalTransactions ? (reconciledCount / totalTransactions) * 100 : 0;
+      // Use backend values for progress calculation
+      const totalTransactions = Number(sessionData.total_transactions ?? transactions.length);
+      const reconciledCount = Number(sessionData.reconciled_count ?? 0);
+      const unreconciledCount = Number(sessionData.unreconciled_count ?? totalTransactions - reconciledCount);
+      const reconciledPercent = Number(sessionData.reconciled_percent ?? 0);
 
       const session: RecoSession = {
-        id: data.session?.id || "",
-        status: data.session?.status || "DRAFT",
+        id: String(sessionData.id || ""),
+        status: (sessionData.status || "DRAFT") as RecoSessionStatus,
         bankAccount: {
-          id: data.bank_account?.id || bankId,
+          id: data.bank_account?.id ? String(data.bank_account.id) : bankId,
           name: data.bank_account?.name || "",
           currency: data.bank_account?.currency || "USD",
         },
-        period: data.period || { id: periodId, label: periodId, startDate: "", endDate: "", isCurrent: false, isLocked: false },
-        beginningBalance: data.session?.opening_balance ?? 0,
-        endingBalance: data.session?.statement_ending_balance ?? 0,
-        clearedBalance: 0,
-        difference: data.session?.difference ?? 0,
-        reconciledPercent,
+        period: activePeriod,
+        beginningBalance: Number(sessionData.opening_balance ?? 0),
+        endingBalance: Number(sessionData.statement_ending_balance ?? 0),
+        clearedBalance,
+        difference: Number(sessionData.difference ?? 0),
+        reconciledPercent: reconciledPercent,
         totalTransactions,
+        reconciledCount,
         unreconciledCount,
       };
 
-      setState(prev => ({
+      setState((prev) => ({
         ...prev,
-        periods: data.periods || prev.periods,
-        activePeriodId: periodId,
+        periods,
+        activePeriodId: activePeriod?.id || periodId,
         session,
-        transactions: mappedTxs,
+        transactions,
         loading: false,
       }));
     } catch (e: any) {
@@ -334,7 +415,8 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
   };
 
   const onChangeSessionField = async (field: "beginningBalance" | "endingBalance", value: number) => {
-    // Optimistic update
+    if (isLocked) return;
+    if (Number.isNaN(value)) return;
     setState((prev) =>
       prev.session
         ? {
@@ -344,22 +426,22 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
         : prev,
     );
 
-    // Debounce/API call
     if (state.session) {
       try {
-        await fetchJson("/api/reconciliation/session/", {
+        const payload: any = {};
+        if (field === "beginningBalance") payload.opening_balance = value;
+        if (field === "endingBalance") payload.statement_ending_balance = value;
+        await fetchJson(`/api/reconciliation/session/${state.session.id}/set_statement_balance/`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             "X-CSRFToken": getCsrfToken(),
           },
-          body: JSON.stringify({
-            session_id: state.session.id,
-            [field]: value
-          })
+          body: JSON.stringify(payload)
         });
-        // Reload session to get updated difference/cleared balance
-        loadSession(state.activeBankId!, state.activePeriodId);
+        if (state.activeBankId && state.activePeriodId) {
+          loadSession(state.activeBankId, state.activePeriodId);
+        }
       } catch (e) {
         console.error(e);
       }
@@ -367,63 +449,136 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
   };
 
   const onToggleInclude = async (txId: string) => {
+    if (isLocked) return;
     const tx = state.transactions.find(t => t.id === txId);
-    if (!tx || !state.session) return;
+    if (!tx || !state.session || !state.activeBankId || !state.activePeriodId) return;
 
-    const newIncluded = !tx.includedInSession;
+    const shouldExclude = tx.includedInSession;
+    await onExclude(txId, shouldExclude);
+  };
 
-    // Optimistic
-    setState((prev) => ({
-      ...prev,
-      transactions: prev.transactions.map((t) =>
-        t.id === txId ? { ...t, includedInSession: newIncluded } : t,
-      ),
-    }));
+  const onExclude = async (txId: string, shouldExclude: boolean) => {
+    if (isLocked) return;
+    if (!state.session || !state.activeBankId || !state.activePeriodId) return;
+    try {
+      await fetchJson(`/api/reconciliation/session/${state.session.id}/exclude/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCsrfToken(),
+        },
+        body: JSON.stringify({ transaction_id: txId, excluded: shouldExclude }),
+      });
+
+      // Refresh session and feed after exclude
+      await loadSession(state.activeBankId, state.activePeriodId);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const onMatch = async (txId: string) => {
+    if (isLocked) return;
+    if (!state.session || !state.activeBankId || !state.activePeriodId) return;
+
+    const tx = state.transactions.find(t => t.id === txId);
+    if (!tx || !tx.matchCandidates || tx.matchCandidates.length === 0) {
+      // No alert - inline warning is shown in the UI
+      return;
+    }
 
     try {
-      await fetchJson("/api/reconciliation/toggle-include/", {
+      const chosen = tx.matchCandidates[0];
+      await fetchJson(`/api/reconciliation/confirm-match/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "X-CSRFToken": getCsrfToken(),
         },
         body: JSON.stringify({
-          transaction_id: txId,
-          session_id: state.session.id,
-          included: newIncluded
-        })
+          bank_transaction_id: txId,
+          journal_entry_id: chosen.journal_entry_id,
+          match_confidence: chosen.confidence || 1.0,
+        }),
       });
-      // Reload session stats
-      loadSession(state.activeBankId!, state.activePeriodId);
+
+      // Refresh session and feed after match
+      await loadSession(state.activeBankId, state.activePeriodId);
+    } catch (e: any) {
+      console.error(e);
+      alert(e.message);
+    }
+  };
+
+  const onAddAsNew = async (txId: string) => {
+    if (isLocked) return;
+    if (!state.session || !state.activeBankId || !state.activePeriodId) return;
+
+    try {
+      // Call the backend to create a new transaction from this bank line
+      // This will categorize it and mark as reconciled
+      await fetchJson(`/api/reconciliation/add-as-new/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCsrfToken(),
+        },
+        body: JSON.stringify({
+          bank_transaction_id: txId,
+          session_id: state.session.id,
+        }),
+      });
+
+      // Refresh session and feed after adding as new
+      await loadSession(state.activeBankId, state.activePeriodId);
+    } catch (e: any) {
+      console.error(e);
+      alert(e.message);
+    }
+  };
+
+  const onUnmatch = async (txId: string) => {
+    if (isLocked) return;
+    if (!state.session || !state.activeBankId || !state.activePeriodId) return;
+    try {
+      await fetchJson(`/api/reconciliation/session/${state.session.id}/unmatch/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCsrfToken(),
+        },
+        body: JSON.stringify({ transaction_id: txId }),
+      });
+
+      // Refresh session and feed after unmatch
+      await loadSession(state.activeBankId, state.activePeriodId);
     } catch (e) {
       console.error(e);
-      // Revert?
     }
   };
 
   const onCompleteSession = async () => {
-    if (!state.session) return;
+    if (!state.session || !state.activeBankId || !state.activePeriodId || isLocked) return;
     try {
-      await fetchJson("/api/reconciliation/complete/", {
+      setState(prev => ({ ...prev, completionError: null, loading: true }));
+      await fetchJson(`/api/reconciliation/sessions/${state.session.id}/complete/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "X-CSRFToken": getCsrfToken(),
         },
-        body: JSON.stringify({
-          session_id: state.session.id
-        })
       });
-      loadSession(state.activeBankId!, state.activePeriodId);
+      await loadSession(state.activeBankId, state.activePeriodId);
     } catch (e: any) {
-      alert(e.message);
+      const msg = e?.message || "Could not complete period, please try again.";
+      setState(prev => ({ ...prev, completionError: msg, loading: false }));
     }
   }
 
   const filteredTransactions = useMemo(() => {
     return state.transactions.filter((tx) => {
       const matchesStatus =
-        state.statusFilter === "ALL" || tx.status === state.statusFilter;
+        state.statusFilter === "all" || tx.status === state.statusFilter;
       const matchesSearch = state.search
         ? (tx.description + " " + (tx.counterparty || "")).toLowerCase().includes(
           state.search.toLowerCase(),
@@ -433,11 +588,23 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
     });
   }, [state.transactions, state.statusFilter, state.search]);
 
-  const disableComplete = !state.session || Math.abs(state.session.difference) > 0.01 || state.session.status === "COMPLETED";
+  const differenceValue = Number(state.session?.difference ?? 0);
+  const differenceNonZero = Math.abs(differenceValue) > 0.01;
+  const hasUnreconciled = (state.session?.unreconciledCount ?? 0) > 0;
+  const disableComplete = state.loading || !state.session || differenceNonZero || hasUnreconciled || isLocked;
+  const completionDisabledReason = !state.session
+    ? null
+    : isLocked
+      ? "This period is already completed."
+      : differenceNonZero
+        ? "Difference must be zero before completing this period."
+        : hasUnreconciled
+          ? "Reconcile or exclude all transactions before completing."
+          : null;
 
   return (
     <div className="flex min-h-screen w-full flex-col bg-slate-50 text-slate-900">
-      <PageHeader />
+      <PageHeader session={state.session} />
 
       <main className="flex-1 px-4 py-6 md:px-8">
         {state.error && (
@@ -446,7 +613,7 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
               <AlertTriangle className="h-4 w-4" />
               <span>{state.error}</span>
             </div>
-            <Button size="sm" onClick={loadConfig} className="rounded-full bg-red-600 hover:bg-red-700">
+            <Button size="sm" onClick={loadAccounts} className="rounded-full bg-red-600 hover:bg-red-700">
               Retry
             </Button>
           </div>
@@ -465,11 +632,14 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
         <div className="flex flex-col gap-6">
           <SessionSetupBar
             state={state}
+            isLocked={isLocked}
             onSelectBank={onSelectBank}
             onSelectPeriod={onSelectPeriod}
             onChangeSessionField={onChangeSessionField}
             onComplete={onCompleteSession}
             disableComplete={disableComplete}
+            completionError={state.completionError}
+            completeDisabledReason={completionDisabledReason}
           />
 
           <div className="grid grid-cols-12 gap-6">
@@ -511,11 +681,14 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
                 <TransactionFeed
                   transactions={filteredTransactions}
                   onToggleInclude={onToggleInclude}
-                  refresh={() => loadSession(state.activeBankId!, state.activePeriodId)}
+                  onMatch={onMatch}
+                  onAddAsNew={onAddAsNew}
+                  onUnmatch={onUnmatch}
+                  isLocked={isLocked}
                 />
               </section>
 
-              <AdjustmentsPanel session={state.session} onUpdate={() => loadSession(state.activeBankId!, state.activePeriodId)} />
+              <AdjustmentsPanel session={state.session} isLocked={isLocked} onUpdate={() => loadSession(state.activeBankId!, state.activePeriodId)} />
             </div>
 
             <div className="col-span-12 xl:col-span-4 flex flex-col gap-6">
@@ -528,17 +701,30 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
   );
 }
 
-function PageHeader() {
+function PageHeader({ session }: { session: RecoSession | null }) {
+  const reportUrl = session ? `/reconciliation/${session.id}/report/` : undefined;
+
   return (
     <header className="sticky top-0 z-20 border-b bg-white/80 backdrop-blur-sm px-4 py-4 md:px-8">
-      <div className="flex items-center gap-3">
-        <div className="inline-flex items-center justify-center rounded-xl bg-emerald-100 p-2 text-emerald-700">
-          <Check className="h-5 w-5" />
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="inline-flex items-center justify-center rounded-xl bg-emerald-100 p-2 text-emerald-700">
+            <Check className="h-5 w-5" />
+          </div>
+          <div>
+            <h1 className="text-lg font-semibold text-slate-900">Reconciliation</h1>
+            <p className="text-xs text-slate-500">Month-end check for your bank account</p>
+          </div>
+          {session && (
+            <Badge variant="outline" className="rounded-full text-[10px] font-semibold uppercase tracking-wider">
+              {session.status === "COMPLETED" ? "Completed" : session.status?.replace("_", " ")}
+            </Badge>
+          )}
         </div>
-        <div>
-          <h1 className="text-lg font-semibold text-slate-900">Reconciliation</h1>
-          <p className="text-xs text-slate-500">Month-end check for your bank account</p>
-        </div>
+
+        {session && reportUrl && (
+          <ReportExportButton to={reportUrl} />
+        )}
       </div>
     </header>
   );
@@ -546,20 +732,26 @@ function PageHeader() {
 
 interface SessionSetupBarProps {
   state: ReconciliationPageState;
+  isLocked: boolean;
   onSelectBank: (id: string) => void;
   onSelectPeriod: (id: string) => void;
   onChangeSessionField: (field: "beginningBalance" | "endingBalance", value: number) => void;
   onComplete: () => void;
   disableComplete: boolean;
+  completionError?: string | null;
+  completeDisabledReason?: string | null;
 }
 
 function SessionSetupBar({
   state,
+  isLocked,
   onSelectBank,
   onSelectPeriod,
   onChangeSessionField,
   onComplete,
   disableComplete,
+  completionError,
+  completeDisabledReason,
 }: SessionSetupBarProps) {
   const { bankAccounts, activeBankId, periods, activePeriodId, session } = state;
 
@@ -629,7 +821,8 @@ function SessionSetupBar({
                   type="number"
                   value={session?.beginningBalance ?? ""}
                   onChange={(e) => onChangeSessionField("beginningBalance", parseFloat(e.target.value))}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-medium outline-none focus:border-slate-400 focus:ring-0"
+                  disabled={isLocked}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-medium outline-none focus:border-slate-400 focus:ring-0 disabled:opacity-70"
                   placeholder="0.00"
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium">
@@ -647,7 +840,8 @@ function SessionSetupBar({
                   type="number"
                   value={session?.endingBalance ?? ""}
                   onChange={(e) => onChangeSessionField("endingBalance", parseFloat(e.target.value))}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-medium outline-none focus:border-slate-400 focus:ring-0"
+                  disabled={isLocked}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-medium outline-none focus:border-slate-400 focus:ring-0 disabled:opacity-70"
                   placeholder="0.00"
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium">
@@ -661,8 +855,8 @@ function SessionSetupBar({
                 Difference
               </span>
               <div className={`relative flex items-center justify-between rounded-xl border px-3 py-2.5 ${!session || session.difference === 0
-                  ? "border-emerald-200 bg-emerald-50/50 text-emerald-700"
-                  : "border-amber-200 bg-amber-50/50 text-amber-700"
+                ? "border-emerald-200 bg-emerald-50/50 text-emerald-700"
+                : "border-amber-200 bg-amber-50/50 text-amber-700"
                 }`}>
                 <span className="text-sm font-bold">
                   {session ? session.difference.toFixed(2) : "—"}
@@ -677,19 +871,27 @@ function SessionSetupBar({
           <Button
             onClick={onComplete}
             disabled={disableComplete}
+            title={completeDisabledReason || undefined}
             className={`w-full rounded-xl h-11 font-semibold shadow-sm transition-all ${disableComplete
-                ? "bg-slate-100 text-slate-400 hover:bg-slate-100"
-                : "bg-slate-900 text-white hover:bg-slate-800 hover:shadow-md"
+              ? "bg-slate-100 text-slate-400 hover:bg-slate-100"
+              : "bg-slate-900 text-white hover:bg-slate-800 hover:shadow-md"
               }`}
           >
             {session?.status === "COMPLETED" ? "Period Completed" : "Complete period"}
           </Button>
           <Button
             variant="outline"
-            className="w-full rounded-xl border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+            disabled={isLocked}
+            className="w-full rounded-xl border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 disabled:opacity-60"
           >
             Save draft
           </Button>
+          {completionError && (
+            <p className="text-xs text-red-600 leading-snug">{completionError}</p>
+          )}
+          {!completionError && completeDisabledReason && disableComplete && (
+            <p className="text-[11px] text-slate-500 leading-snug">{completeDisabledReason}</p>
+          )}
         </div>
       </div>
     </section>
@@ -744,6 +946,12 @@ function ProgressSummary({ session }: ProgressSummaryProps) {
               {formatAmount(session.endingBalance, session.bankAccount.currency)}
             </span>
           </div>
+          <div className="flex items-center gap-2">
+            <span className="text-slate-500">Status:</span>
+            <span className="font-mono font-medium text-slate-900">
+              {session.reconciledCount ?? 0} / {session.totalTransactions} reconciled
+            </span>
+          </div>
         </div>
       </div>
     </section>
@@ -751,25 +959,20 @@ function ProgressSummary({ session }: ProgressSummaryProps) {
 }
 
 interface StatusFilterProps {
-  active: RecoStatus | "ALL";
-  onChange: (s: RecoStatus | "ALL") => void;
+  active: RecoStatus | "all";
+  onChange: (s: RecoStatus | "all") => void;
 }
 
-const STATUS_LABELS: Record<RecoStatus | "ALL", string> = {
-  ALL: "All",
-  NEW: "New",
-  SUGGESTED: "Suggested",
-  MATCHED: "Matched",
-  MATCHED_SINGLE: "Matched",
-  MATCHED_MULTI: "Matched",
-  RECONCILED: "Reconciled",
-  PARTIAL: "Partial",
-  EXCLUDED: "Excluded",
-  IGNORED: "Ignored",
+const STATUS_LABELS: Record<RecoStatus | "all", string> = {
+  all: "All",
+  new: "New",
+  matched: "Matched",
+  partial: "Partial",
+  excluded: "Excluded",
 };
 
 function StatusFilter({ active, onChange }: StatusFilterProps) {
-  const keys: Array<RecoStatus | "ALL"> = ["ALL", "NEW", "SUGGESTED", "MATCHED", "PARTIAL", "EXCLUDED"];
+  const keys: Array<RecoStatus | "all"> = ["all", "new", "matched", "partial", "excluded"];
   return (
     <div className="inline-flex items-center rounded-xl border border-slate-200 bg-slate-50/50 p-1">
       {keys.map((key) => (
@@ -777,9 +980,9 @@ function StatusFilter({ active, onChange }: StatusFilterProps) {
           key={key}
           type="button"
           onClick={() => onChange(key)}
-          className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${active === key
-              ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200"
-              : "text-slate-500 hover:text-slate-700 hover:bg-slate-100/50"
+          className={`rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-all whitespace-nowrap ${active === key
+            ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200"
+            : "text-slate-500 hover:text-slate-700 hover:bg-slate-100/50"
             }`}
         >
           {STATUS_LABELS[key]}
@@ -792,10 +995,13 @@ function StatusFilter({ active, onChange }: StatusFilterProps) {
 interface TransactionFeedProps {
   transactions: BankTransaction[];
   onToggleInclude: (id: string) => void;
-  refresh: () => void;
+  onMatch: (id: string) => void;
+  onAddAsNew: (id: string) => void;
+  onUnmatch: (id: string) => void;
+  isLocked: boolean;
 }
 
-function TransactionFeed({ transactions, onToggleInclude, refresh }: TransactionFeedProps) {
+function TransactionFeed({ transactions, onToggleInclude, onMatch, onAddAsNew, onUnmatch, isLocked }: TransactionFeedProps) {
   if (!transactions.length) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
@@ -817,7 +1023,15 @@ function TransactionFeed({ transactions, onToggleInclude, refresh }: Transaction
   return (
     <div className="flex flex-col divide-y divide-slate-100">
       {transactions.map((tx) => (
-        <TransactionRow key={tx.id} tx={tx} onToggleInclude={onToggleInclude} refresh={refresh} />
+        <TransactionRow
+          key={tx.id}
+          tx={tx}
+          onToggleInclude={onToggleInclude}
+          onMatch={onMatch}
+          onAddAsNew={onAddAsNew}
+          onUnmatch={onUnmatch}
+          isLocked={isLocked}
+        />
       ))}
     </div>
   );
@@ -826,42 +1040,19 @@ function TransactionFeed({ transactions, onToggleInclude, refresh }: Transaction
 interface TransactionRowProps {
   tx: BankTransaction;
   onToggleInclude: (id: string) => void;
-  refresh: () => void;
+  onMatch: (id: string) => void;
+  onAddAsNew: (id: string) => void;
+  onUnmatch: (id: string) => void;
+  isLocked: boolean;
 }
 
-function TransactionRow({ tx, onToggleInclude, refresh }: TransactionRowProps) {
-  const hasSuggestion = (tx.status === "SUGGESTED" || tx.status === "NEW") && tx.match_confidence != null;
-  const isReconciled = tx.status === "RECONCILED" || tx.status === "MATCHED" || tx.status === "MATCHED_SINGLE";
-
-  const handleConfirm = async () => {
-    try {
-      // Confirm the suggestion
-      // We need to fetch matches first to get the candidate? 
-      // Or just assume the first one?
-      // For simplicity, let's open the match drawer or call confirm if we have data.
-      // The current API requires journal_entry_id.
-      // Let's just trigger a refresh for now or implement full match logic.
-      // Actually, let's use the existing confirm endpoint if we can.
-      // But we don't have the candidate ID here.
-      // So "Confirm" should probably fetch matches and confirm the top one.
-
-      const matches = await fetchJson<any[]>(`/api/reconciliation/matches/?transaction_id=${tx.id}`);
-      if (matches.length > 0) {
-        const top = matches[0];
-        await fetchJson(`/api/reconciliation/confirm-match/`, {
-          method: "POST",
-          body: JSON.stringify({
-            bank_transaction_id: tx.id,
-            journal_entry_id: top.journal_entry_id,
-            match_confidence: top.confidence,
-          }),
-        });
-        refresh();
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  };
+function TransactionRow({ tx, onToggleInclude, onMatch, onAddAsNew, onUnmatch, isLocked }: TransactionRowProps) {
+  const isMatched = tx.status === "matched";
+  const isExcluded = tx.status === "excluded";
+  const reconciliationStatus = tx.reconciliationStatus ?? "unreconciled";
+  const isReconciled = reconciliationStatus === "reconciled";
+  const hasCandidate = tx.matchCandidates && tx.matchCandidates.length > 0;
+  const actionsDisabled = isLocked;
 
   return (
     <article className={`group flex flex-col gap-3 p-4 transition-colors hover:bg-slate-50/50 ${!tx.includedInSession ? "opacity-60" : ""}`}>
@@ -872,7 +1063,8 @@ function TransactionRow({ tx, onToggleInclude, refresh }: TransactionRowProps) {
               type="checkbox"
               checked={tx.includedInSession}
               onChange={() => onToggleInclude(tx.id)}
-              className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900/20 cursor-pointer"
+              disabled={actionsDisabled}
+              className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900/20 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
             />
           </div>
 
@@ -894,22 +1086,16 @@ function TransactionRow({ tx, onToggleInclude, refresh }: TransactionRowProps) {
                 <p className="text-xs text-slate-500 mb-1">{tx.counterparty}</p>
               )}
 
-              {hasSuggestion && !isReconciled && (
-                <div className="flex flex-wrap items-center gap-2 mt-1">
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700 border border-emerald-100">
-                    <Check className="h-3 w-3" />
-                    Suggested match · {(tx.match_confidence! * 100).toFixed(0)}%
+              {/* Inline warning for transactions without match candidates */}
+              {!isReconciled && !hasCandidate && !isExcluded && (
+                <div className="flex items-start gap-1.5 mt-1 text-xs text-orange-600">
+                  <svg className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  <span className="leading-tight">
+                    No existing invoice, expense, or journal entry found with this amount/date.
+                    If you continue, this will be added as a new transaction in your books.
                   </span>
-                  {tx.match_type === "RULE" && (
-                    <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
-                      Rule
-                    </span>
-                  )}
-                  {tx.engine_reason && (
-                    <span className="text-[11px] text-slate-400 italic">
-                      {tx.engine_reason}
-                    </span>
-                  )}
                 </div>
               )}
             </div>
@@ -920,43 +1106,44 @@ function TransactionRow({ tx, onToggleInclude, refresh }: TransactionRowProps) {
           <span className="text-sm font-bold text-slate-900 font-mono">
             {formatAmount(tx.amount, tx.currency)}
           </span>
-          <StatusPill status={tx.status} />
+          <StatusPill status={isReconciled ? "matched" as RecoStatus : tx.status} />
+          <span className="text-[10px] text-slate-500">{isReconciled ? "Reconciled" : "Unreconciled"}</span>
 
           <div className="flex gap-2 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            {hasSuggestion && !isReconciled ? (
-              <>
+            {!isMatched && !isExcluded && !isReconciled ? (
+              hasCandidate ? (
                 <Button
                   size="sm"
-                  onClick={handleConfirm}
+                  onClick={() => onMatch(tx.id)}
+                  disabled={actionsDisabled}
                   className="h-7 rounded-full bg-slate-900 px-3 text-[11px] font-medium text-white hover:bg-slate-800"
-                >
-                  Confirm
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 rounded-full border-slate-200 px-3 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
-                >
-                  Review
-                </Button>
-              </>
-            ) : !isReconciled ? (
-              <>
-                <Button
-                  size="sm"
-                  className="h-7 rounded-full bg-slate-900 px-3 text-[11px] font-medium text-white hover:bg-slate-800"
-                >
-                  Categorize
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 rounded-full border-slate-200 px-3 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                  title={`Match confidence: ${Math.round((tx.matchCandidates![0].confidence || 1.0) * 100)}%`}
                 >
                   Match
                 </Button>
-              </>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onAddAsNew(tx.id)}
+                  disabled={actionsDisabled}
+                  className="h-7 rounded-full border-slate-200 px-3 text-[11px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                >
+                  Add as new
+                </Button>
+              )
             ) : null}
+            {isMatched && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onUnmatch(tx.id)}
+                disabled={actionsDisabled}
+                className="h-7 rounded-full border-slate-200 px-3 text-[11px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+              >
+                Unmatch
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -971,18 +1158,13 @@ interface StatusPillProps {
 function StatusPill({ status }: StatusPillProps) {
   const base = "inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide";
   switch (status) {
-    case "NEW":
+    case "new":
       return <span className={`${base} bg-slate-100 text-slate-600`}>New</span>;
-    case "SUGGESTED":
-      return <span className={`${base} bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100`}>Suggested</span>;
-    case "MATCHED":
-    case "MATCHED_SINGLE":
-    case "MATCHED_MULTI":
-    case "RECONCILED":
+    case "matched":
       return <span className={`${base} bg-sky-50 text-sky-700 ring-1 ring-sky-100`}>Matched</span>;
-    case "PARTIAL":
+    case "partial":
       return <span className={`${base} bg-amber-50 text-amber-700 ring-1 ring-amber-100`}>Partial</span>;
-    case "EXCLUDED":
+    case "excluded":
       return <span className={`${base} bg-slate-50 text-slate-400`}>Excluded</span>;
     default:
       return null;
@@ -991,19 +1173,48 @@ function StatusPill({ status }: StatusPillProps) {
 
 interface AdjustmentsPanelProps {
   session: RecoSession | null;
+  isLocked: boolean;
   onUpdate: () => void;
 }
 
-function AdjustmentsPanel({ session, onUpdate }: AdjustmentsPanelProps) {
+function AdjustmentsPanel({ session, isLocked, onUpdate }: AdjustmentsPanelProps) {
   const [type, setType] = useState("Bank fee");
   const [amount, setAmount] = useState("");
   const [account, setAccount] = useState("Service charges");
   const [loading, setLoading] = useState(false);
 
+  const sanitizeAmount = (value: string) => {
+    const cleaned = value.replace(/[^0-9.-]/g, "");
+    const negative = cleaned.startsWith("-");
+    const unsigned = cleaned.replace(/-/g, "");
+    const parts = unsigned.split(".");
+    const head = parts.shift() || "";
+    const decimal = parts.length ? parts.join("") : "";
+    const combined = decimal ? `${head || "0"}.${decimal}` : head;
+    if (!combined && negative) return "-";
+    return negative ? `-${combined}` : combined;
+  };
+
+  const handleAmountChange = (val: string) => {
+    setAmount(sanitizeAmount(val));
+  };
+
+  const handleAmountBlur = () => {
+    if (!amount) return;
+    const parsed = Number(amount);
+    if (Number.isNaN(parsed)) {
+      setAmount("");
+      return;
+    }
+    setAmount(parsed.toFixed(2));
+  };
+
   if (!session) return null;
 
   const handleAdd = async () => {
-    if (!amount) return;
+    if (isLocked) return;
+    const cleanedAmount = sanitizeAmount(amount);
+    if (!cleanedAmount || cleanedAmount === ".") return;
     setLoading(true);
     try {
       await fetchJson("/api/reconciliation/create-adjustment/", {
@@ -1015,7 +1226,7 @@ function AdjustmentsPanel({ session, onUpdate }: AdjustmentsPanelProps) {
         body: JSON.stringify({
           session_id: session.id,
           type,
-          amount,
+          amount: cleanedAmount,
           account_name: account
         })
       });
@@ -1045,8 +1256,8 @@ function AdjustmentsPanel({ session, onUpdate }: AdjustmentsPanelProps) {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="flex flex-col gap-1.5">
           <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Type</label>
-          <Select value={type} onValueChange={setType}>
-            <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-slate-50 text-sm">
+          <Select value={type} onValueChange={setType} disabled={isLocked}>
+            <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-slate-50 text-sm disabled:opacity-60">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -1060,10 +1271,13 @@ function AdjustmentsPanel({ session, onUpdate }: AdjustmentsPanelProps) {
           <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Amount</label>
           <div className="relative">
             <input
-              type="number"
+              type="text"
+              inputMode="decimal"
               value={amount}
-              onChange={e => setAmount(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-medium outline-none focus:border-slate-400 focus:ring-0"
+              onChange={e => handleAmountChange(e.target.value)}
+              onBlur={handleAmountBlur}
+              disabled={isLocked}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-medium outline-none focus:border-slate-400 focus:ring-0 disabled:opacity-60"
               placeholder="0.00"
             />
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium">
@@ -1073,8 +1287,8 @@ function AdjustmentsPanel({ session, onUpdate }: AdjustmentsPanelProps) {
         </div>
         <div className="flex flex-col gap-1.5">
           <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Account</label>
-          <Select value={account} onValueChange={setAccount}>
-            <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-slate-50 text-sm">
+          <Select value={account} onValueChange={setAccount} disabled={isLocked}>
+            <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-slate-50 text-sm disabled:opacity-60">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -1092,12 +1306,17 @@ function AdjustmentsPanel({ session, onUpdate }: AdjustmentsPanelProps) {
         </p>
         <Button
           onClick={handleAdd}
-          disabled={loading || !amount}
-          className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-medium text-white hover:bg-slate-800"
+          disabled={loading || !amount || isLocked}
+          className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-60"
         >
           {loading ? "Adding..." : "Add adjustment"}
         </Button>
       </div>
+      {isLocked && (
+        <p className="text-[11px] text-slate-500">
+          This period is completed and adjustments are locked.
+        </p>
+      )}
     </section>
   );
 }

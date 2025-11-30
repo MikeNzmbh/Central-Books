@@ -1,5 +1,5 @@
-from datetime import date
-from decimal import Decimal
+from datetime import date, timedelta
+from decimal import Decimal, ROUND_HALF_UP
 
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse, HttpRequest, HttpResponse
@@ -8,6 +8,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
 from django.db import models
+from django.db.models import Q
 from core.utils import get_current_business
 from core.services.reconciliation_engine import ReconciliationEngine
 from core.services.bank_reconciliation import BankReconciliationService
@@ -20,6 +21,8 @@ from core.models import (
     BankReconciliationMatch,
     Account,
     BankRule,
+    ReconciliationSession,
+    JournalEntry,
 )
 
 
@@ -119,8 +122,11 @@ def _period_options_for_account(bank_account: BankAccount) -> list[dict]:
     return periods
 
 
-def _json_error(message, status=400):
-    return JsonResponse({"error": message}, status=status)
+def _json_error(message, status=400, code: str | None = None):
+    payload = {"error": message}
+    if code:
+        payload["code"] = code
+    return JsonResponse(payload, status=status)
 
 
 def _parse_json(request):
@@ -137,6 +143,741 @@ def _ensure_business(request):
     if business is None:
         return None, JsonResponse({"error": "No business selected"}, status=401)
     return business, None
+
+
+# --- Reconciliation V1 (stable API for React UI) ---
+
+def _decimal_from_payload(value, default: Decimal = Decimal("0.00")) -> Decimal:
+    try:
+        return Decimal(str(value))
+    except Exception:
+        return default
+
+
+def _quantize_money(value: Decimal) -> Decimal:
+    return (value or Decimal("0.00")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+def _decimal_to_str(value: Decimal) -> str:
+    return format(_quantize_money(value), "f")
+
+
+def _decimal_to_float(value: Decimal) -> float:
+    return float(_quantize_money(value))
+
+
+def _account_balance_as_of(account: Account | None, as_of: date) -> Decimal:
+    """
+    Compute account balance up to and including the provided date.
+    Mirrors get_account_balance but constrained by date.
+    """
+    if not account or not as_of:
+        return Decimal("0.00")
+
+    agg = (
+        JournalLine.objects.filter(
+            account=account,
+            journal_entry__business=account.business,
+            journal_entry__is_void=False,
+            journal_entry__date__lte=as_of,
+        ).aggregate(
+            debit_sum=models.Sum("debit"),
+            credit_sum=models.Sum("credit"),
+        )
+    )
+    debit = agg["debit_sum"] or Decimal("0.00")
+    credit = agg["credit_sum"] or Decimal("0.00")
+
+    if account.type in (Account.AccountType.ASSET, Account.AccountType.EXPENSE):
+        return debit - credit
+    return credit - debit
+
+
+def _periods_for_account_v1(bank_account: BankAccount) -> list[dict]:
+    """
+    Return month buckets spanning available transactions.
+    Falls back to current month when no activity exists.
+    """
+    import calendar
+
+    tx_dates = list(
+        BankTransaction.objects.filter(bank_account=bank_account).values_list("date", flat=True)
+    )
+    tx_dates = [d for d in tx_dates if d]
+
+    def _period_payload(start: date) -> dict:
+        _, last_day = calendar.monthrange(start.year, start.month)
+        end = date(start.year, start.month, last_day)
+        pid = f"{start.year}-{start.month:02d}"
+        is_locked = ReconciliationSession.objects.filter(
+            bank_account=bank_account,
+            statement_start_date=start,
+            statement_end_date=end,
+            status=ReconciliationSession.Status.COMPLETED,
+        ).exists()
+        current_month = timezone.localdate().strftime("%Y-%m")
+        return {
+            "id": pid,
+            "label": start.strftime("%B %Y"),
+            "start_date": start.isoformat(),
+            "end_date": end.isoformat(),
+            "is_current": pid == current_month,
+            "is_locked": is_locked,
+        }
+
+    if not tx_dates:
+        start = timezone.localdate().replace(day=1)
+        return [_period_payload(start)]
+
+    first = date(min(tx_dates).year, min(tx_dates).month, 1)
+    last = date(max(tx_dates).year, max(tx_dates).month, 1)
+
+    periods: list[dict] = []
+    year, month = first.year, first.month
+    while (year < last.year) or (year == last.year and month <= last.month):
+        periods.append(_period_payload(date(year, month, 1)))
+        month += 1
+        if month > 12:
+            month = 1
+            year += 1
+
+    # Most recent first for dropdown convenience
+    periods.sort(key=lambda p: p["start_date"], reverse=True)
+    return periods
+
+
+def _parse_iso_date(value: str | None, field: str) -> date:
+    if not value:
+        raise ValueError(f"{field} is required")
+    try:
+        return date.fromisoformat(value)
+    except ValueError as exc:  # pragma: no cover - defensive
+        raise ValueError(f"Invalid {field} format. Use YYYY-MM-DD") from exc
+
+
+def _simplified_status(tx: BankTransaction) -> str:
+    if tx.status == BankTransaction.TransactionStatus.EXCLUDED:
+        return "excluded"
+    if tx.status == BankTransaction.TransactionStatus.PARTIAL:
+        return "partial"
+    if tx.is_reconciled or tx.status in (
+        BankTransaction.TransactionStatus.MATCHED,
+        BankTransaction.TransactionStatus.MATCHED_SINGLE,
+        BankTransaction.TransactionStatus.MATCHED_MULTI,
+        BankTransaction.TransactionStatus.RECONCILED,
+        BankTransaction.TransactionStatus.LEGACY_CREATED,
+    ):
+        return "matched"
+    return "new"
+
+
+def _serialize_tx(tx: BankTransaction) -> dict:
+    status = _simplified_status(tx)
+    counterparty = None
+    if tx.customer:
+        counterparty = tx.customer.name
+    elif tx.supplier:
+        counterparty = tx.supplier.name
+
+    rec_status = tx.reconciliation_status or BankTransaction.RECO_STATUS_UNRECONCILED
+    if tx.status == BankTransaction.TransactionStatus.EXCLUDED:
+        rec_status = BankTransaction.RECO_STATUS_RECONCILED
+
+    return {
+        "id": tx.id,
+        "date": tx.date.isoformat() if tx.date else "",
+        "description": tx.description or "",
+        "counterparty": counterparty,
+        "amount": _decimal_to_str(tx.amount or Decimal("0.00")),
+        "currency": tx.bank_account.business.currency or "USD",
+        "status": status,
+        "reconciliation_status": rec_status,
+        "match_confidence": float(tx.suggestion_confidence) / 100.0 if tx.suggestion_confidence else None,
+        "engine_reason": tx.suggestion_reason,
+        "includedInSession": status != "excluded",
+    }
+
+
+def _session_feed(bank_account: BankAccount, start_date: date, end_date: date) -> dict:
+    qs = (
+        BankTransaction.objects.filter(
+            bank_account=bank_account,
+            date__gte=start_date,
+            date__lte=end_date,
+        )
+        .select_related("customer", "supplier")
+        .order_by("-date", "-id")
+    )
+
+    buckets = {
+        "new": [],
+        "matched": [],
+        "partial": [],
+        "excluded": [],
+    }
+
+    for tx in qs:
+        payload = _serialize_tx(tx)
+        buckets[_simplified_status(tx)].append(payload)
+    return buckets
+
+
+def _session_transactions_queryset(session: ReconciliationSession):
+    return BankTransaction.objects.filter(
+        bank_account=session.bank_account,
+        date__gte=session.statement_start_date,
+        date__lte=session.statement_end_date,
+    )
+
+
+def _cleared_sum_for_session(session: ReconciliationSession) -> Decimal:
+    qs = _session_transactions_queryset(session).exclude(
+        status=BankTransaction.TransactionStatus.EXCLUDED
+    )
+    cleared_qs = qs.filter(
+        Q(reconciliation_status=BankTransaction.RECO_STATUS_RECONCILED)
+        | Q(status=BankTransaction.TransactionStatus.PARTIAL)
+        | Q(reconciliation_status__iexact="partial")
+    )
+    cleared_sum = cleared_qs.aggregate(total=models.Sum("amount"))["total"] or Decimal("0.00")
+    return _quantize_money(cleared_sum)
+
+
+def _get_or_create_session(business, bank_account: BankAccount, start_date: date, end_date: date):
+    """
+    Ensure a reconciliation session exists for a period.
+    Seeds opening/statement balance from the ledger on first creation.
+    """
+    start_opening = _account_balance_as_of(bank_account.account, start_date - timedelta(days=1))
+    end_ledger = _account_balance_as_of(bank_account.account, end_date)
+    session, created = ReconciliationSession.objects.get_or_create(
+        business=business,
+        bank_account=bank_account,
+        statement_start_date=start_date,
+        statement_end_date=end_date,
+        defaults={
+            "opening_balance": start_opening,
+            "closing_balance": end_ledger,
+            "status": ReconciliationSession.Status.DRAFT,
+        },
+    )
+
+    updates = []
+    if created and session.closing_balance == Decimal("0.0000"):
+        session.closing_balance = end_ledger
+        updates.append("closing_balance")
+    if session.opening_balance is None:
+        session.opening_balance = start_opening
+        updates.append("opening_balance")
+    if updates:
+        session.save(update_fields=updates)
+    return session
+
+
+def _session_payload(session: ReconciliationSession, include_periods: bool = False) -> dict:
+    ledger_end = _account_balance_as_of(session.bank_account.account, session.statement_end_date)
+    feed = _session_feed(session.bank_account, session.statement_start_date, session.statement_end_date)
+
+    total_txs = sum(len(v) for v in feed.values())
+
+    def _is_reconciled(item: dict) -> bool:
+        if item.get("status") == "excluded":
+            return True
+        return item.get("reconciliation_status") == BankTransaction.RECO_STATUS_RECONCILED
+
+    reconciled_count = len(
+        [i for bucket in feed.values() for i in bucket if _is_reconciled(i)]
+    )
+    reconciled_percent = float(round((reconciled_count / total_txs * 100), 2)) if total_txs else 0.0
+    unreconciled_count = total_txs - reconciled_count
+    cleared_sum = _cleared_sum_for_session(session)
+    cleared_balance = _quantize_money(session.opening_balance + cleared_sum)
+    difference = _quantize_money(session.closing_balance - cleared_balance)
+
+    payload = {
+        "session": {
+            "id": session.id,
+            "bank_account": session.bank_account.id,
+            "period_start": session.statement_start_date.isoformat(),
+            "period_end": session.statement_end_date.isoformat(),
+            "opening_balance": _decimal_to_str(session.opening_balance),
+            "statement_ending_balance": _decimal_to_str(session.closing_balance),
+            "ledger_ending_balance": _decimal_to_str(ledger_end),
+            "cleared_balance": _decimal_to_str(cleared_balance),
+            "difference": _decimal_to_str(difference),
+            "status": session.status,
+            "completed_at": session.completed_at.isoformat() if session.completed_at else None,
+            "reconciled_percent": reconciled_percent,
+            "total_transactions": total_txs,
+            "unreconciled_count": unreconciled_count,
+            "reconciled_count": reconciled_count,
+        },
+        "feed": feed,
+        "bank_account": {
+            "id": session.bank_account.id,
+            "name": session.bank_account.name,
+            "currency": session.bank_account.business.currency or "USD",
+        },
+        "period": {
+            "start_date": session.statement_start_date.isoformat(),
+            "end_date": session.statement_end_date.isoformat(),
+        },
+    }
+    if include_periods:
+        payload["periods"] = _periods_for_account_v1(session.bank_account)
+    return payload
+
+
+def _get_or_create_suspense_account(business) -> Account:
+    """
+    Get or create an 'Uncategorized' expense account for transactions without a category.
+    This serves as a fallback when auto-creating journal entries.
+    """
+    account, created = Account.objects.get_or_create(
+        business=business,
+        code="9999",
+        defaults={
+            "name": "Uncategorized Transactions",
+            "type": Account.AccountType.EXPENSE,
+            "description": "Auto-created holding account for uncategorized bank transactions",
+            "is_active": True,
+        },
+    )
+    return account
+
+
+def _create_simple_entry_for_tx(session: ReconciliationSession, bank_tx: BankTransaction) -> JournalEntry:
+    """
+    Auto-create a simple double-entry journal entry for a bank transaction.
+    
+    Logic:
+    - Money OUT (negative amount):   Debit Expense/Category, Credit Bank
+    - Money IN (positive amount):    Debit Bank, Credit Income/Category
+    
+    Falls back to Uncategorized account if no category is mapped.
+    """
+    business = session.business
+    bank_account_ledger = session.bank_account.account
+    
+    if not bank_account_ledger:
+        raise ValueError(f"Bank account {session.bank_account.name} has no linked ledger account")
+    
+    # Determine the offsetting account (category or suspense)
+    offset_account = None
+    if bank_tx.category and bank_tx.category.account:
+        offset_account = bank_tx.category.account
+    else:
+        # Use suspense/uncategorized account
+        offset_account = _get_or_create_suspense_account(business)
+    
+    # Create journal entry
+    je = JournalEntry.objects.create(
+        business=business,
+        date=bank_tx.date or timezone.localdate(),
+        description=bank_tx.description or "Bank transaction",
+    )
+    
+    # Absolute amount for double-entry
+    abs_amount = abs(bank_tx.amount or Decimal("0.00"))
+    
+    # Create journal lines based on transaction direction
+    if bank_tx.amount < 0:
+        # Money OUT: Debit expense/category, Credit bank
+        JournalLine.objects.create(
+            journal_entry=je,
+            account=offset_account,
+            debit=abs_amount,
+            credit=Decimal("0.0000"),
+            description=f"Auto-matched: {bank_tx.description or 'Bank transaction'}",
+        )
+        JournalLine.objects.create(
+            journal_entry=je,
+            account=bank_account_ledger,
+            debit=Decimal("0.0000"),
+            credit=abs_amount,
+            description=f"Auto-matched: {bank_tx.description or 'Bank transaction'}",
+        )
+    else:
+        # Money IN: Debit bank, Credit income/category
+        JournalLine.objects.create(
+            journal_entry=je,
+            account=bank_account_ledger,
+            debit=abs_amount,
+            credit=Decimal("0.0000"),
+            description=f"Auto-matched: {bank_tx.description or 'Bank transaction'}",
+        )
+        JournalLine.objects.create(
+            journal_entry=je,
+            account=offset_account,
+            debit=Decimal("0.0000"),
+            credit=abs_amount,
+            description=f"Auto-matched: {bank_tx.description or 'Bank transaction'}",
+        )
+    
+    return je
+
+
+def _apply_match(session: ReconciliationSession, bank_tx: BankTransaction, journal_entry: JournalEntry, user):
+    """
+    Link a bank transaction to a journal entry and mark both sides reconciled.
+    """
+    # Clear existing matches to avoid duplicates
+    BankReconciliationMatch.objects.filter(bank_transaction=bank_tx).delete()
+    ts = timezone.now()
+    match = BankReconciliationMatch.objects.create(
+        bank_transaction=bank_tx,
+        journal_entry=journal_entry,
+        match_type="ONE_TO_ONE",
+        match_confidence=Decimal("1.00"),
+        matched_amount=abs(bank_tx.amount or Decimal("0.00")),
+        reconciled_by=user,
+    )
+
+    bank_tx.is_reconciled = True
+    bank_tx.reconciled_at = ts
+    bank_tx.status = BankTransaction.TransactionStatus.MATCHED
+    bank_tx.reconciliation_status = BankTransaction.RECO_STATUS_RECONCILED
+    bank_tx.allocated_amount = abs(bank_tx.amount or Decimal("0.00"))
+    bank_tx.reconciliation_session = session
+    bank_tx.posted_journal_entry = journal_entry
+    bank_tx.save(
+        update_fields=[
+            "is_reconciled",
+            "reconciled_at",
+            "status",
+            "reconciliation_status",
+            "allocated_amount",
+            "reconciliation_session",
+            "posted_journal_entry",
+        ]
+    )
+
+    if bank_tx.bank_account.account:
+        JournalLine.objects.filter(
+            journal_entry=journal_entry, account=bank_tx.bank_account.account
+        ).update(
+            is_reconciled=True,
+            reconciled_at=ts,
+            reconciliation_session=session,
+        )
+    return match
+
+
+@login_required
+@require_GET
+def api_reconciliation_accounts_v1(request: HttpRequest):
+    business, error = _ensure_business(request)
+    if error:
+        return error
+
+    accounts = (
+        BankAccount.objects.filter(business=business, is_active=True)
+        .select_related("account")
+        .order_by("name")
+    )
+    data = [
+        {"id": acc.id, "name": acc.name, "currency": business.currency or "USD"}
+        for acc in accounts
+    ]
+    return JsonResponse(data, safe=False)
+
+
+@login_required
+@require_GET
+def api_reconciliation_periods_v1(request: HttpRequest, account_id: int):
+    business, error = _ensure_business(request)
+    if error:
+        return error
+
+    bank_account = get_object_or_404(BankAccount, pk=account_id, business=business)
+    periods = _periods_for_account_v1(bank_account)
+    return JsonResponse(periods, safe=False)
+
+
+@login_required
+@require_GET
+def api_reconciliation_session_v1(request: HttpRequest):
+    business, error = _ensure_business(request)
+    if error:
+        return error
+
+    account_id = request.GET.get("account")
+    start_raw = request.GET.get("start")
+    end_raw = request.GET.get("end")
+    if not account_id:
+        return _json_error("account is required")
+
+    bank_account = get_object_or_404(BankAccount, pk=account_id, business=business)
+
+    if not start_raw or not end_raw:
+        import calendar
+
+        today = timezone.localdate()
+        start_date = today.replace(day=1)
+        _, last_day = calendar.monthrange(today.year, today.month)
+        end_date = date(today.year, today.month, last_day)
+    else:
+        try:
+            start_date = _parse_iso_date(start_raw, "start")
+            end_date = _parse_iso_date(end_raw, "end")
+        except ValueError as exc:
+            return _json_error(str(exc))
+    if start_date > end_date:
+        return _json_error("start must be on or before end")
+
+    session = _get_or_create_session(business, bank_account, start_date, end_date)
+    return JsonResponse(_session_payload(session, include_periods=True))
+
+
+@login_required
+@require_POST
+def api_reconciliation_set_statement_balance_v1(request: HttpRequest, session_id: int):
+    business, error = _ensure_business(request)
+    if error:
+        return error
+
+    session = get_object_or_404(ReconciliationSession, pk=session_id, business=business)
+    body = _parse_json(request) or {}
+    opening = body.get("opening_balance")
+    statement = body.get("statement_ending_balance")
+
+    if opening is None and statement is None:
+        return _json_error("opening_balance or statement_ending_balance is required")
+
+    updates = []
+    if opening is not None:
+        session.opening_balance = _decimal_from_payload(opening, session.opening_balance)
+        updates.append("opening_balance")
+    if statement is not None:
+        session.closing_balance = _decimal_from_payload(statement, session.closing_balance)
+        updates.append("closing_balance")
+    if updates:
+        session.save(update_fields=updates)
+
+    return JsonResponse(_session_payload(session))
+
+
+@login_required
+@require_POST
+def api_reconciliation_match_v1(request: HttpRequest, session_id: int):
+    business, error = _ensure_business(request)
+    if error:
+        return error
+
+    session = get_object_or_404(ReconciliationSession, pk=session_id, business=business)
+    body = _parse_json(request) or {}
+    tx_id = body.get("transaction_id")
+    if not tx_id:
+        return _json_error("transaction_id is required")
+
+    bank_tx = get_object_or_404(BankTransaction, pk=tx_id, bank_account=session.bank_account)
+    if bank_tx.date and (
+        bank_tx.date < session.statement_start_date or bank_tx.date > session.statement_end_date
+    ):
+        return _json_error("Transaction is outside of the session period")
+
+    journal_entry_id = body.get("journal_entry_id")
+    if not journal_entry_id:
+        return _json_error(
+            "No existing transaction found to match. Create an invoice, expense, or journal entry first, or use 'Add as new' instead."
+        )
+
+    journal_entry = get_object_or_404(JournalEntry, pk=journal_entry_id, business=business)
+
+    _apply_match(session, bank_tx, journal_entry, request.user)
+    return JsonResponse(_session_payload(session))
+
+
+@login_required
+@require_POST
+def api_reconciliation_unmatch_v1(request: HttpRequest, session_id: int):
+    business, error = _ensure_business(request)
+    if error:
+        return error
+
+    session = get_object_or_404(ReconciliationSession, pk=session_id, business=business)
+    body = _parse_json(request) or {}
+    tx_id = body.get("transaction_id")
+    if not tx_id:
+        return _json_error("transaction_id is required")
+
+    bank_tx = get_object_or_404(BankTransaction, pk=tx_id, bank_account=session.bank_account)
+    match_entries = list(
+        BankReconciliationMatch.objects.filter(bank_transaction=bank_tx).values_list(
+            "journal_entry_id", flat=True
+        )
+    )
+    BankReconciliationMatch.objects.filter(bank_transaction=bank_tx).delete()
+
+    bank_tx.status = BankTransaction.TransactionStatus.NEW
+    bank_tx.is_reconciled = False
+    bank_tx.reconciliation_status = BankTransaction.RECO_STATUS_UNRECONCILED
+    bank_tx.allocated_amount = Decimal("0.0000")
+    bank_tx.reconciled_at = None
+    bank_tx.posted_journal_entry = None
+    if bank_tx.reconciliation_session_id == session.id:
+        bank_tx.reconciliation_session = None
+    bank_tx.save(
+        update_fields=[
+            "status",
+            "is_reconciled",
+            "allocated_amount",
+            "reconciled_at",
+            "posted_journal_entry",
+            "reconciliation_session",
+            "reconciliation_status",
+        ]
+    )
+
+    if bank_tx.bank_account.account and match_entries:
+        JournalLine.objects.filter(
+            journal_entry_id__in=match_entries, account=bank_tx.bank_account.account
+        ).update(
+            is_reconciled=False,
+            reconciled_at=None,
+            reconciliation_session=None,
+        )
+
+    return JsonResponse(_session_payload(session))
+
+
+@login_required
+@require_POST
+def api_reconciliation_exclude_v1(request: HttpRequest, session_id: int):
+    business, error = _ensure_business(request)
+    if error:
+        return error
+
+    session = get_object_or_404(ReconciliationSession, pk=session_id, business=business)
+    body = _parse_json(request) or {}
+    tx_id = body.get("transaction_id")
+    excluded = body.get("excluded", True)
+    if not tx_id:
+        return _json_error("transaction_id is required")
+
+    bank_tx = get_object_or_404(BankTransaction, pk=tx_id, bank_account=session.bank_account)
+    if excluded:
+        BankReconciliationMatch.objects.filter(bank_transaction=bank_tx).delete()
+        bank_tx.status = BankTransaction.TransactionStatus.EXCLUDED
+        bank_tx.is_reconciled = False
+        bank_tx.reconciled_at = None
+        bank_tx.reconciliation_session = session
+        bank_tx.allocated_amount = Decimal("0.0000")
+        bank_tx.posted_journal_entry = None
+        bank_tx.reconciliation_status = BankTransaction.RECO_STATUS_RECONCILED
+    else:
+        if bank_tx.status == BankTransaction.TransactionStatus.EXCLUDED:
+            bank_tx.status = BankTransaction.TransactionStatus.NEW
+        if bank_tx.reconciliation_session_id == session.id:
+            bank_tx.reconciliation_session = None
+        bank_tx.reconciliation_status = BankTransaction.RECO_STATUS_UNRECONCILED
+    bank_tx.save(
+        update_fields=[
+            "status",
+            "is_reconciled",
+            "reconciled_at",
+            "reconciliation_session",
+            "allocated_amount",
+            "posted_journal_entry",
+            "reconciliation_status",
+        ]
+    )
+
+    return JsonResponse(_session_payload(session))
+
+
+@login_required
+@require_GET
+def api_reconciliation_session_report(request: HttpRequest, session_id: int):
+    """
+    Detail endpoint used by the print view to load a reconciliation session by id.
+    """
+    business, error = _ensure_business(request)
+    if error:
+        return error
+
+    session = get_object_or_404(
+        ReconciliationSession.objects.select_related("bank_account", "bank_account__business"),
+        id=session_id,
+        business=business,
+    )
+
+    payload = _session_payload(session)
+    feed = payload.get("feed", {})
+    flattened = (feed.get("new", []) or []) + (feed.get("matched", []) or []) + (feed.get("partial", []) or []) + (feed.get("excluded", []) or [])
+
+    response = {
+        "bank_account": payload.get("bank_account", {}),
+        "period": payload.get("period", {}),
+        "opening_balance": float(session.opening_balance or 0),
+        "statement_ending_balance": float(session.closing_balance or 0),
+        "ledger_ending_balance": float(payload.get("session", {}).get("ledger_ending_balance") or 0),
+        "cleared_balance": float(payload.get("session", {}).get("cleared_balance") or 0),
+        "difference": float(payload.get("session", {}).get("difference") or 0),
+        "unreconciled_count": payload.get("session", {}).get("unreconciled_count", 0),
+        "reconciled_count": payload.get("session", {}).get("reconciled_count", 0),
+        "total_transactions": payload.get("session", {}).get("total_transactions", 0),
+        "feed": [
+            {
+                "id": item.get("id"),
+                "date": item.get("date"),
+                "description": item.get("description"),
+                "amount": float(item.get("amount") or 0),
+                "status": item.get("status"),
+                "reconciliation_status": item.get("reconciliation_status"),
+            }
+            for item in flattened
+        ],
+    }
+    return JsonResponse(response)
+
+
+def _validate_session_ready_for_completion(session: ReconciliationSession):
+    payload = _session_payload(session, include_periods=True)
+    session_data = payload.get("session", {})
+
+    difference = Decimal(str(session_data.get("difference") or "0"))
+    if abs(difference) > Decimal("0.01"):
+        return None, _json_error(
+            "Difference must be zero before completing this period.",
+            code="difference_not_zero",
+        )
+
+    unreconciled_count = int(session_data.get("unreconciled_count") or 0)
+    if unreconciled_count > 0:
+        return None, _json_error(
+            "You still have unreconciled transactions in this period.",
+            code="unreconciled_transactions_remaining",
+        )
+
+    return payload, None
+
+
+def _complete_session(session: ReconciliationSession):
+    payload, error = _validate_session_ready_for_completion(session)
+    if error:
+        return None, error
+
+    session.status = ReconciliationSession.Status.COMPLETED
+    session.completed_at = timezone.now()
+    session.save(update_fields=["status", "completed_at"])
+
+    # Recompute payload to reflect new status and ensure totals are fresh
+    return _session_payload(session, include_periods=True), None
+
+
+@login_required
+@require_POST
+def api_reconciliation_complete_v1(request: HttpRequest, session_id: int):
+    business, error = _ensure_business(request)
+    if error:
+        return error
+
+    session = get_object_or_404(ReconciliationSession, pk=session_id, business=business)
+    payload, error = _complete_session(session)
+    if error:
+        return error
+    return JsonResponse(payload)
 
 
 def _mark_reconciled(bank_tx: BankTransaction, journal_entry):
@@ -431,20 +1172,131 @@ def api_reconciliation_confirm_match(request: HttpRequest):
         # For this MVP, we'll assume rules just suggest categories and user must confirm creation
         pass
         
-    if je_id:
-        from core.models import JournalEntry
-        journal_entry = get_object_or_404(JournalEntry, pk=je_id, business=business)
-
-        BankReconciliationService.confirm_match(
-            bank_transaction=bank_tx,
-            journal_entry=journal_entry,
-            match_confidence=Decimal(str(confidence)),
-            user=request.user,
+    if not je_id:
+        return _json_error(
+            "No existing transaction found to match. Create an invoice, expense, or journal entry first, or use 'Add as new' instead."
         )
-        _mark_reconciled(bank_tx, journal_entry)
-        recompute_bank_transaction_status(bank_tx)
+
+    from core.models import JournalEntry
+    journal_entry = get_object_or_404(JournalEntry, pk=je_id, business=business)
+
+    BankReconciliationService.confirm_match(
+        bank_transaction=bank_tx,
+        journal_entry=journal_entry,
+        match_confidence=Decimal(str(confidence)),
+        user=request.user,
+    )
+    _mark_reconciled(bank_tx, journal_entry)
+    recompute_bank_transaction_status(bank_tx)
         
     return JsonResponse({"status": "ok"})
+
+
+@login_required
+@require_POST
+def api_reconciliation_add_as_new(request: HttpRequest):
+    """
+    Create a new journal entry from a bank transaction and mark it as reconciled.
+    This is used when there's no existing invoice/expense to match against.
+    """
+    business, error = _ensure_business(request)
+    if error:
+        return error
+    
+    body = _parse_json(request)
+    if not body:
+        return _json_error("Invalid JSON")
+    
+    bank_tx_id = body.get("bank_transaction_id")
+    session_id = body.get("session_id")
+    
+    if not bank_tx_id:
+        return _json_error("bank_transaction_id is required")
+    
+    bank_tx = get_object_or_404(
+        BankTransaction, pk=bank_tx_id, bank_account__business=business
+    )
+    
+    # Get session if provided
+    session = None
+    if session_id:
+        session = get_object_or_404(ReconciliationSession, pk=session_id, business=business)
+    
+    # Create a simple journal entry using the helper function
+    try:
+        je = _create_simple_entry_for_tx(session, bank_tx) if session else _create_simple_entry_for_tx_no_session(business, bank_tx)
+        
+        # Mark as reconciled
+        _mark_reconciled(bank_tx, je)
+        recompute_bank_transaction_status(bank_tx)
+        
+        return JsonResponse({
+            "status": "ok",
+            "journal_entry_id": je.id,
+            "transaction_id": bank_tx.id,
+        })
+    except ValueError as e:
+        return _json_error(str(e))
+
+
+def _create_simple_entry_for_tx_no_session(business, bank_tx: BankTransaction) -> JournalEntry:
+    """
+    Create a simple journal entry for a bank transaction when no session is available.
+    """
+    bank_account_ledger = bank_tx.bank_account.account
+    
+    if not bank_account_ledger:
+        raise ValueError(f"Bank account {bank_tx.bank_account.name} has no linked ledger account")
+    
+    # Determine the offsetting account
+    offset_account = None
+    if bank_tx.category and bank_tx.category.account:
+        offset_account = bank_tx.category.account
+    else:
+        offset_account = _get_or_create_suspense_account(business)
+    
+    # Create journal entry
+    je = JournalEntry.objects.create(
+        business=business,
+        date=bank_tx.date or timezone.localdate(),
+        description=bank_tx.description or "Bank transaction",
+    )
+    
+    abs_amount = abs(bank_tx.amount or Decimal("0.00"))
+    
+    # Create journal lines
+    if bank_tx.amount < 0:
+        JournalLine.objects.create(
+            journal_entry=je,
+            account=offset_account,
+            debit=abs_amount,
+            credit=Decimal("0.0000"),
+            description=f"Auto-added: {bank_tx.description or 'Bank transaction'}",
+        )
+        JournalLine.objects.create(
+            journal_entry=je,
+            account=bank_account_ledger,
+            debit=Decimal("0.0000"),
+            credit=abs_amount,
+            description=f"Auto-added: {bank_tx.description or 'Bank transaction'}",
+        )
+    else:
+        JournalLine.objects.create(
+            journal_entry=je,
+            account=bank_account_ledger,
+            debit=abs_amount,
+            credit=Decimal("0.0000"),
+            description=f"Auto-added: {bank_tx.description or 'Bank transaction'}",
+        )
+        JournalLine.objects.create(
+            journal_entry=je,
+            account=offset_account,
+            debit=Decimal("0.0000"),
+            credit=abs_amount,
+            description=f"Auto-added: {bank_tx.description or 'Bank transaction'}",
+        )
+    
+    return je
 
 
 @login_required
@@ -613,8 +1465,9 @@ def _mark_reconciled(bank_tx: BankTransaction, journal_entry):
     bank_tx.is_reconciled = True
     bank_tx.reconciled_at = ts
     bank_tx.status = BankTransaction.TransactionStatus.MATCHED
+    bank_tx.reconciliation_status = BankTransaction.RECO_STATUS_RECONCILED
     bank_tx.allocated_amount = abs(bank_tx.amount or 0)
-    bank_tx.save(update_fields=["is_reconciled", "reconciled_at", "status", "allocated_amount"])
+    bank_tx.save(update_fields=["is_reconciled", "reconciled_at", "status", "allocated_amount", "reconciliation_status"])
 
     bank_account = bank_tx.bank_account.account
     if bank_account:
@@ -934,6 +1787,10 @@ def api_reconciliation_feed(request: HttpRequest):
     opening_balance = float(session.opening_balance or Decimal("0"))
     statement_ending_balance = float(session.closing_balance or Decimal("0"))
     difference = statement_ending_balance - float(cleared_sum) - opening_balance
+    total_transactions = sum(len(v) for v in buckets.values())
+    reconciled_count = len(buckets["matched"])
+    unreconciled_count = total_transactions - reconciled_count
+    reconciled_percent = (reconciled_count / total_transactions * 100) if total_transactions else 0
 
     response = {
         "bank_account": {
@@ -954,6 +1811,10 @@ def api_reconciliation_feed(request: HttpRequest):
             "opening_balance": opening_balance,
             "statement_ending_balance": statement_ending_balance,
             "difference": difference,
+            "total_transactions": total_transactions,
+            "reconciled_count": reconciled_count,
+            "unreconciled_count": unreconciled_count,
+            "reconciled_percent": reconciled_percent,
         },
         "transactions": buckets,
     }
@@ -966,24 +1827,17 @@ def api_reconciliation_complete(request: HttpRequest):
     business, error = _ensure_business(request)
     if error: return error
     
-    body = _parse_json(request)
+    body = _parse_json(request) or {}
     session_id = body.get("session_id")
+    if not session_id:
+        return _json_error("session_id is required")
     session = get_object_or_404(ReconciliationSession, pk=session_id, business=business)
-    
-    # Recalculate difference to be safe
-    cleared_txs = BankTransaction.objects.filter(reconciliation_session=session, is_reconciled=True)
-    cleared_sum = cleared_txs.aggregate(total=models.Sum("amount"))["total"] or Decimal("0")
-    cleared_balance = session.opening_balance + cleared_sum
-    difference = session.closing_balance - cleared_balance
-    
-    if abs(difference) > Decimal("0.01"):
-        return _json_error(f"Cannot complete: Difference is {difference}")
-        
-    session.status = ReconciliationSession.Status.COMPLETED
-    session.completed_at = timezone.now()
-    session.save()
-    
-    return JsonResponse({"status": "ok"})
+
+    payload, error = _complete_session(session)
+    if error:
+        return error
+
+    return JsonResponse(payload)
 
 @login_required
 @require_POST
@@ -1035,7 +1889,8 @@ def api_reconciliation_create_adjustment(request: HttpRequest):
         is_reconciled=True,
         reconciled_at=timezone.now(),
         reconciliation_session=session,
-        allocated_amount=amount
+        allocated_amount=amount,
+        reconciliation_status=BankTransaction.RECO_STATUS_RECONCILED,
     )
     
     # 2. Create JournalEntry

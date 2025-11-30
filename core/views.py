@@ -3144,6 +3144,8 @@ def api_banking_feed_transactions(request):
                 "amount": float(tx.amount),
                 "status": tx.status,
                 "status_label": cast(Any, tx).get_status_display(),  # type: ignore[attr-defined]
+                "reconciliation_status": tx.reconciliation_status
+                or BankTransaction.RECO_STATUS_UNRECONCILED,
                 "allocated_amount": float(tx.allocated_amount or Decimal("0.00")),
                 "side": "IN" if tx.amount >= 0 else "OUT",
                 "category": tx.category.name if tx.category else "",

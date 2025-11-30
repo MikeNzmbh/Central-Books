@@ -1060,6 +1060,14 @@ class BankTransaction(models.Model):
         RECONCILED = "RECONCILED", "Reconciled"
         EXCLUDED = "EXCLUDED", "Excluded"
 
+    RECO_STATUS_UNRECONCILED = "unreconciled"
+    RECO_STATUS_RECONCILED = "reconciled"
+
+    RECONCILIATION_STATUS_CHOICES = [
+        (RECO_STATUS_UNRECONCILED, "Unreconciled"),
+        (RECO_STATUS_RECONCILED, "Reconciled"),
+    ]
+
     bank_account = models.ForeignKey(
         BankAccount,
         on_delete=models.CASCADE,
@@ -1146,6 +1154,12 @@ class BankTransaction(models.Model):
     )
     is_reconciled = models.BooleanField(default=False)
     reconciled_at = models.DateTimeField(null=True, blank=True)
+    reconciliation_status = models.CharField(
+        max_length=20,
+        choices=RECONCILIATION_STATUS_CHOICES,
+        default=RECO_STATUS_UNRECONCILED,
+        db_index=True,
+    )
     reconciliation_session = models.ForeignKey(
         "core.ReconciliationSession",
         on_delete=models.SET_NULL,

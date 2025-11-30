@@ -1,4 +1,5 @@
 import React, { useMemo } from "react";
+import { ReportExportButton } from "./ReportExportButton";
 
 export interface CashflowPeriodPoint {
   periodLabel: string;
@@ -72,9 +73,9 @@ const CashflowReportPage: React.FC<CashflowReportProps> = ({
   const maxPeriodTotal =
     trend.length > 0
       ? Math.max(
-          ...trend.map((p) => Math.max(p.inflows + p.outflows, Math.abs(p.net))),
-          1
-        )
+        ...trend.map((p) => Math.max(p.inflows + p.outflows, Math.abs(p.net))),
+        1
+      )
       : 1;
 
   const activitiesArray = [
@@ -118,9 +119,7 @@ const CashflowReportPage: React.FC<CashflowReportProps> = ({
                 Go to banking
               </a>
             )}
-            <button className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-100">
-              Export
-            </button>
+            <ReportExportButton to="/reports/cashflow/print/" />
           </div>
         </header>
 

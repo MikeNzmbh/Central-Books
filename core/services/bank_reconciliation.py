@@ -61,11 +61,23 @@ class BankReconciliationService:
             reconciled_by=user,
         )
 
-        # Update bank transaction status
+        # Update bank transaction status (link-only, no auto creation here)
         bank_transaction.status = BankTransaction.TransactionStatus.MATCHED_SINGLE
+        bank_transaction.is_reconciled = True
+        bank_transaction.reconciliation_status = BankTransaction.RECO_STATUS_RECONCILED
+        bank_transaction.reconciled_at = timezone.now()
         bank_transaction.allocated_amount = bank_transaction.amount
         bank_transaction.posted_journal_entry = journal_entry
-        bank_transaction.save(update_fields=["status", "allocated_amount", "posted_journal_entry"])
+        bank_transaction.save(
+            update_fields=[
+                "status",
+                "allocated_amount",
+                "posted_journal_entry",
+                "is_reconciled",
+                "reconciliation_status",
+                "reconciled_at",
+            ]
+        )
 
         return match
 

@@ -269,9 +269,8 @@ GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
 
 # Google OAuth provider configuration
-# Credentials are stored in the database via SocialApp (use setup_google_oauth)
-# and also read from GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET as a fallback so
-# production keeps working even if the DB seed command was skipped.
+# Credentials are stored ONLY in the database via SocialApp (use setup_google_oauth command)
+# The APP configuration below was causing MultipleObjectsReturned errors
 SOCIALACCOUNT_PROVIDERS = {
     "google": {
         "SCOPE": [
@@ -284,12 +283,8 @@ SOCIALACCOUNT_PROVIDERS = {
     }
 }
 
-if GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET:
-    SOCIALACCOUNT_PROVIDERS["google"]["APP"] = {
-        "client_id": GOOGLE_CLIENT_ID,
-        "secret": GOOGLE_CLIENT_SECRET,
-        "key": "",
-    }
+# NOTE: APP configuration removed - credentials must be in database SocialApp only
+# Run: python manage.py setup_google_oauth to configure
 
 
 LOGGING = {

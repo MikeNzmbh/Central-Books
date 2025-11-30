@@ -186,17 +186,17 @@ const SnapshotCard: React.FC<{ summary: OverviewSummary | null }> = ({ summary }
       </div>
       <div className="mt-4 grid gap-3 text-[11px] sm:grid-cols-3">
         <div className="rounded-2xl bg-slate-50 px-3 py-2">
-          <div className="text-[10px] uppercase tracking-[0.16em] text-slate-400">New to review</div>
+          <div className="text-[10px] uppercase tracking-[0.16em] text-slate-400 whitespace-nowrap">New to review</div>
           <div className="mt-1 text-lg font-semibold text-slate-900">{newToReview}</div>
           <p className="mt-0.5 text-[11px] text-slate-500">Spread across your connected accounts.</p>
         </div>
         <div className="rounded-2xl bg-slate-50 px-3 py-2">
-          <div className="text-[10px] uppercase tracking-[0.16em] text-slate-400">Created from feed</div>
+          <div className="text-[10px] uppercase tracking-[0.16em] text-slate-400 whitespace-nowrap">Created from feed</div>
           <div className="mt-1 text-lg font-semibold text-slate-900">{createdFromFeed}</div>
           <p className="mt-0.5 text-[11px] text-slate-500">Expenses &amp; income posted this week.</p>
         </div>
         <div className="rounded-2xl bg-slate-50 px-3 py-2">
-          <div className="text-[10px] uppercase tracking-[0.16em] text-slate-400">Matched to invoices</div>
+          <div className="text-[10px] uppercase tracking-[0.16em] text-slate-400 whitespace-nowrap">Matched to invoices</div>
           <div className="mt-1 text-lg font-semibold text-slate-900">{matchedToInvoices}</div>
           <p className="mt-0.5 text-[11px] text-slate-500">Payments matched to open invoices.</p>
         </div>

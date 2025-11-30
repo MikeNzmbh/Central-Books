@@ -55,6 +55,18 @@ export default defineConfig({
           __dirname,
           "src/reconciliation/reconciliation-entry.tsx"
         ),
+        "reconciliation-report": path.resolve(
+          __dirname,
+          "src/reconciliation/reconciliation-report-entry.tsx"
+        ),
+        "cashflow-report-print": path.resolve(
+          __dirname,
+          "src/reports/cashflow-report-print-entry.tsx"
+        ),
+        "pl-report-print": path.resolve(
+          __dirname,
+          "src/reports/pl-report-entry.tsx"
+        ),
       },
       output: {
         assetFileNames: "assets/[name]-[hash][extname]",

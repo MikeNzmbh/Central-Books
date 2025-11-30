@@ -133,6 +133,7 @@ type BankTransaction = {
   memo: string;
   statusCode: string;
   statusLabel: string;
+  reconciliationStatus?: string | null;
   amount: number;
 };
 
@@ -188,8 +189,11 @@ const randomTxId = () => `temp-${Math.random().toString(36).slice(2, 10)}`;
 const normalizeApiTransaction = (raw: any): BankTransaction => {
   const amount = Number(raw?.amount ?? 0);
   const type: BankTransaction["type"] = amount >= 0 ? "Deposit" : "Withdrawal";
-  const statusCode = String(raw?.status || "").toUpperCase();
-  const statusLabel = String(raw?.status_label || raw?.status || statusCode || "Status");
+  const recoStatus = String(raw?.reconciliation_status || "").toLowerCase();
+  const statusCode = recoStatus ? (recoStatus === "reconciled" ? "RECONCILED" : "UNRECONCILED") : String(raw?.status || "").toUpperCase();
+  const statusLabel = recoStatus
+    ? (recoStatus === "reconciled" ? "Reconciled" : "Unreconciled")
+    : String(raw?.status_label || raw?.status || statusCode || "Status");
   const payee = String(raw?.counterparty || raw?.description || raw?.memo || type);
   return {
     id: String(raw?.id ?? raw?.external_id ?? randomTxId()),
@@ -200,6 +204,7 @@ const normalizeApiTransaction = (raw: any): BankTransaction => {
     memo: String(raw?.memo || raw?.description || ""),
     statusCode,
     statusLabel,
+    reconciliationStatus: recoStatus || null,
     amount,
   };
 };
