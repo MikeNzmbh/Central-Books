@@ -21,6 +21,9 @@
       <div class="mb-card-body">
         <form method="post" class="space-y-4">
           {% csrf_token %}
+          {% if return_to %}
+          <input type="hidden" name="return_to" value="{{ return_to }}">
+          {% endif %}
 
           {% if form.non_field_errors %}
             <div class="mb-error">
@@ -124,7 +127,7 @@
           </div>
 
           <div class="flex gap-3">
-            <a href="{% url 'bank_account_list' %}" class="mb-btn mb-btn-pill mb-btn-secondary">Cancel</a>
+            <a href="{% if return_to %}{{ return_to }}{% else %}{% url 'bank_account_list' %}{% endif %}" class="mb-btn mb-btn-pill mb-btn-secondary">Cancel</a>
             <button type="submit" class="mb-btn mb-btn-pill mb-btn-primary">
               {% if is_edit %}Save changes{% else %}Create bank account{% endif %}
             </button>

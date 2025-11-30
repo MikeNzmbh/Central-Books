@@ -5,7 +5,7 @@ import json
 from collections import OrderedDict
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse, parse_qs, urlunparse
 
 from django.conf import settings
 from django.contrib import messages
@@ -487,6 +487,14 @@ def _resolve_next_url(request):
     ):
         return candidate
     return reverse("dashboard")
+
+
+def _append_query_param(url: str, key: str, value: str | int) -> str:
+    parsed = urlparse(url)
+    query = parse_qs(parsed.query)
+    query[key] = [str(value)]
+    new_query = urlencode(query, doseq=True)
+    return urlunparse(parsed._replace(query=new_query))
 
 
 def login_view(request):
@@ -2435,11 +2443,22 @@ def bank_account_create(request):
     if business is None:
         return redirect("business_setup")
 
+    return_to = (
+        request.POST.get("return_to")
+        or request.GET.get("returnTo")
+        or request.GET.get("return_to")
+    )
+
     if request.method == "POST":
         form = BankAccountForm(request.POST, business=business)
         if form.is_valid():
-            form.save()
+            bank_account = form.save()
             messages.success(request, "Bank account created.")
+            if return_to and url_has_allowed_host_and_scheme(
+                return_to, allowed_hosts={request.get_host()}
+            ):
+                redirect_url = _append_query_param(return_to, "bank_account", bank_account.id)
+                return redirect(redirect_url)
             return redirect("bank_account_list")
     else:
         form = BankAccountForm(business=business)
@@ -2452,6 +2471,7 @@ def bank_account_create(request):
             "form": form,
             "is_edit": False,
             "account": None,
+            "return_to": return_to,
         },
     )
 
@@ -2498,12 +2518,17 @@ class BankStatementImportView(LoginRequiredMixin, View):
         if preselect:
             initial["bank_account"] = preselect
         form = BankStatementImportForm(business=business, initial=initial)
+        bank_account_qs = form.fields["bank_account"].queryset
+        bank_account_count = bank_account_qs.count()
+        add_bank_account_url = f"{reverse('bank_account_create')}?{urlencode({'returnTo': request.get_full_path()})}"
         return render(
             request,
             self.template_name,
             {
                 "business": business,
                 "form": form,
+                "bank_account_count": bank_account_count,
+                "add_bank_account_url": add_bank_account_url,
             },
         )
 
@@ -2514,12 +2539,17 @@ class BankStatementImportView(LoginRequiredMixin, View):
 
         form = BankStatementImportForm(request.POST, request.FILES, business=business)
         if not form.is_valid():
+            bank_account_qs = form.fields["bank_account"].queryset
+            bank_account_count = bank_account_qs.count()
+            add_bank_account_url = f"{reverse('bank_account_create')}?{urlencode({'returnTo': request.get_full_path()})}"
             return render(
                 request,
                 self.template_name,
                 {
                     "business": business,
                     "form": form,
+                    "bank_account_count": bank_account_count,
+                    "add_bank_account_url": add_bank_account_url,
                 },
             )
 
