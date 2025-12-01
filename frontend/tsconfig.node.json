@@ -5,5 +5,5 @@
     "moduleResolution": "Node",
     "allowSyntheticDefaultImports": true
   },
-  "include": ["vite.config.ts", "types/node-shim.d.ts"]
+  "include": ["vite.config.mts", "types/node-shim.d.ts"]
 }

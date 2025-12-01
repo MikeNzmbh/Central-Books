@@ -4,7 +4,7 @@
 
 <head>
   <meta charset="utf-8">
-  <title>Mini-Books{% block title %}{% endblock %}</title>
+  <title>CERN Books{% block title %}{% endblock %}</title>
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
   {% vite_asset 'index' 'css' as css_path %}
   {% if css_path %}
@@ -364,6 +364,24 @@
       color: #047857;
       font-weight: 600;
     }
+
+    .impersonation-banner {
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 12px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+      font-size: 13px;
+      border-bottom: 1px solid #1e293b;
+    }
+
+    .impersonation-banner a {
+      color: #fde68a;
+      font-weight: 700;
+      text-decoration: underline;
+    }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -382,7 +400,7 @@
               {% endif %}
             </div>
             <div class="sidebar-brand-text">
-              <div class="sidebar-app-name">Mini-Books</div>
+              <div class="sidebar-app-name">CERN Books</div>
               <div class="sidebar-business-name">
                 {% if business %}{{ business.name }}{% else %}Your business{% endif %}
               </div>
@@ -512,6 +530,12 @@
     </aside>
 
     <main class="app-main">
+      {% if is_impersonating %}
+      <div class="impersonation-banner">
+        <div>You are impersonating {{ user.email }}.</div>
+        <a href="{% url 'internal-impersonate-stop' %}">Stop impersonating</a>
+      </div>
+      {% endif %}
       <div class="app-main-inner">
         {% block content %}{% endblock %}
       </div>

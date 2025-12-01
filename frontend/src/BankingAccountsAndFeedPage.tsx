@@ -173,7 +173,7 @@ const SnapshotCard: React.FC<{ summary: OverviewSummary | null }> = ({ summary }
             Bank feed snapshot
           </h2>
           <p className="text-xs leading-relaxed text-slate-600">
-            All connected bank accounts are kept in sync with your ledger. Once you import statements and review transactions, Mini-Books keeps your cash, Profit &amp; Loss, and tax summaries aligned automatically.
+            All connected bank accounts are kept in sync with your ledger. Once you import statements and review transactions, CERN Books keeps your cash, Profit &amp; Loss, and tax summaries aligned automatically.
           </p>
         </div>
         <div className="flex items-center">
@@ -213,7 +213,7 @@ const ComingSoonCard: React.FC = () => {
         Future updates will add live bank connections, reconciliation checklists, and smart alerts for unmatched items so you can keep every dollar in sync without manual uploads.
       </p>
       <div className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
-        You get the same bank feed engine as the big tools, but with a calmer, Mini-Books-first workflow.
+        You get the same bank feed engine as the big tools, but with a calmer, CERN Books-first workflow.
       </div>
     </section>
   );
@@ -224,7 +224,7 @@ const QuickActionsCard: React.FC = () => {
     <section className="rounded-3xl bg-white px-6 py-5 text-sm text-slate-700 shadow-[0_18px_45px_rgba(15,23,42,0.06)] ring-1 ring-slate-100">
       <h2 className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Quick actions</h2>
       <p className="mb-3 text-xs text-slate-600">
-        Clear your feed in a couple of focused passes. Mini-Books keeps it fun and lightweight.
+        Clear your feed in a couple of focused passes. CERN Books keeps it fun and lightweight.
       </p>
       <div className="grid gap-3 text-[11px] sm:grid-cols-3">
         <button className="rounded-2xl bg-slate-50 px-3 py-2 text-left font-medium text-slate-800 hover:bg-slate-100">

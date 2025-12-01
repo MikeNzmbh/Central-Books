@@ -107,6 +107,9 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     
+    # Third-party
+    "rest_framework",
+    
     # Sites framework (required by allauth)
     "django.contrib.sites",
     
@@ -119,6 +122,7 @@ INSTALLED_APPS = [
     # Project apps
     "core",
     "taxes",
+    "internal_admin",
 ]
 
 MIDDLEWARE = [
@@ -128,6 +132,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "core.middleware.DjangoAdminSuperuserMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "allauth.account.middleware.AccountMiddleware",  # Required for django-allauth
@@ -149,6 +154,7 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "core.context_processors.business_context",
+                "core.context_processors.impersonation_context",
             ],
         },
     }
@@ -192,6 +198,16 @@ LOGIN_URL = "/login"
 LOGIN_REDIRECT_URL = "/dashboard"
 LOGOUT_REDIRECT_URL = "/login"
 
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.SessionAuthentication",
+        "rest_framework.authentication.BasicAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
+}
+
 # Cookie flags (safe defaults; local dev unaffected when DEBUG=True)
 SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_HTTPONLY = False  # Django needs JS-less forms to read it
@@ -199,6 +215,8 @@ SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+INTERNAL_ADMIN_METRICS_MAX_AGE_MINUTES = 5
 
 # --- Sentry & production security hardening ---
 

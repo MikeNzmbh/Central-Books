@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Profit &amp; Loss – Mini-Books{% endblock %}
+{% block title %}Profit &amp; Loss – CERN Books{% endblock %}
 
 {% block content %}
 <div class="mb-pl-shell">
@@ -33,6 +33,7 @@
       <div class="mb-pl-meta-pills">
         <span class="mb-pill mb-pill-dark">Basis: Accrual</span>
         <span class="mb-pill">Compare to last period</span>
+        <a href="/reports/pl/print/" target="_blank" rel="noopener" class="mb-pill mb-pill-primary">Download PDF</a>
         <a href="{% url 'pl_export_csv' %}?{{ request.GET.urlencode }}" class="mb-pill mb-pill-primary">Export CSV</a>
       </div>
     </div>

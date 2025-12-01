@@ -1,6 +1,7 @@
 // frontend/src/reports/ProfitAndLossReportPage.tsx
 import React from "react";
 import { ProfitAndLossReportPreview } from "./ProfitAndLossReportPreview";
+import { ReportExportButton } from "./ReportExportButton";
 
 interface PLReportPageProps {
     periodLabel: string;

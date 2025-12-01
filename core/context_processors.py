@@ -9,3 +9,11 @@ def business_context(request):
         "business": business,
         "business_initials": initials,
     }
+
+
+def impersonation_context(request):
+    return {
+        "is_impersonating": request.session.get("is_impersonating", False),
+        "impersonator_user_id": request.session.get("impersonator_user_id"),
+        "impersonated_user_id": request.session.get("impersonated_user_id"),
+    }

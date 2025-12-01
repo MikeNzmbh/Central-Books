@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{% if is_edit %}Edit bank account{% else %}New bank account{% endif %} – Mini-Books{% endblock %}
+{% block title %}{% if is_edit %}Edit bank account{% else %}New bank account{% endif %} – CERN Books{% endblock %}
 
 {% block content %}
 <div class="mb-page-shell">
@@ -11,7 +11,7 @@
         {% if is_edit %}Edit bank account{% else %}New bank account{% endif %}
       </h1>
       <p class="mb-page-subtitle">
-        Give Mini-Books the basics (name, bank, last 4 digits) and decide how it links to your chart of accounts.
+        Give CERN Books the basics (name, bank, last 4 digits) and decide how it links to your chart of accounts.
       </p>
     </div>
   </div>
@@ -88,7 +88,7 @@
 
             <div class="md:col-span-2 space-y-3">
               <label class="mb-label">Ledger link</label>
-              <p class="mb-hint">Choose whether Mini-Books should create a fresh ledger account for this bank or link it to one you already have (cash / bank asset accounts only).</p>
+              <p class="mb-hint">Choose whether CERN Books should create a fresh ledger account for this bank or link it to one you already have (cash / bank asset accounts only).</p>
               {% with selected=form.link_mode.value|stringformat:"s" %}
               <div class="space-y-2">
                 {% for option in form.link_mode %}

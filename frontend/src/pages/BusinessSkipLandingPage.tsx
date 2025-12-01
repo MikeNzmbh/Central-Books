@@ -15,7 +15,7 @@ export default function BusinessSkipLandingPage() {
               Workspace home
             </h1>
             <p className="text-sm text-slate-500 max-w-xl">
-              You can start exploring Mini-Books now. We’ll keep your unfinished setup in the background until you’re ready.
+              You can start exploring CERN Books now. We’ll keep your unfinished setup in the background until you’re ready.
             </p>
           </div>
         </div>
@@ -141,7 +141,7 @@ export default function BusinessSkipLandingPage() {
               <div className="rounded-2xl border border-slate-200 bg-slate-900 text-slate-50 shadow-sm px-4 py-4 md:px-5 md:py-5 space-y-3">
                 <h2 className="text-sm font-semibold">Calm accounting, even half set up</h2>
                 <p className="text-xs text-slate-200/85">
-                  It’s okay to try things before everything is perfect. Mini-Books keeps drafts and test data separate
+                  It’s okay to try things before everything is perfect. CERN Books keeps drafts and test data separate
                   so you can learn the flows without breaking your real books.
                 </p>
                 <button

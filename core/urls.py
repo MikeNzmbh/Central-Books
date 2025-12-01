@@ -50,6 +50,7 @@ urlpatterns = [
     
     # Auth API
     path("api/auth/me", views_auth.current_user, name="api_current_user"),
+    path("api/auth/login/", views_auth.api_login, name="api_auth_login"),
     # Customers
     path("customers/", CustomerListView.as_view(), name="customer_list"),
     path("customers/new/", views.customer_create, name="customer_create"),

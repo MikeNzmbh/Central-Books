@@ -179,7 +179,7 @@ export default function BankSetupPage({ skipUrl }: { skipUrl?: string }) {
               Bank Setup
             </h1>
             <p className="max-w-xl text-sm text-slate-500">
-              Configure how Mini-Books talks to your bank. You can start with a simple
+              Configure how CERN Books talks to your bank. You can start with a simple
               manual import and add live feeds later.
             </p>
           </div>
@@ -222,7 +222,7 @@ export default function BankSetupPage({ skipUrl }: { skipUrl?: string }) {
                         </span>
                       </div>
                       <p className="text-xs text-slate-500">
-                        Upload monthly statements (PDF/CSV) and let Mini-Books build a clean, auditable timeline
+                        Upload monthly statements (PDF/CSV) and let CERN Books build a clean, auditable timeline
                         of your bank activity.
                       </p>
                       {connectionMode === 'manual' && (
@@ -263,7 +263,7 @@ export default function BankSetupPage({ skipUrl }: { skipUrl?: string }) {
               <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3.5 md:px-6 md:py-4">
                   <div>
-                    <h2 className="text-sm font-semibold text-slate-900">Bank accounts in Mini-Books</h2>
+                    <h2 className="text-sm font-semibold text-slate-900">Bank accounts in CERN Books</h2>
                     <p className="text-xs text-slate-500">
                       Tell us which chart of accounts represent real bank or cash accounts.
                     </p>
@@ -307,7 +307,7 @@ export default function BankSetupPage({ skipUrl }: { skipUrl?: string }) {
                     How bank setup works
                   </h2>
                   <p className="text-xs text-slate-200/80">
-                    Mini-Books keeps your bank feed calm and auditable. Start with a single operating account,
+                    CERN Books keeps your bank feed calm and auditable. Start with a single operating account,
                     import one statement, and you’re ready to reconcile.
                   </p>
                   <ul className="mt-2 space-y-1.5 text-xs text-slate-200/90">

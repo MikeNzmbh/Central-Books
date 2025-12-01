@@ -515,7 +515,7 @@ const CentralBooksDashboard: React.FC<CentralBooksDashboardProps> = ({
             <div className="rounded-3xl border border-slate-100 bg-white/90 p-4 sm:p-5 shadow-sm flex flex-col gap-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-medium text-slate-500">Mini-Books AI</p>
+                  <p className="text-xs font-medium text-slate-500">CERN Books AI</p>
                   <p className="mt-1 text-sm text-slate-500">Quick wins for today.</p>
                 </div>
                 <span className="inline-flex items-center gap-1 rounded-full bg-slate-900 px-3 py-1 text-[11px] font-medium text-slate-50">

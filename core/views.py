@@ -18,7 +18,7 @@ from django.core.exceptions import ValidationError
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import transaction as db_transaction
 from django.db.models import Count, Max, Q, Sum, Avg
-from django.http import HttpResponse, JsonResponse
+from django.http import HttpResponse, JsonResponse, HttpResponseForbidden
 from django.middleware.csrf import get_token
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -4028,6 +4028,15 @@ def bank_feed_spa(request):
 @login_required
 def banking_accounts_feed_spa(request):
     return render(request, "banking_accounts_feed.html")
+
+
+@login_required(login_url="/internal-admin/login/")
+def admin_spa(request):
+    """Internal admin dashboard - React SPA."""
+    profile = getattr(request.user, "internal_admin_profile", None)
+    if not (request.user.is_staff or profile):
+        return HttpResponseForbidden("You are not authorized to access internal admin.")
+    return render(request, "admin_spa.html")
 
 
 @login_required

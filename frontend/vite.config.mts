@@ -1,6 +1,10 @@
-import { defineConfig } from "vite";
+/// <reference types="vitest" />
+import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
-import path from "path";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   plugins: [react()],
@@ -67,6 +71,7 @@ export default defineConfig({
           __dirname,
           "src/reports/pl-report-entry.tsx"
         ),
+        admin: path.resolve(__dirname, "src/admin.tsx"),
       },
       output: {
         assetFileNames: "assets/[name]-[hash][extname]",
@@ -77,5 +82,10 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
+  },
+  test: {
+    environment: "jsdom",
+    globals: true,
+    setupFiles: "./src/test/setupTests.ts",
   },
 });

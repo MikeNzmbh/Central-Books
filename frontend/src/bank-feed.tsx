@@ -1292,7 +1292,7 @@ function BankFeedPage() {
                   {activeTab === "CREATE" && (
                     <div className="space-y-5 max-w-md">
                       <p className="text-xs text-slate-500">
-                        Turn this bank line into a new expense or income entry. Mini-Books will post it to the right accounts in your ledger.
+                        Turn this bank line into a new expense or income entry. CERN Books will post it to the right accounts in your ledger.
                       </p>
 
                       {metadataError && (

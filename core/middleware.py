@@ -1,7 +1,9 @@
 import logging
 from typing import Callable
 
-from django.http import HttpRequest, HttpResponse
+from django.conf import settings
+from django.http import HttpRequest, HttpResponse, HttpResponseForbidden
+from django.shortcuts import redirect
 
 
 oauth_logger = logging.getLogger("oauth.google")
@@ -39,3 +41,21 @@ class GoogleOAuthLoggingMiddleware:
             )
 
         return response
+
+
+class DjangoAdminSuperuserMiddleware:
+    """
+    Restricts /django-admin/ to authenticated superusers.
+    """
+
+    def __init__(self, get_response: Callable[[HttpRequest], HttpResponse]) -> None:
+        self.get_response = get_response
+
+    def __call__(self, request: HttpRequest) -> HttpResponse:
+        if request.path.startswith("/django-admin/"):
+            if not request.user.is_authenticated:
+                login_url = settings.LOGIN_URL
+                return redirect(f"{login_url}?next={request.path}")
+            if not request.user.is_superuser:
+                return HttpResponseForbidden("Django admin is restricted to superusers.")
+        return self.get_response(request)
