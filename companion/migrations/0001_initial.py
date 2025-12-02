@@ -9,7 +9,7 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ("core", "0035_set_tax_defaults"),
+        ("core", "0001_initial"),
     ]
 
     operations = [
