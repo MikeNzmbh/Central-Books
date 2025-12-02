@@ -17,7 +17,7 @@ def fix_duplicate_email_tokens(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0031_invoice_email_fields_no_unique'),
+        ('core', '0031_invoice_email_fields'),  # Fixed: correct parent reference
     ]
 
     operations = [

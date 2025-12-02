@@ -7,7 +7,7 @@ import uuid
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0031_fix_duplicate_email_tokens'),
+        ('core', '0031a_fix_duplicate_email_tokens'),
     ]
 
     operations = [
