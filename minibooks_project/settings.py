@@ -218,12 +218,36 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 INTERNAL_ADMIN_METRICS_MAX_AGE_MINUTES = 5
 
-import environ
+try:
+    import environ  # type: ignore
+except ImportError:  # pragma: no cover - fallback when django-environ is absent
+    class _FallbackEnv:
+        @staticmethod
+        def read_env(*args, **kwargs):
+            return None
 
-# Initialize environ
+        def bool(self, key: str, default: bool = False) -> bool:
+            return _get_bool_env(key, default)
+
+        def str(self, key: str, default: str = "") -> str:
+            return os.getenv(key, default)
+
+        def int(self, key: str, default: int = 0) -> int:
+            raw = os.getenv(key)
+            try:
+                return int(raw) if raw is not None else int(default)
+            except (TypeError, ValueError):
+                return int(default)
+
+    environ = type("environ", (), {"Env": _FallbackEnv})
+
+# Initialize environ (django-environ or fallback above)
 env = environ.Env()
-# Read .env file
-environ.Env.read_env(os.path.join(BASE_DIR, ".env"))
+# Read .env file if present
+try:
+    environ.Env.read_env(os.path.join(BASE_DIR, ".env"))
+except Exception:
+    pass
 
 # ... (keeping existing imports if needed, but usually environ replaces dotenv)
 
