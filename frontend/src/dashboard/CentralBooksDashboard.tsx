@@ -1,4 +1,6 @@
 import React, { useMemo } from "react";
+import CompanionPanel from "../companion/CompanionPanel";
+import { useAuth } from "../contexts/AuthContext";
 
 type DashboardMetrics = {
   cash_on_hand?: number;
@@ -85,6 +87,7 @@ const CentralBooksDashboard: React.FC<CentralBooksDashboardProps> = ({
   cashflow,
   urls,
 }) => {
+  const { logout } = useAuth();
   const greetingName = username && username.trim().length ? username : "there";
   const safeUrl = (value?: string) => value || "#";
 
@@ -192,6 +195,13 @@ const CentralBooksDashboard: React.FC<CentralBooksDashboardProps> = ({
             >
               View P&amp;L
             </a>
+            <button
+              type="button"
+              onClick={logout}
+              className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+            >
+              Logout
+            </button>
           </div>
         </header>
 
@@ -289,6 +299,11 @@ const CentralBooksDashboard: React.FC<CentralBooksDashboardProps> = ({
               </a>
             </div>
           </div>
+        </section>
+
+        {/* Companion Health Index - above invoices/banking */}
+        <section>
+          <CompanionPanel />
         </section>
 
         <section className="grid gap-4 xl:grid-cols-[1.1fr,1.05fr]">
@@ -512,32 +527,34 @@ const CentralBooksDashboard: React.FC<CentralBooksDashboardProps> = ({
               </div>
             </div>
 
-            <div className="rounded-3xl border border-slate-100 bg-white/90 p-4 sm:p-5 shadow-sm flex flex-col gap-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-slate-500">CERN Books AI</p>
-                  <p className="mt-1 text-sm text-slate-500">Quick wins for today.</p>
+            <div className="space-y-4">
+              <div className="rounded-3xl border border-slate-100 bg-white/90 p-4 sm:p-5 shadow-sm flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-slate-500">CERN Books AI</p>
+                    <p className="mt-1 text-sm text-slate-500">Quick wins for today.</p>
+                  </div>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-slate-900 px-3 py-1 text-[11px] font-medium text-slate-50">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                    Agent idle
+                  </span>
                 </div>
-                <span className="inline-flex items-center gap-1 rounded-full bg-slate-900 px-3 py-1 text-[11px] font-medium text-slate-50">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                  Agent idle
-                </span>
-              </div>
 
-              <ul className="mt-1 space-y-1.5 text-xs">
-                {tasks.map((task) => (
-                  <li key={task.title} className="flex items-start gap-2 rounded-2xl bg-slate-50 px-3 py-2">
-                    <span className={`mt-0.5 h-1.5 w-1.5 rounded-full ${task.color}`} />
-                    <div className="flex-1">
-                      <p className="font-medium text-slate-900">{task.title}</p>
-                      <p className="text-[11px] text-slate-500">{task.body}</p>
-                    </div>
-                    <a href={task.href} className="text-[11px] font-medium text-slate-700 hover:underline">
-                      {task.cta}
-                    </a>
-                  </li>
-                ))}
-              </ul>
+                <ul className="mt-1 space-y-1.5 text-xs">
+                  {tasks.map((task) => (
+                    <li key={task.title} className="flex items-start gap-2 rounded-2xl bg-slate-50 px-3 py-2">
+                      <span className={`mt-0.5 h-1.5 w-1.5 rounded-full ${task.color}`} />
+                      <div className="flex-1">
+                        <p className="font-medium text-slate-900">{task.title}</p>
+                        <p className="text-[11px] text-slate-500">{task.body}</p>
+                      </div>
+                      <a href={task.href} className="text-[11px] font-medium text-slate-700 hover:underline">
+                        {task.cta}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
           </div>
         </section>

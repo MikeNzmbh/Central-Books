@@ -36,11 +36,26 @@ vi.mock("./api", () => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("AdminApp", () => {
   it("renders the control center heading", () => {
-    render(<AdminApp />);
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        authenticated: true,
+        user: { email: "ops@cernbooks.com", is_staff: true },
+      }),
+    });
+
+    vi.stubGlobal("fetch", mockFetch as unknown as typeof fetch);
+
+    render(
+      <AuthProvider>
+        <AdminApp />
+      </AuthProvider>
+    );
     expect(screen.getByText(/CERN Books control center/i)).toBeInTheDocument();
   });
 

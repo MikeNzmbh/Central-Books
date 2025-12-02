@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { vi } from "vitest";
 import { SupportSection } from "./SupportSection";
+import * as api from "./api";
 
 function createMockTickets() {
   return {
@@ -35,15 +36,14 @@ vi.mock("./api", () => {
 describe("SupportSection", () => {
   it("renders support tickets and applies filters", async () => {
     render(<SupportSection />);
-    await waitFor(() => expect(screen.getByText(/Cannot login/i)).toBeInTheDocument());
-    expect(screen.getByText(/user@example.com/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByText(/Cannot login/i).length).toBeGreaterThan(0));
+    expect(screen.getAllByText(/user@example.com/i).length).toBeGreaterThan(0);
 
     const searchInput = screen.getByPlaceholderText(/Search subject/i);
     fireEvent.change(searchInput, { target: { value: "login" } });
     fireEvent.blur(searchInput);
     await waitFor(() => {
-      const { fetchSupportTickets } = require("./api");
-      expect(fetchSupportTickets).toHaveBeenCalled();
+      expect(api.fetchSupportTickets).toHaveBeenCalled();
     });
   });
 });

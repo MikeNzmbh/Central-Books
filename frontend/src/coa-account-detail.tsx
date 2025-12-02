@@ -423,12 +423,14 @@ const BankCoaViewPage: React.FC<BankCoaViewProps> = (props) => {
                   >
                     <StarIcon className={`h-4 w-4 ${isFavorite ? "text-amber-400" : "text-slate-300"}`} filled={isFavorite} />
                   </button>
-                  <a
-                    href={props.editFormUrl}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                  >
-                    <PencilIcon className="h-4 w-4" />
-                  </a>
+                  {props.editFormUrl ? (
+                    <a
+                      href={props.editFormUrl}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                    >
+                      <PencilIcon className="h-4 w-4" />
+                    </a>
+                  ) : null}
                 </div>
               </div>
               <div className="space-y-4 px-5 py-4 text-sm">
@@ -855,7 +857,7 @@ function bootstrap() {
     periodCount: Number(d.periodCount || "0"),
     lastReconciledOn: d.lastReconciledOn || null,
     unreconciledCount: d.unreconciledCount ? Number(d.unreconciledCount) : null,
-    editFormUrl: d.editFormUrl || "#",
+    editFormUrl: d.editFormUrl || "",
     linkBankFeedUrl: d.linkBankFeedUrl || undefined,
     apiActivityUrl: d.apiActivityUrl || undefined,
     apiLedgerUrl: d.apiLedgerUrl || undefined,

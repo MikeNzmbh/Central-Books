@@ -140,6 +140,20 @@ class InternalAdminAPITests(TestCase):
         self.business.refresh_from_db()
         self.assertTrue(self.business.is_deleted)
 
+    def test_workspace_editing_by_ops_with_audit_log(self):
+        """Test OPS can edit workspace name, plan, status"""
+        self.client.force_authenticate(user=self.ops_user)
+        resp = self.client.patch(
+            f"/api/internal-admin/workspaces/{self.business.pk}/",
+            {"name": "Updated Name", "plan": "Enterprise", "status": "active"},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.business.refresh_from_db()
+        self.assertEqual(self.business.name, "Updated Name")
+        self.assertEqual(self.business.plan, "Enterprise")
+        self.assertEqual(self.business.status, "active")
+
     def test_bank_accounts_read_only(self):
         self.client.force_authenticate(user=self.support_user)
         resp = self.client.get("/api/internal-admin/bank-accounts/")
@@ -222,6 +236,52 @@ class InternalAdminAPITests(TestCase):
         self.assertIn("/internal/impersonate/", resp.data["redirect_url"])
         self.assertEqual(ImpersonationToken.objects.count(), 1)
         self.assertEqual(AdminAuditLog.objects.filter(action="impersonation.created").count(), 1)
+
+    def test_support_admin_cannot_impersonate_internal_admin(self):
+        self.client.force_authenticate(user=self.support_user)
+        target_admin = User.objects.create_user(
+            username="staffer",
+            email="staffer@example.com",
+            password="pass1234",
+            is_staff=True,
+        )
+        resp = self.client.post(
+            "/api/internal-admin/impersonations/",
+            {"user_id": target_admin.pk},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 403)
+        self.assertIn("Cannot impersonate other internal admins", resp.data.get("detail", ""))
+
+    def test_superadmin_cannot_impersonate_superuser_and_may_impersonate_staff_admin(self):
+        self.client.force_authenticate(user=self.superadmin_user)
+        staff_admin = User.objects.create_user(
+            username="staffadmin",
+            email="staffadmin@example.com",
+            password="pass1234",
+            is_staff=True,
+        )
+        resp = self.client.post(
+            "/api/internal-admin/impersonations/",
+            {"user_id": staff_admin.pk},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 201)
+        self.assertIn("redirect_url", resp.data)
+        self.assertEqual(ImpersonationToken.objects.filter(target_user=staff_admin).count(), 1)
+
+        super_target = User.objects.create_superuser(
+            username="rooted",
+            email="rooted@example.com",
+            password="pass1234",
+        )
+        resp = self.client.post(
+            "/api/internal-admin/impersonations/",
+            {"user_id": super_target.pk},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 403)
+        self.assertIn("superuser", resp.data.get("detail", ""))
 
     def test_accept_impersonation_switches_user_and_marks_token(self):
         token = ImpersonationToken.objects.create(
@@ -390,6 +450,27 @@ class InternalAdminAPITests(TestCase):
         self.assertEqual(SupportTicketNote.objects.filter(ticket=ticket).count(), 1)
         self.assertEqual(AdminAuditLog.objects.filter(action="support_ticket.note_added").count(), 1)
 
+    def test_support_ticket_create_requires_subject(self):
+        self.client.force_authenticate(user=self.support_user)
+        resp = self.client.post(
+            "/api/internal-admin/support-tickets/",
+            {"priority": SupportTicket.Priority.NORMAL},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("subject", resp.data)
+
+    def test_support_ticket_create_success_with_subject(self):
+        self.client.force_authenticate(user=self.support_user)
+        resp = self.client.post(
+            "/api/internal-admin/support-tickets/",
+            {"subject": "Assistance needed", "priority": SupportTicket.Priority.NORMAL},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 201)
+        self.assertEqual(resp.data.get("subject"), "Assistance needed")
+        self.assertEqual(SupportTicket.objects.count(), 1)
+
     def test_feature_flags_permissions_and_updates(self):
         flag = FeatureFlag.objects.create(key="beta-test", label="Beta Test")
         self.client.force_authenticate(user=self.support_user)
@@ -456,17 +537,45 @@ class InternalAdminAPITests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Invalid credentials", status_code=200)
 
-    def test_django_admin_guard_blocks_non_superuser(self):
+    def test_current_user_api_exposes_internal_admin_role_for_profile(self):
+        """Test /api/auth/me exposes internal admin role for users with InternalAdminProfile"""
+        import json
+        # Support user (not is_staff) should get internalAdmin data
+        self.web_client.force_login(self.support_user)
+        resp = self.web_client.get("/api/auth/me")
+        self.assertEqual(resp.status_code, 200)
+        data = json.loads(resp.content)
+        self.assertEqual(data["authenticated"], True)
+        user_data = data["user"]
+        self.assertIsNotNone(user_data.get("internalAdmin"))
+        self.assertEqual(user_data["internalAdmin"]["role"], AdminRole.SUPPORT)
+        self.assertTrue(user_data["internalAdmin"]["canAccessInternalAdmin"])
+
+    def test_current_user_api_returns_null_for_normal_user(self):
+        """Test /api/auth/me returns null internalAdmin for normal users"""
+        import json
+        self.web_client.force_login(self.normal_user)
+        resp = self.web_client.get("/api/auth/me")
+        self.assertEqual(resp.status_code, 200)
+        data = json.loads(resp.content)
+        user_data = data["user"]
+        self.assertIsNone(user_data.get("internalAdmin"))
+
+    def test_current_user_api_exposes_superadmin_for_staff_without_profile(self):
+        """Test /api/auth/me treats staff/superuser without profile as SUPERADMIN"""
+        import json
         staff_user = User.objects.create_user(
-            username="staff2", email="staff2@example.com", password="pass1234", is_staff=True
+            username="staffonly",
+            email="staffonly@example.com",
+            password="pass1234",
+            is_staff=True,
         )
         self.web_client.force_login(staff_user)
-        resp = self.web_client.get("/django-admin/")
-        self.assertEqual(resp.status_code, 403)
+        resp = self.web_client.get("/api/auth/me")
+        self.assertEqual(resp.status_code, 200)
+        data = json.loads(resp.content)
+        user_data = data["user"]
+        self.assertIsNotNone(user_data.get("internalAdmin"))
+        self.assertEqual(user_data["internalAdmin"]["role"], "SUPERADMIN")
+        self.assertTrue(user_data["internalAdmin"]["canAccessInternalAdmin"])
 
-        super_user = User.objects.create_superuser(
-            username="root", email="root@example.com", password="pass1234"
-        )
-        self.web_client.force_login(super_user)
-        resp = self.web_client.get("/django-admin/")
-        self.assertNotEqual(resp.status_code, 403)

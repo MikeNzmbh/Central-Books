@@ -7,6 +7,7 @@ import { AuditLogSection } from "./AuditLogSection";
 import { SupportSection } from "./SupportSection";
 import { FeatureFlagsSection } from "./FeatureFlagsSection";
 import { Card, SimpleTable, StatusPill, cn } from "./AdminUI";
+import { useAuth } from "../contexts/AuthContext";
 
 type Role = "support" | "finance" | "engineer" | "superadmin";
 
@@ -96,6 +97,46 @@ const mockFlags: FeatureFlagRow[] = [
   },
 ];
 
+const LogoutButton: React.FC = () => {
+  const { logout } = useAuth();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await logout();
+    } catch (error) {
+      console.error("Logout failed:", error);
+      setIsLoggingOut(false);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleLogout}
+      disabled={isLoggingOut}
+      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-sm disabled:opacity-50 transition flex items-center justify-center gap-2"
+    >
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+        <polyline points="16 17 21 12 16 7" />
+        <line x1="21" x2="9" y1="12" y2="12" />
+      </svg>
+      {isLoggingOut ? "Logging out..." : "Log out"}
+    </button>
+  );
+};
+
 const RoleBadge: React.FC<{ role: Role }> = ({ role }) => {
   const map: Record<Role, string> = {
     support: "bg-sky-50 text-sky-700 border-sky-200",
@@ -124,14 +165,14 @@ const KpiCard: React.FC<{ kpi: Kpi }> = ({ kpi }) => {
   };
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 sm:px-5 sm:py-4 flex flex-col gap-2 shadow-sm">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">{kpi.label}</p>
+    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 sm:px-5 sm:py-4 flex flex-col gap-2 shadow-sm min-h-[120px]">
+      <div className="flex flex-col gap-1">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 leading-tight">{kpi.label}</p>
         {kpi.delta && (
-          <span className={cn("text-[11px] font-medium", kpi.tone && toneMap[kpi.tone])}>{kpi.delta}</span>
+          <span className={cn("text-[11px] font-medium leading-tight", kpi.tone && toneMap[kpi.tone])}>{kpi.delta}</span>
         )}
       </div>
-      <p className={cn("text-xl sm:text-2xl font-semibold", kpi.tone && toneMap[kpi.tone])}>{kpi.value}</p>
+      <p className={cn("text-xl sm:text-2xl font-semibold mt-auto", kpi.tone && toneMap[kpi.tone])}>{kpi.value}</p>
     </div>
   );
 };
@@ -300,75 +341,32 @@ const OverviewSection: React.FC<{ role: Role }> = ({ role }) => {
   );
 };
 
-const ReconciliationSection: React.FC = () => {
-  return (
-    <div className="space-y-4">
-      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold text-slate-900">Reconciliation tracking</h2>
-          <p className="text-sm text-slate-600 max-w-xl">
-            High-friction areas in matching and period completion. This view exists solely for internal staff –
-            end users never see this lens.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 text-xs text-amber-700">
-          <span className="h-2 w-2 rounded-full bg-amber-400" />
-          <span>3 accounts with stalled periods</span>
-        </div>
-      </header>
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1.6fr)]">
-        <Card title="Risk buckets" subtitle="Breakdown by age of unreconciled bank lines.">
-          <ul className="space-y-2 text-sm">
-            <li className="flex items-center justify-between text-slate-700">
-              <span>&lt; 30 days</span>
-              <span className="font-semibold text-slate-900">151</span>
-            </li>
-            <li className="flex items-center justify-between text-slate-700">
-              <span>30–60 days</span>
-              <span className="font-semibold text-amber-700">47</span>
-            </li>
-            <li className="flex items-center justify-between text-slate-700">
-              <span>60–90 days</span>
-              <span className="font-semibold text-amber-700">21</span>
-            </li>
-            <li className="flex items-center justify-between text-slate-700">
-              <span>90+ days</span>
-              <span className="font-semibold text-rose-700">12</span>
-            </li>
-          </ul>
-        </Card>
-
-        <Card
-          title="Accounts with stalled reconciliation"
-          subtitle="Accounts where last completed period was > 60 days ago."
-        >
-          <SimpleTable
-            headers={["Workspace", "Account", "Last completed", "Unreconciled", "Diff"]}
-            rows={[
-              [
-                <span key="ws1" className="text-xs text-slate-800">
-                  Nomad Design Co.
-                </span>,
-                <span key="acc1" className="text-xs text-slate-700">
-                  BMO Chequing
-                </span>,
-                <span key="date1" className="text-xs text-slate-500">
-                  Jul 31, 2025
-                </span>,
-                <span key="unrec1" className="text-xs text-slate-800">
-                  112
-                </span>,
-                <span key="diff1" className="text-xs text-rose-700">
-                  +$23.50
-                </span>,
-              ],
-            ]}
-          />
-        </Card>
+const ReconciliationSection: React.FC = () => (
+  <div className="space-y-4">
+    <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div>
+        <h2 className="text-lg font-semibold text-slate-900">Reconciliation tracking</h2>
+        <p className="text-sm text-slate-600 max-w-xl">
+          High-friction areas in matching and period completion. This view exists solely for internal staff –
+          end users never see this lens.
+        </p>
       </div>
-    </div>
-  );
-};
+    </header>
+    <Card>
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <div className="rounded-full bg-slate-100 p-4 mb-4">
+          <svg className="w-8 h-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+          </svg>
+        </div>
+        <h3 className="text-lg font-semibold text-slate-900 mb-2">Coming Soon</h3>
+        <p className="text-sm text-slate-600 max-w-md">
+          Detailed reconciliation tracking will be available once the backend API is implemented.
+        </p>
+      </div>
+    </Card>
+  </div>
+);
 
 const LedgerSection: React.FC = () => (
   <div className="space-y-4">
@@ -376,56 +374,23 @@ const LedgerSection: React.FC = () => (
       <div>
         <h2 className="text-lg font-semibold text-slate-900">Ledger health</h2>
         <p className="text-sm text-slate-600 max-w-xl">
-          Double-entry invariants across all tenants: trial balance, future-dated entries, orphans, and suspense
-          balances.
+          Trial balance anomalies, unbalanced entries, orphan accounts, and suspense balances. All purely internal
+          diagnostics.
         </p>
       </div>
-      <button className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-sm">
-        Run integrity audit
-      </button>
     </header>
-    <Card title="Quick scan">
-      <SimpleTable
-        headers={["Workspace", "Unbalanced JE", "Future-dated", "Orphans", "Suspense", "Status"]}
-        rows={[
-          [
-            <span key="ws1" className="text-xs text-slate-800">
-              CERN Books Labs Inc.
-            </span>,
-            <span key="u1" className="text-xs text-slate-800">
-              0
-            </span>,
-            <span key="f1" className="text-xs text-slate-800">
-              0
-            </span>,
-            <span key="o1" className="text-xs text-slate-800">
-              0
-            </span>,
-            <span key="s1" className="text-xs text-slate-800">
-              $0.00
-            </span>,
-            <StatusPill key="status1" tone="good" label="Clean" />,
-          ],
-          [
-            <span key="ws2" className="text-xs text-slate-800">
-              Nomad Design Co.
-            </span>,
-            <span key="u2" className="text-xs text-amber-700">
-              0
-            </span>,
-            <span key="f2" className="text-xs text-amber-700">
-              2
-            </span>,
-            <span key="o2" className="text-xs text-slate-800">
-              0
-            </span>,
-            <span key="s2" className="text-xs text-slate-800">
-              $145.90
-            </span>,
-            <StatusPill key="status2" tone="warning" label="Review" />,
-          ],
-        ]}
-      />
+    <Card>
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <div className="rounded-full bg-slate-100 p-4 mb-4">
+          <svg className="w-8 h-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+          </svg>
+        </div>
+        <h3 className="text-lg font-semibold text-slate-900 mb-2">Coming Soon</h3>
+        <p className="text-sm text-slate-600 max-w-md">
+          Detailed ledger health tracking will be available once the backend API is implemented.
+        </p>
+      </div>
     </Card>
   </div>
 );
@@ -439,42 +404,19 @@ const InvoicesSection: React.FC = () => (
           Cross-tenant visibility into invoice status, failed sends, and potential duplicate or anomalous documents.
         </p>
       </div>
-      <div className="flex gap-2">
-        <button className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-sm">
-          Failed emails
-        </button>
-        <button className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-sm">
-          Tax mismatches
-        </button>
-      </div>
     </header>
-    <Card title="Recent invoices with issues">
-      <SimpleTable
-        headers={["Workspace", "Invoice", "Customer", "Status", "Issue", "Actions"]}
-        rows={[
-          [
-            <span key="ws" className="text-xs text-slate-800">
-              Northwind Studio
-            </span>,
-            <span key="inv" className="text-xs text-slate-700">
-              INV-1042
-            </span>,
-            <span key="cust" className="text-xs text-slate-700">
-              Acme Films
-            </span>,
-            <StatusPill key="status" tone="warning" label="Overdue" />,
-            <span key="issue" className="text-xs text-amber-700">
-              Email bounced – invalid domain
-            </span>,
-            <button
-              key="act"
-              className="text-[11px] text-sky-700 underline underline-offset-2 hover:text-sky-800"
-            >
-              View invoice
-            </button>,
-          ],
-        ]}
-      />
+    <Card>
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <div className="rounded-full bg-slate-100 p-4 mb-4">
+          <svg className="w-8 h-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        </div>
+        <h3 className="text-lg font-semibold text-slate-900 mb-2">Coming Soon</h3>
+        <p className="text-sm text-slate-600 max-w-md">
+          Global invoice tracking and failed email monitoring will be available once the backend API is implemented.
+        </p>
+      </div>
     </Card>
   </div>
 );
@@ -488,33 +430,19 @@ const ExpensesSection: React.FC = () => (
           Spot mis-categorized spend, receipt anomalies, and FX conversion issues from a single, internal lens.
         </p>
       </div>
-      <button className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-sm">
-        View FX anomalies
-      </button>
     </header>
-    <Card title="Recent flagged expenses">
-      <SimpleTable
-        headers={["Workspace", "Vendor", "Amount", "Category", "Issue"]}
-        rows={[
-          [
-            <span key="ws" className="text-xs text-slate-800">
-              Nomad Design Co.
-            </span>,
-            <span key="vend" className="text-xs text-slate-700">
-              AirCanada
-            </span>,
-            <span key="amt" className="text-xs text-slate-800">
-              $2,450.00
-            </span>,
-            <span key="cat" className="text-xs text-slate-700">
-              Travel – Flights
-            </span>,
-            <span key="issue" className="text-xs text-amber-700">
-              Dated 2026-01-01 – future-dated
-            </span>,
-          ],
-        ]}
-      />
+    <Card>
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <div className="rounded-full bg-slate-100 p-4 mb-4">
+          <svg className="w-8 h-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+          </svg>
+        </div>
+        <h3 className="text-lg font-semibold text-slate-900 mb-2">Coming Soon</h3>
+        <p className="text-sm text-slate-600 max-w-md">
+          Global expense tracking and FX anomaly detection will be available once the backend API is implemented.
+        </p>
+      </div>
     </Card>
   </div>
 );
@@ -747,9 +675,12 @@ const Sidebar: React.FC<{
           </div>
         ))}
       </nav>
-      <div className="border-t border-slate-200 px-4 py-3 text-[11px] text-slate-600">
-        <p>Everything you do here leaves a trail.</p>
-        <p className="mt-0.5">Built for internal ops · CERN Books</p>
+      <div className="border-t border-slate-200 px-4 py-3 space-y-3">
+        <LogoutButton />
+        <div className="text-[11px] text-slate-600">
+          <p>Everything you do here leaves a trail.</p>
+          <p className="mt-0.5">Built for internal ops · CERN Books</p>
+        </div>
       </div>
     </aside>
   );

@@ -2,6 +2,12 @@
 // Provides user authentication state across the React application
 
 import React, { createContext, useContext, useState, useEffect } from "react";
+import { parseCookies } from "../utils/cookies";
+
+export interface InternalAdmin {
+  role: string;
+  canAccessInternalAdmin: boolean;
+}
 
 export interface User {
   id: number;
@@ -15,6 +21,7 @@ export interface User {
   isSuperuser?: boolean;
   is_staff?: boolean;
   is_superuser?: boolean;
+  internalAdmin?: InternalAdmin | null;
 }
 
 export interface AuthState {
@@ -43,11 +50,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const computeIsAdmin = (user: User | null) =>
     Boolean(
       user &&
-        ((user.isStaff ?? user.is_staff) ||
-          (user.isSuperuser ?? user.is_superuser) ||
-          user.role === "admin" ||
-          user.role === "staff" ||
-          user.role === "superadmin")
+      (user.internalAdmin?.canAccessInternalAdmin ||
+        (user.isStaff ?? user.is_staff) ||
+        (user.isSuperuser ?? user.is_superuser) ||
+        user.role === "admin" ||
+        user.role === "staff" ||
+        user.role === "superadmin")
     );
 
   const fetchCurrentUser = async () => {
@@ -87,16 +95,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     try {
-      const csrfToken = document.querySelector<HTMLInputElement>("[name=csrfmiddlewaretoken]")?.value;
+      const cookies = parseCookies(document.cookie || "");
+      const csrfToken =
+        cookies.csrftoken || document.querySelector<HTMLInputElement>("[name=csrfmiddlewaretoken]")?.value;
+      const headers: Record<string, string> = {};
+      if (csrfToken) {
+        headers["X-CSRFToken"] = csrfToken;
+      }
+
+      // Best-effort: end impersonation if active.
+      try {
+        await fetch("/internal/impersonate/stop/", {
+          method: "POST",
+          credentials: "same-origin",
+          headers,
+        });
+      } catch (impersonationError) {
+        console.warn("Impersonation stop failed (continuing logout):", impersonationError);
+      }
 
       await fetch("/logout/", {
         method: "POST",
         credentials: "same-origin",
-        headers: csrfToken
-          ? {
-              "X-CSRFToken": csrfToken,
-            }
-          : {},
+        headers,
       });
 
       setAuth({
@@ -106,7 +127,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isAdmin: false,
       });
 
-      window.location.href = "/login/";
+      if (typeof window !== "undefined" && window.location?.assign) {
+        window.location.assign("/login/");
+      }
     } catch (error) {
       console.error("Logout failed:", error);
     }

@@ -125,7 +125,7 @@ class BusinessProfileForm(forms.ModelForm):
 
     class Meta:
         model = Business
-        fields = ["name", "currency", "fiscal_year_start"]
+        fields = ["name", "currency", "fiscal_year_start", "email_from", "reply_to_email"]
 
     def clean_name(self):
         name = (self.cleaned_data.get("name") or "").strip()

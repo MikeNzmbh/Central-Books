@@ -2,7 +2,7 @@
 {% load static %}
 
 {% block title %}
-  {% if form.instance.pk %}Edit invoice{% else %}New invoice{% endif %} – CERN Books
+{% if form.instance.pk %}Edit invoice{% else %}New invoice{% endif %} – CERN Books
 {% endblock %}
 
 {% block content %}
@@ -18,7 +18,12 @@
       </p>
     </div>
     <div class="mb-page-actions">
-      <span class="mb-pill mb-pill-muted">Draft</span>
+      <span class="mb-pill mb-pill-muted">{{ form.instance.get_status_display|default:"Draft" }}</span>
+      {% if form.instance.pk %}
+      <a href="{% url 'invoice_pdf' form.instance.pk %}" class="mb-btn mb-btn-ghost" target="_blank">
+        Download PDF
+      </a>
+      {% endif %}
       <a href="{% url 'invoice_list' %}" class="mb-btn mb-btn-ghost">Cancel</a>
       <button type="submit" form="invoice-form" class="mb-btn mb-btn-primary">
         {% if form.instance.pk %}Save changes{% else %}Save invoice{% endif %}
@@ -50,7 +55,7 @@
               </label>
               {{ form.customer }}
               {% for error in form.customer.errors %}
-                <div class="mb-error">{{ error }}</div>
+              <div class="mb-error">{{ error }}</div>
               {% endfor %}
             </div>
 
@@ -59,7 +64,7 @@
                 <label class="mb-label">Invoice #</label>
                 {{ form.invoice_number }}
                 {% for error in form.invoice_number.errors %}
-                  <div class="mb-error">{{ error }}</div>
+                <div class="mb-error">{{ error }}</div>
                 {% endfor %}
               </div>
 
@@ -67,7 +72,7 @@
                 <label class="mb-label">Issue date</label>
                 {{ form.issue_date }}
                 {% for error in form.issue_date.errors %}
-                  <div class="mb-error">{{ error }}</div>
+                <div class="mb-error">{{ error }}</div>
                 {% endfor %}
               </div>
 
@@ -75,7 +80,7 @@
                 <label class="mb-label">Due date</label>
                 {{ form.due_date }}
                 {% for error in form.due_date.errors %}
-                  <div class="mb-error">{{ error }}</div>
+                <div class="mb-error">{{ error }}</div>
                 {% endfor %}
               </div>
             </div>
@@ -86,7 +91,7 @@
               </label>
               {{ form.total_amount }}
               {% for error in form.total_amount.errors %}
-                <div class="mb-error">{{ error }}</div>
+              <div class="mb-error">{{ error }}</div>
               {% endfor %}
               <p class="mb-help">
                 This is the full amount you’re charging for this invoice.
@@ -97,7 +102,7 @@
               <label class="mb-label">Description</label>
               {{ form.description }}
               {% for error in form.description.errors %}
-                <div class="mb-error">{{ error }}</div>
+              <div class="mb-error">{{ error }}</div>
               {% endfor %}
               <p class="mb-help">
                 Shown on the invoice (e.g. “Consulting services for November”).
@@ -118,7 +123,7 @@
             <div class="mb-field">
               {{ form.notes }}
               {% for error in form.notes.errors %}
-                <div class="mb-error">{{ error }}</div>
+              <div class="mb-error">{{ error }}</div>
               {% endfor %}
               <p class="mb-help">
                 Use this area for context like payment terms or follow-up reminders.
@@ -145,9 +150,9 @@
                 <dt>Customer</dt>
                 <dd>
                   {% if form.instance.customer %}
-                    {{ form.instance.customer.name }}
+                  {{ form.instance.customer.name }}
                   {% else %}
-                    Not selected yet
+                  Not selected yet
                   {% endif %}
                 </dd>
               </div>
@@ -155,9 +160,9 @@
                 <dt>Invoice total</dt>
                 <dd>
                   {% if form.instance.total_amount %}
-                    {{ form.instance.total_amount }} {{ business.currency|default:"USD" }}
+                  {{ form.instance.total_amount }} {{ business.currency|default:"USD" }}
                   {% else %}
-                    0.00 {{ business.currency|default:"USD" }}
+                  0.00 {{ business.currency|default:"USD" }}
                   {% endif %}
                 </dd>
               </div>
@@ -165,9 +170,9 @@
                 <dt>Due date</dt>
                 <dd>
                   {% if form.instance.due_date %}
-                    {{ form.instance.due_date }}
+                  {{ form.instance.due_date }}
                   {% else %}
-                    Not set
+                  Not set
                   {% endif %}
                 </dd>
               </div>

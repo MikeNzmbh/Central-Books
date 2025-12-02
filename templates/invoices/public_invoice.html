@@ -1,0 +1,143 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Invoice {{ invoice.invoice_number|default:invoice.pk }} – {{ invoice.business.name|default:"" }}</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      background: #f8fafc;
+      color: #0f172a;
+    }
+    .shell {
+      max-width: 840px;
+      margin: 40px auto;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+      box-shadow: 0 20px 40px rgba(15,23,42,0.08);
+      padding: 28px 32px;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: flex-start;
+      margin-bottom: 20px;
+    }
+    .title {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+    .meta {
+      font-size: 12px;
+      color: #64748b;
+      margin-top: 6px;
+    }
+    .section {
+      margin-top: 20px;
+    }
+    .section h3 {
+      margin: 0 0 8px;
+      font-size: 14px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 13px;
+    }
+    th, td {
+      padding: 10px;
+      border-bottom: 1px solid #e2e8f0;
+      text-align: left;
+    }
+    th {
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-size: 11px;
+      color: #94a3b8;
+    }
+    .totals {
+      margin-top: 12px;
+      max-width: 280px;
+      margin-left: auto;
+      font-size: 13px;
+    }
+    .totals-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .totals-row.total {
+      font-weight: 700;
+      font-size: 15px;
+      border-bottom: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="header">
+      <div>
+        <p class="meta">Invoice</p>
+        <h1 class="title">Invoice {{ invoice.invoice_number|default:invoice.pk }}</h1>
+        <p class="meta">
+          {{ invoice.business.name|default:"" }} · Issued {{ invoice.issue_date|default_if_none:"" }}{% if invoice.due_date %} · Due {{ invoice.due_date }}{% endif %}
+        </p>
+      </div>
+      <div>
+        <p class="meta">Billed to</p>
+        <strong>{{ invoice.customer.name|default:"" }}</strong><br>
+        {% if invoice.customer.email %}<span class="meta">{{ invoice.customer.email|default_if_none:"" }}</span>{% endif %}
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Line items</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Description</th>
+            <th style="text-align:right;">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              {% if invoice.item %}{{ invoice.item.name|default:"" }}{% else %}{{ invoice.description|default:"Services rendered" }}{% endif %}
+            </td>
+            <td style="text-align:right;">
+              {% with amt=invoice.net_total|default:invoice.total_amount|default:invoice.grand_total %}
+              {{ amt|default_if_none:"" }}
+              {% endwith %}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="totals">
+          <div class="totals-row">
+            <span>Subtotal</span>
+            <span>{{ invoice.net_total|default:invoice.total_amount|default_if_none:"" }}</span>
+          </div>
+          <div class="totals-row">
+            <span>Tax</span>
+            <span>{{ invoice.tax_total|default_if_none:"0.00" }}</span>
+          </div>
+          <div class="totals-row total">
+            <span>Total</span>
+            <span>{{ invoice.grand_total|default:invoice.net_total|default:invoice.total_amount|default_if_none:"" }}</span>
+          </div>
+        </div>
+    </div>
+  </div>
+</body>
+</html>

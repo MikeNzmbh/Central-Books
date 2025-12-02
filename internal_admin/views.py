@@ -27,6 +27,7 @@ from internal_admin.models import (
     AdminAuditLog,
     FeatureFlag,
     ImpersonationToken,
+    InternalAdminProfile,
     OverviewMetricsSnapshot,
     SupportTicket,
     SupportTicketNote,
@@ -252,6 +253,29 @@ class ImpersonationView(APIView):
             target_user = User.objects.get(pk=user_id)
         except User.DoesNotExist:
             return Response({"detail": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        profile = InternalAdminProfile.objects.filter(user=request.user).first()
+        caller_role = profile.role if profile else None
+        if request.user.is_superuser and not caller_role:
+            caller_role = AdminRole.SUPERADMIN
+
+        target_is_internal_admin = (
+            target_user.is_superuser
+            or target_user.is_staff
+            or InternalAdminProfile.objects.filter(user=target_user).exists()
+        )
+
+        if target_user.is_superuser:
+            return Response(
+                {"detail": "Impersonating superuser accounts is not allowed."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if target_is_internal_admin and caller_role != AdminRole.SUPERADMIN:
+            return Response(
+                {"detail": "Cannot impersonate other internal admins."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         token = ImpersonationToken.objects.create(
             admin=request.user,

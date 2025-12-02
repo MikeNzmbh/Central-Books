@@ -1,4 +1,5 @@
 import csv
+import logging
 import hashlib
 import io
 import json
@@ -15,12 +16,14 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
+from django.core.mail import EmailMultiAlternatives
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import transaction as db_transaction
 from django.db.models import Count, Max, Q, Sum, Avg
-from django.http import HttpResponse, JsonResponse, HttpResponseForbidden
+from django.http import HttpResponse, JsonResponse, HttpResponseForbidden, HttpResponseBadRequest
 from django.middleware.csrf import get_token
 from django.shortcuts import get_object_or_404, redirect, render
+from django.template.loader import render_to_string
 from django.utils import timezone
 from django.forms import ModelChoiceField
 from typing import cast, Any
@@ -29,6 +32,11 @@ from django.views.decorators.http import require_POST, require_http_methods
 from django.views.generic import ListView, TemplateView, CreateView, UpdateView, View
 from django.urls import reverse, reverse_lazy, NoReverseMatch
 from django.utils.dateparse import parse_date
+try:
+    from weasyprint import HTML
+except Exception as exc:  # pragma: no cover - optional dependency in some envs
+    HTML = None
+    logging.getLogger(__name__).warning("weasyprint unavailable; PDF generation will be skipped. (%s)", exc)
 from django.utils.text import slugify
 
 from .forms import (
@@ -53,6 +61,8 @@ from .models import (
     Customer,
     Expense,
     Invoice,
+    InvoiceEmailLog,
+    InvoiceEmailTemplate,
     Supplier,
     Item,
     JournalEntry,
@@ -67,6 +77,8 @@ from .models import (
 from .ledger_services import compute_ledger_pl
 from .ledger_reports import account_balances_for_business
 from .utils import get_current_business, is_empty_workspace
+
+logger = logging.getLogger(__name__)
 
 def _messages_payload(request):
     storage = messages.get_messages(request)
@@ -2074,6 +2086,199 @@ def invoice_status_update(request, pk):
     if redirect_url:
         return redirect(redirect_url)
     return redirect(f"{reverse('invoice_list')}?invoice={invoice.pk}")
+
+
+def invoice_public_view(request, token):
+    invoice = get_object_or_404(Invoice.objects.select_related("business", "customer"), email_token=token)
+    return render(request, "invoices/public_invoice.html", {"invoice": invoice})
+
+
+def invoice_email_open_view(request, token):
+    log = get_object_or_404(InvoiceEmailLog, open_token=token)
+    if log.opened_at is None:
+        log.opened_at = timezone.now()
+        log.opened_ip = request.META.get("REMOTE_ADDR")
+        log.opened_user_agent = (request.META.get("HTTP_USER_AGENT") or "")[:512]
+        log.save(update_fields=["opened_at", "opened_ip", "opened_user_agent"])
+    return HttpResponse(b"", content_type="image/gif")
+
+
+@login_required
+def invoice_pdf_view(request, pk):
+    """Secure PDF download view for internal users, scoped to their business."""
+    business = get_current_business(request.user)
+    if business is None:
+        return HttpResponseBadRequest("No business context")
+    
+    # Scope by business to prevent unauthorized access
+    invoice = get_object_or_404(
+        Invoice.objects.select_related("business", "customer"),
+        pk=pk,
+        business=business,
+    )
+    
+    # Render PDF using the same template as email attachments
+    html_content = render_to_string(
+        "invoices/public_invoice_pdf.html",
+        {"invoice": invoice},
+        request=request,
+    )
+    
+    pdf_io = io.BytesIO()
+    if HTML:
+        try:
+            HTML(string=html_content, base_url=request.build_absolute_uri("/")).write_pdf(pdf_io)
+            pdf_io.seek(0)
+            safe_number = getattr(invoice, "invoice_number", None) or f"{invoice.pk}"
+            response = HttpResponse(pdf_io.read(), content_type="application/pdf")
+            response["Content-Disposition"] = f'attachment; filename="Invoice-{safe_number}.pdf"'
+            return response
+        except Exception as exc:
+            # If PDF generation fails, return a helpful error
+            return HttpResponseBadRequest(f"PDF generation failed: {str(exc)}")
+    else:
+        return HttpResponseBadRequest("PDF generation unavailable: WeasyPrint not installed")
+
+
+@login_required
+@require_POST
+def invoice_send_email_view(request, pk):
+    import smtplib
+    
+    business = get_current_business(request.user)
+    if business is None:
+        return HttpResponseBadRequest("No business context")
+
+    invoice = get_object_or_404(Invoice.objects.select_related("business", "customer"), pk=pk, business=business)
+
+    to_email = request.POST.get("to_email") or getattr(invoice.customer, "email", None)
+    if not to_email:
+        return HttpResponseBadRequest("No email address provided")
+    
+    # Determine from_email and reply_to from business or settings
+    from_email = business.email_from or getattr(settings, "DEFAULT_FROM_EMAIL", None)
+    reply_to_email = business.reply_to_email or from_email
+    
+    # Require a configured sender email
+    if not from_email:
+        error_msg = "No sender email is configured. Add a business email in Account settings before sending invoices."
+        invoice.email_last_error = error_msg
+        invoice.save(update_fields=["email_last_error"])
+        return JsonResponse({"ok": False, "error": error_msg}, status=400)
+
+    public_url = request.build_absolute_uri(reverse("invoice_public_view", args=[invoice.email_token]))
+    business_name = getattr(invoice.business, "name", "Our Company")
+    customer_name = getattr(invoice.customer, "name", "")
+    amount = (
+        getattr(invoice, "grand_total", None)
+        or getattr(invoice, "net_total", None)
+        or getattr(invoice, "total_amount", None)
+        or getattr(invoice, "total", None)
+    )
+
+    default_subject = f"Invoice {getattr(invoice, 'invoice_number', None) or invoice.pk} from {business_name}"
+    default_body_text = (
+        f"Hi {customer_name},\n\n"
+        f"You have a new invoice from {business_name}.\n"
+        f"Total: {amount}\n\n"
+        f"You can view it here: {public_url}\n\n"
+        f"Thank you."
+    )
+    default_body_html = f"""
+        <p>Hi {customer_name},</p>
+        <p>You have a new invoice from <strong>{business_name}</strong>.</p>
+        <p><strong>Total:</strong> {amount}</p>
+        <p><a href="{public_url}">View your invoice</a></p>
+        <p>Thank you.</p>
+    """
+
+    ctx = {
+        "invoice": invoice,
+        "business": invoice.business,
+        "customer": invoice.customer,
+        "public_url": public_url,
+    }
+    template = getattr(invoice.business, "invoice_email_template", None)
+    if template:
+        subject = template.render_subject(ctx, default_subject)
+        text_body = template.render_body(ctx, default_body_text)
+        html_body = template.render_body(ctx, default_body_html)
+    else:
+        subject = default_subject
+        text_body = default_body_text
+        html_body = default_body_html
+
+    # Optional CC flag from caller
+    cc_me_flag = request.POST.get("cc_me") in {"1", "true", "on", "yes"}
+
+    # Render PDF attachment
+    pdf_content = None
+    if HTML:
+        try:
+            html_invoice = render_to_string("invoices/public_invoice_pdf.html", {"invoice": invoice}, request=request)
+            pdf_io = io.BytesIO()
+            HTML(string=html_invoice, base_url=request.build_absolute_uri("/")).write_pdf(pdf_io)
+            pdf_io.seek(0)
+            pdf_content = pdf_io.read()
+        except Exception as pdf_exc:  # pragma: no cover - avoid blocking send on PDF errors
+            invoice.email_last_error = str(pdf_exc)
+            invoice.save(update_fields=["email_last_error"])
+            logger = logging.getLogger(__name__)
+            logger.info("Skipping invoice PDF attachment because rendering failed: %s", pdf_exc)
+    else:
+        logging.getLogger(__name__).info("Skipping invoice PDF attachment because weasyprint is unavailable.")
+
+    log = InvoiceEmailLog.objects.create(
+        invoice=invoice,
+        to_email=to_email,
+        subject=subject,
+        status=InvoiceEmailLog.STATUS_SENT,
+        message_preview=text_body[:500],
+        cc_me=bool(cc_me_flag),
+    )
+
+    tracking_url = request.build_absolute_uri(reverse("invoice_email_open", args=[log.open_token]))
+    tracking_img = (
+        f'<img src="{tracking_url}" alt="" width="1" height="1" style="display:none;border:0;" />'
+    )
+
+    try:
+        msg = EmailMultiAlternatives(
+            subject=subject,
+            body=text_body,
+            from_email=from_email,
+            to=[to_email],
+            cc=[invoice.business.owner_user.email] if cc_me_flag and getattr(invoice.business, "owner_user", None) else None,
+            reply_to=[reply_to_email] if reply_to_email else None,
+        )
+        if pdf_content:
+            msg.attach(
+                filename=f"Invoice-{getattr(invoice, 'invoice_number', None) or invoice.pk}.pdf",
+                content=pdf_content,
+                mimetype="application/pdf",
+            )
+        msg.attach_alternative(html_body + tracking_img, "text/html")
+        msg.send()
+        invoice.mark_email_sent(to_email)
+        return JsonResponse({"status": "ok", "sent_to": to_email})
+    except (smtplib.SMTPException, OSError) as exc:
+        # Map connection errors to friendly messages
+        error_message = str(exc)
+        friendly_message = "Email delivery failed: unable to connect to email server. Check your email settings."
+        invoice.email_last_error = error_message
+        invoice.save(update_fields=["email_last_error"])
+        log.status = InvoiceEmailLog.STATUS_ERROR
+        log.error_message = error_message
+        log.save(update_fields=["status", "error_message"])
+        return JsonResponse({"ok": False, "error": friendly_message}, status=502)
+    except Exception as exc:  # pragma: no cover - other unexpected errors
+        error_message = str(exc)
+        invoice.email_last_error = error_message
+        invoice.save(update_fields=["email_last_error"])
+        log.status = InvoiceEmailLog.STATUS_ERROR
+        log.error_message = error_message
+        log.save(update_fields=["status", "error_message"])
+        return JsonResponse({"ok": False, "error": error_message}, status=500)
 
 
 @login_required

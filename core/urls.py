@@ -74,6 +74,9 @@ urlpatterns = [
     path("invoices/<int:pk>/edit/", views.invoice_update, name="invoice_update"),
     path("invoices/<int:pk>/delete/", views.invoice_delete, name="invoice_delete"),
     path("invoices/<int:pk>/status/", views.invoice_status_update, name="invoice_status_update"),
+    path("invoices/<int:pk>/pdf/", views.invoice_pdf_view, name="invoice_pdf"),
+    path("invoices/public/<uuid:token>/", views.invoice_public_view, name="invoice_public_view"),
+    path("invoices/email/open/<uuid:token>.gif", views.invoice_email_open_view, name="invoice_email_open"),
     # Expenses
     path("expenses/", ExpenseListView.as_view(), name="expense_list"),
     path("expenses/new/", views.expense_create, name="expense_create"),
@@ -153,6 +156,7 @@ urlpatterns = [
     path("api/reconciliation/audit/", api_reconciliation_audit, name="api_reco_audit"),
     path("api/reconciliation/rules/", api_reconciliation_create_rule, name="api_reco_rule"),
     path("api/ledger/search/", api_ledger_search, name="api_ledger_search"),
+    path("api/invoices/<int:pk>/send_email/", views.invoice_send_email_view, name="invoice_send_email"),
     path("bank/import/", views.BankStatementImportView.as_view(), name="bank_import"),
     path(
         "bank-feeds/new/",

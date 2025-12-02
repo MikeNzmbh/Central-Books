@@ -39,6 +39,32 @@ def current_user(request):
         "isSuperuser": user.is_superuser,
     }
     
+    # Add internal admin information
+    internal_admin_data = None
+    try:
+        from internal_admin.models import InternalAdminProfile
+        profile = InternalAdminProfile.objects.filter(user=user).first()
+        if profile:
+            internal_admin_data = {
+                "role": profile.role,
+                "canAccessInternalAdmin": True
+            }
+        elif user.is_staff or user.is_superuser:
+            # Backward compatibility: staff/superuser without explicit profile
+            internal_admin_data = {
+                "role": "SUPERADMIN",
+                "canAccessInternalAdmin": True
+            }
+    except ImportError:
+        # internal_admin app not installed - fallback to staff check
+        if user.is_staff or user.is_superuser:
+            internal_admin_data = {
+                "role": "SUPERADMIN",
+                "canAccessInternalAdmin": True
+            }
+    
+    user_data["internalAdmin"] = internal_admin_data
+    
     logger.info(
         "current_user: authenticated user_id=%s email=%s from=%s",
         user.pk,

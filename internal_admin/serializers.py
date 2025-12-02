@@ -208,6 +208,7 @@ class SupportTicketSerializer(serializers.ModelSerializer):
     user_email = serializers.EmailField(source="user.email", read_only=True)
     workspace_name = serializers.CharField(source="workspace.name", read_only=True)
     notes = serializers.SerializerMethodField()
+    subject = serializers.CharField(required=True, max_length=255)
 
     class Meta:
         model = SupportTicket
@@ -225,7 +226,6 @@ class SupportTicketSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             "id",
-            "subject",
             "source",
             "created_at",
             "updated_at",

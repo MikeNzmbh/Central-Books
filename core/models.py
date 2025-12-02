@@ -1,4 +1,5 @@
 from decimal import Decimal
+import uuid
 from typing import TYPE_CHECKING, Optional
 from types import SimpleNamespace
 
@@ -7,6 +8,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelatio
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.db.models import Sum, Q
+from django.template import Context, Template
 from django.utils import timezone
 
 if TYPE_CHECKING:
@@ -27,6 +29,18 @@ class Business(models.Model):
     is_deleted = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     bank_setup_completed = models.BooleanField(default=False)
+    
+    # Email configuration for sending invoices
+    email_from = models.EmailField(
+        max_length=255,
+        blank=True,
+        help_text="Default From address for outgoing invoices (e.g. billing@mycompany.com).",
+    )
+    reply_to_email = models.EmailField(
+        max_length=255,
+        blank=True,
+        help_text="Reply-to address for invoice emails (optional).",
+    )
 
     class Meta:
         constraints = [
@@ -47,7 +61,7 @@ class Customer(models.Model):
         related_name="customers",
     )
     name = models.CharField(max_length=255)
-    email = models.EmailField(blank=True, null=True)
+    email = models.EmailField(max_length=255, blank=True, null=True)
     phone = models.CharField(max_length=50, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -433,6 +447,10 @@ class Invoice(models.Model):
         decimal_places=2,
         default=Decimal("0.00"),
     )
+    email_to = models.EmailField(max_length=255, blank=True, null=True)
+    email_sent_at = models.DateTimeField(blank=True, null=True)
+    email_last_error = models.TextField(blank=True, null=True, default="")
+    email_token = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     item = models.ForeignKey(
         Item,
         on_delete=models.SET_NULL,
@@ -468,6 +486,12 @@ class Invoice(models.Model):
         super().__init__(*args, **kwargs)
         self._original_status = self.status
         self._skip_tax_sync = False
+
+    def mark_email_sent(self, to_email: str):
+        self.email_to = to_email
+        self.email_sent_at = timezone.now()
+        self.email_last_error = None
+        self.save(update_fields=["email_to", "email_sent_at", "email_last_error"])
 
     def recalc_totals(self):
         net = self.total_amount or Decimal("0.00")
@@ -583,6 +607,59 @@ class Invoice(models.Model):
             fx_rate=fx_rate,
             persist=True,
         )
+
+
+class InvoiceEmailTemplate(models.Model):
+    business = models.OneToOneField(
+        "core.Business",
+        on_delete=models.CASCADE,
+        related_name="invoice_email_template",
+    )
+    subject_template = models.CharField(max_length=255, blank=True)
+    body_template = models.TextField(blank=True)
+
+    def render_subject(self, context: dict, default: str) -> str:
+        tpl = (self.subject_template or "").strip()
+        if not tpl:
+            return default
+        rendered = Template(tpl).render(Context(context)).strip()
+        return rendered or default
+
+    def render_body(self, context: dict, default: str) -> str:
+        tpl = (self.body_template or "").strip()
+        if not tpl:
+            return default
+        rendered = Template(tpl).render(Context(context))
+        return rendered or default
+
+
+class InvoiceEmailLog(models.Model):
+    STATUS_SENT = "sent"
+    STATUS_ERROR = "error"
+    STATUS_CHOICES = [
+        (STATUS_SENT, "Sent"),
+        (STATUS_ERROR, "Error"),
+    ]
+
+    invoice = models.ForeignKey(
+        "core.Invoice",
+        on_delete=models.CASCADE,
+        related_name="email_logs",
+    )
+    created_at = models.DateTimeField(default=timezone.now)
+    to_email = models.EmailField(max_length=255)
+    subject = models.CharField(max_length=255)
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES)
+    error_message = models.TextField(blank=True)
+    message_preview = models.TextField(blank=True)
+    cc_me = models.BooleanField(default=False)
+    open_token = models.UUIDField(default=uuid.uuid4, unique=True)
+    opened_at = models.DateTimeField(blank=True, null=True)
+    opened_ip = models.GenericIPAddressField(blank=True, null=True)
+    opened_user_agent = models.CharField(max_length=512, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
 
     def delete(self, *args, **kwargs):
         from .accounting_posting import remove_invoice_sent_entry, remove_invoice_paid_entry

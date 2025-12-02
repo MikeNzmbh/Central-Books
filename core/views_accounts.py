@@ -128,7 +128,7 @@ def account_detail_view(request, account_id):
         "period_count": period_count,
         "last_reconciled_on": last_reconciled_on,
         "unreconciled_count": unreconciled_count,
-        "edit_form_url": reverse("admin:core_account_change", args=[account.id]),
+        "edit_form_url": "",
         "link_bank_feed_url": link_bank_feed_url,
         "api_bank_transactions_url": api_bank_transactions_url,
         "api_activity_url": reverse("api_account_activity", args=[account.id]),

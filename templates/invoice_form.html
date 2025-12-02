@@ -240,13 +240,15 @@
     <header class="mb-header">
       <div>
         <div class="mb-kicker">Invoices</div>
-        <h1 class="mb-title">New invoice</h1>
+        <h1 class="mb-title">
+          {% if invoice %}Invoice {{ invoice.invoice_number }}{% else %}New invoice{% endif %}
+        </h1>
         <p class="mb-subtitle">
           Create an invoice you can send to customers. You can always edit these details later.
         </p>
       </div>
       <div class="mb-header-actions">
-        <span class="mb-chip">Draft</span>
+        <span class="mb-chip">{{ invoice.status|default:"Draft" }}</span>
         <a href="{% url 'invoice_list' %}" class="mb-btn">Cancel</a>
         <button type="submit" form="invoice-form" class="mb-btn mb-btn-primary">
           Save invoice
@@ -390,7 +392,7 @@
               <dl>
                 <div class="mb-side-row">
                   <dt>Status</dt>
-                  <dd>Draft</dd>
+                  <dd>{{ invoice.status|default:"Draft" }}</dd>
                 </div>
                 <div class="mb-side-row">
                   <dt>Customer</dt>
@@ -427,11 +429,77 @@
               </div>
             </div>
           </section>
+          {% if invoice %}
+          <section class="mb-card mb-side-card">
+            <div class="mb-card-header">
+              <h2 class="mb-card-title">Send by email</h2>
+            </div>
+            <div class="mb-card-body">
+              <!-- Show from address or warning -->
+              {% if business.email_from %}
+              <p class="text-xs text-slate-500 mb-2">
+                From: <span class="font-medium text-slate-700">{{ business.email_from }}</span>
+              </p>
+              {% else %}
+              <p class="text-xs text-amber-600 mb-2">
+                No sender email configured. Add a business email in <a href="{% url 'account_settings' %}"
+                  class="underline">Account settings</a> to send invoices.
+              </p>
+              {% endif %}
+
+              <div class="mb-field">
+                <label class="mb-label">Recipient email</label>
+                <input type="email" id="send-email-to" value="{{ invoice.email_to|default:invoice.customer.email }}"
+                  placeholder="customer@email.com"
+                  class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm">
+              </div>
+
+              <!-- Conditional button - disable if no business email -->
+              {% if business.email_from %}
+              <button type="button" class="mb-btn mb-btn-primary" data-send-invoice-btn
+                data-invoice-id="{{ invoice.id }}">
+                Send by email
+              </button>
+              {% else %}
+              <button type="button" class="mb-btn mb-btn-primary opacity-60 cursor-not-allowed" disabled>
+                Send by email
+              </button>
+              {% endif %}
+
+              <div class="mb-hint" id="send-email-status">
+                {% if invoice.email_sent_at %}
+                Last sent {{ invoice.email_sent_at }}{% if invoice.email_to %} to {{ invoice.email_to }}{% endif %}
+                {% else %}
+                Not sent yet
+                {% endif %}
+              </div>
+              {% if invoice.email_last_error %}
+              <p class="mb-error" style="margin-top:6px;">Last error: {{ invoice.email_last_error }}</p>
+              {% endif %}
+            </div>
+          </section>
+
+          <!-- Download PDF button -->
+          <section class="mb-card mb-side-card" style="margin-top: 24px;">
+            <div class="mb-card-header">
+              <h2 class="mb-card-title">Download</h2>
+            </div>
+            <div class="mb-card-body">
+              <a href="{% url 'invoice_pdf' invoice.pk %}" class="mb-btn mb-btn-primary"
+                style="display: inline-flex; align-items: center; justify-center; text-decoration: none; width: 100%;">
+                Download PDF
+              </a>
+              <p class="mb-hint" style="margin-top: 8px;">
+                Download a PDF copy of this invoice for your records.
+              </p>
+            </div>
+          </section>
+          {% endif %}
         </aside>
 
       </div>
     </form>
-</div>
+  </div>
 </div>
 
 {{ tax_rates|json_script:"tax-rates-data" }}
@@ -479,6 +547,52 @@
     if (amountInput) amountInput.addEventListener("input", updateTotals);
     if (taxSelect) taxSelect.addEventListener("change", updateTotals);
     updateTotals();
+
+    const sendBtn = document.querySelector("[data-send-invoice-btn]");
+    if (sendBtn) {
+      const statusEl = document.getElementById("send-email-status");
+      const toInput = document.getElementById("send-email-to");
+      const invoiceId = sendBtn.getAttribute("data-invoice-id");
+
+      function getCookie(name) {
+        const match = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
+        return match ? match[2] : null;
+      }
+
+      sendBtn.addEventListener("click", async () => {
+        if (!invoiceId) return;
+        const toEmail = toInput ? toInput.value.trim() : "";
+        if (statusEl) statusEl.textContent = "Sending…";
+        sendBtn.disabled = true;
+        const formData = new FormData();
+        if (toEmail) {
+          formData.append("to_email", toEmail);
+        }
+        try {
+          const response = await fetch(`/api/invoices/${invoiceId}/send_email/`, {
+            method: "POST",
+            body: formData,
+            credentials: "same-origin",
+            headers: {
+              "X-CSRFToken": getCookie("csrftoken") || "",
+            },
+          });
+          const data = await response.json();
+          // Handle both ok/error format and legacy status format
+          if (response.ok || data.ok === true || data.status === "ok") {
+            if (statusEl) statusEl.textContent = `Sent to ${data.sent_to || toEmail}`;
+          } else {
+            // Display the friendly error message from the backend
+            const errorMsg = data.error || data.detail || "Unable to send email";
+            throw new Error(errorMsg);
+          }
+        } catch (err) {
+          if (statusEl) statusEl.textContent = `Error: ${err.message || err}`;
+        } finally {
+          sendBtn.disabled = false;
+        }
+      });
+    }
   });
 </script>
 {% endblock %}

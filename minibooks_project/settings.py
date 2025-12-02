@@ -100,7 +100,6 @@ def _preferred_site_domain() -> str:
 SITE_DOMAIN = _preferred_site_domain()
 
 INSTALLED_APPS = [
-    "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
@@ -123,6 +122,7 @@ INSTALLED_APPS = [
     "core",
     "taxes",
     "internal_admin",
+    "companion",
 ]
 
 MIDDLEWARE = [
@@ -132,7 +132,6 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
-    "core.middleware.DjangoAdminSuperuserMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "allauth.account.middleware.AccountMiddleware",  # Required for django-allauth
@@ -217,6 +216,14 @@ CSRF_COOKIE_SECURE = not DEBUG
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 INTERNAL_ADMIN_METRICS_MAX_AGE_MINUTES = 5
+
+# Companion LLM (DeepSeek or provider-agnostic) settings
+COMPANION_LLM_ENABLED = os.getenv("COMPANION_LLM_ENABLED", "false").lower() in {"1", "true", "yes"}
+COMPANION_LLM_API_BASE = os.getenv("COMPANION_LLM_API_BASE", "")
+COMPANION_LLM_API_KEY = os.getenv("COMPANION_LLM_API_KEY", "")
+COMPANION_LLM_MODEL = os.getenv("COMPANION_LLM_MODEL", "deepseek-v3.2")
+COMPANION_LLM_TIMEOUT_SECONDS = int(os.getenv("COMPANION_LLM_TIMEOUT_SECONDS", "15"))
+COMPANION_LLM_MAX_TOKENS = int(os.getenv("COMPANION_LLM_MAX_TOKENS", "512"))
 
 # --- Sentry & production security hardening ---
 
@@ -303,6 +310,28 @@ SOCIALACCOUNT_PROVIDERS = {
 
 # NOTE: APP configuration removed - credentials must be in database SocialApp only
 # Run: python manage.py setup_google_oauth to configure
+
+
+# ===================================
+# Email Configuration
+# ===================================
+
+# Email backend: use environment-aware settings
+EMAIL_HOST = os.getenv("EMAIL_HOST", "")
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = _get_bool_env("EMAIL_USE_TLS", True)
+EMAIL_USE_SSL = _get_bool_env("EMAIL_USE_SSL", False)
+
+# Default from email
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "")
+
+# In development, use console backend if SMTP is not configured
+if DEBUG and not EMAIL_HOST:
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+else:
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 
 
 LOGGING = {
