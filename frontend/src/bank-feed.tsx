@@ -68,7 +68,15 @@ type TaxRateOption = {
   id: number;
   name: string;
   code?: string | null;
+  rate: number;
   percentage: number;
+  country?: string;
+  region?: string;
+  applies_to_sales?: boolean;
+  applies_to_purchases?: boolean;
+  is_default_sales_rate?: boolean;
+  is_default_purchase_rate?: boolean;
+  is_active?: boolean;
 };
 
 type TaxTreatment = "NONE" | "INCLUDED" | "ON_TOP";
@@ -427,7 +435,21 @@ function BankFeedPage() {
           id: tr.id,
           name: tr.name,
           code: tr.code,
-          percentage: Number(tr.percentage || 0),
+          percentage:
+            tr.percentage !== undefined && tr.percentage !== null
+              ? Number(tr.percentage || 0)
+              : Number((tr.rate || 0) * 100),
+          rate:
+            tr.rate !== undefined && tr.rate !== null
+              ? Number(tr.rate || 0)
+              : Number(tr.percentage || 0) / 100,
+          country: tr.country,
+          region: tr.region,
+          applies_to_sales: tr.applies_to_sales !== false,
+          applies_to_purchases: tr.applies_to_purchases !== false,
+          is_default_sales_rate: tr.is_default_sales_rate,
+          is_default_purchase_rate: tr.is_default_purchase_rate,
+          is_active: tr.is_active !== false,
         })),
       );
     } catch (err) {
@@ -454,6 +476,64 @@ function BankFeedPage() {
     filteredTransactions.find((t) => t.id === selectedTxId) ||
     filteredTransactions[0] ||
     null;
+
+  const ratesForSide = useCallback(
+    (side: "IN" | "OUT" | null | undefined) =>
+      taxRates.filter((rate) =>
+        side === "IN"
+          ? rate.applies_to_sales !== false
+          : side === "OUT"
+            ? rate.applies_to_purchases !== false
+            : true,
+      ),
+    [taxRates],
+  );
+
+  const applicableTaxRates = useMemo(
+    () => ratesForSide(selectedTx?.side),
+    [ratesForSide, selectedTx?.side],
+  );
+
+  const hasApplicableTaxRates = applicableTaxRates.length > 0;
+
+  const findRatePct = useCallback(
+    (rateId: string | undefined, side: "IN" | "OUT" | null | undefined) => {
+      if (!rateId) return 0;
+      const rate = ratesForSide(side).find((tr) => String(tr.id) === rateId);
+      return rate ? rate.percentage : 0;
+    },
+    [ratesForSide],
+  );
+
+  useEffect(() => {
+    if (!selectedTx) return;
+    if (!hasApplicableTaxRates) {
+      setCreateTaxTreatment("NONE");
+      setCreateTaxRateId("");
+      setManualAllocations((rows) =>
+        rows.map((row) => ({
+          ...row,
+          taxTreatment: "NONE",
+          taxRateId: "",
+        })),
+      );
+      return;
+    }
+    setCreateTaxRateId((prev) => {
+      if (prev && applicableTaxRates.some((tr) => String(tr.id) === prev)) {
+        return prev;
+      }
+      return applicableTaxRates[0]?.id ? String(applicableTaxRates[0].id) : "";
+    });
+    setManualAllocations((rows) =>
+      rows.map((row) => {
+        if (row.taxRateId && applicableTaxRates.some((tr) => String(tr.id) === row.taxRateId)) {
+          return row;
+        }
+        return { ...row, taxRateId: applicableTaxRates[0]?.id ? String(applicableTaxRates[0].id) : "" };
+      }),
+    );
+  }, [applicableTaxRates, hasApplicableTaxRates, selectedTx]);
 
   useEffect(() => {
     if (!selectedTx) {
@@ -487,19 +567,30 @@ function BankFeedPage() {
     setRoundingAmount("");
     setOverpaymentAccountId("");
     setOverpaymentAmount("");
-    setCreateTaxTreatment("NONE");
-    setCreateTaxRateId(taxRates[0]?.id ? String(taxRates[0].id) : "");
+    const availableRates = ratesForSide(selectedTx.side);
+    const defaultRateId = availableRates[0]?.id ? String(availableRates[0].id) : "";
+    setCreateTaxTreatment(availableRates.length === 0 ? "NONE" : "NONE");
+    setCreateTaxRateId(defaultRateId);
     const defaultDirection: "IN" | "OUT" = selectedTx.side === "IN" ? "IN" : "OUT";
     setAddDirection(defaultDirection);
     const defaultAccounts =
       defaultDirection === "IN" ? incomeAccounts : [...expenseAccounts, ...equityAccounts];
     setAddAccountId(defaultAccounts[0]?.id ? String(defaultAccounts[0].id) : "");
     setAddAmount(Math.abs(selectedTx.amount || 0).toFixed(2));
-    setAddTaxTreatment("NONE");
-    setAddTaxRateId(taxRates[0]?.id ? String(taxRates[0].id) : "");
+    setAddTaxTreatment(availableRates.length === 0 ? "NONE" : "NONE");
+    setAddTaxRateId(defaultRateId);
     setAddMemo(selectedTx.description || "");
     setAddContactId("");
-  }, [selectedTx?.id, expenseCategories, incomeCategories, equityAccounts, taxRates]);
+    if (availableRates.length === 0) {
+      setManualAllocations((rows) =>
+        rows.map((row) => ({
+          ...row,
+          taxTreatment: "NONE",
+          taxRateId: "",
+        })),
+      );
+    }
+  }, [selectedTx?.id, expenseCategories, incomeCategories, equityAccounts, taxRates, ratesForSide]);
 
   useEffect(() => {
     setCreateMemo("");
@@ -513,8 +604,7 @@ function BankFeedPage() {
     selectedTx && selectedTx.side === "OUT" ? suppliers : customers;
   const contactLabel = selectedTx && selectedTx.side === "OUT" ? "Supplier" : "Customer";
   const canCreateEntry = Boolean(selectedTx && createCategoryId);
-  const createRatePct =
-    taxRates.find((tr) => String(tr.id) === createTaxRateId)?.percentage || 0;
+  const createRatePct = findRatePct(createTaxRateId, selectedTx?.side);
   const createBaseAmountStr =
     selectedTx && createTaxTreatment === "ON_TOP" && createRatePct > 0
       ? (Math.abs(selectedTx.amount || 0) / (1 + createRatePct / 100)).toFixed(2)
@@ -532,8 +622,26 @@ function BankFeedPage() {
         : [...expenseAccounts, ...equityAccounts],
     [addDirection, expenseAccounts, incomeAccounts, equityAccounts],
   );
-  const addRatePct =
-    taxRates.find((tr) => String(tr.id) === addTaxRateId)?.percentage || 0;
+  const addRatePct = findRatePct(addTaxRateId, addDirection);
+  const addFlowTaxRates = useMemo(
+    () => ratesForSide(addDirection),
+    [ratesForSide, addDirection],
+  );
+  const hasAddTaxRates = addFlowTaxRates.length > 0;
+
+  useEffect(() => {
+    if (!hasAddTaxRates) {
+      setAddTaxTreatment("NONE");
+      setAddTaxRateId("");
+      return;
+    }
+    setAddTaxRateId((prev) => {
+      if (prev && addFlowTaxRates.some((tr) => String(tr.id) === prev)) {
+        return prev;
+      }
+      return addFlowTaxRates[0]?.id ? String(addFlowTaxRates[0].id) : "";
+    });
+  }, [addFlowTaxRates, hasAddTaxRates]);
   const addTaxParts = computeTaxParts(addAmount || "0", addTaxTreatment, addRatePct);
   const bankAmountAbs = selectedTx ? Math.abs(selectedTx.amount || 0) : 0;
   const addAmountMatches = Math.abs(addTaxParts.gross - bankAmountAbs) <= 0.02;
@@ -714,6 +822,7 @@ function BankFeedPage() {
     const defaultType: ManualAllocationRow["type"] = selectedTx.side === "IN" ? "DIRECT_INCOME" : "DIRECT_EXPENSE";
     const defaultAccountOptions =
       defaultType === "DIRECT_INCOME" ? incomeAccounts : [...expenseAccounts, ...equityAccounts];
+    const availableRates = ratesForSide(selectedTx.side);
     setManualAllocations((rows) => [
       ...rows,
       {
@@ -722,10 +831,10 @@ function BankFeedPage() {
         accountId: defaultAccountOptions[0]?.id ? String(defaultAccountOptions[0].id) : "",
         amount: "",
         taxTreatment: "NONE",
-        taxRateId: taxRates[0]?.id ? String(taxRates[0].id) : "",
+        taxRateId: availableRates[0]?.id ? String(availableRates[0].id) : "",
       },
     ]);
-  }, [selectedTx, expenseAccounts, incomeAccounts, equityAccounts, taxRates]);
+  }, [selectedTx, expenseAccounts, incomeAccounts, equityAccounts, ratesForSide]);
 
   const updateManualAllocationRow = useCallback(
     (key: string, patch: Partial<ManualAllocationRow>) => {
@@ -757,9 +866,7 @@ function BankFeedPage() {
       };
     }
     const getRatePct = (row: { taxRateId?: string }) => {
-      if (!row.taxRateId) return 0;
-      const rate = taxRates.find((tr) => String(tr.id) === row.taxRateId);
-      return rate ? rate.percentage : 0;
+      return findRatePct(row.taxRateId, selectedTx?.side);
     };
     const candidateTotal = Object.values(allocationSelections).reduce(
       (sum, value) => sum + parseAmountInput(value),
@@ -838,6 +945,10 @@ function BankFeedPage() {
       setActionError("Tax selection must match the bank amount.");
       return;
     }
+    if (createTaxTreatment !== "NONE" && !hasApplicableTaxRates) {
+      setActionError("No tax rates are configured for this transaction type.");
+      return;
+    }
     if (createTaxTreatment !== "NONE" && !createTaxRateId) {
       setActionError("Select a tax code for this tax treatment.");
       return;
@@ -911,6 +1022,18 @@ function BankFeedPage() {
       setActionError("Add at least one allocation amount.");
       return;
     }
+    if (
+      manualPayload.some(
+        (row) => row.tax_treatment !== "NONE" && (!hasApplicableTaxRates || !row.tax_rate_id),
+      )
+    ) {
+      setActionError(
+        hasApplicableTaxRates
+          ? "Select a tax code for this tax treatment."
+          : "No tax rates are configured for this transaction type.",
+      );
+      return;
+    }
 
     const body: Record<string, unknown> = {
       allocations: allocationsPayload,
@@ -973,6 +1096,10 @@ function BankFeedPage() {
     const amountValue = parseAmountInput(addAmount);
     if (amountValue <= 0) {
       setActionError("Enter an amount greater than zero.");
+      return;
+    }
+    if (addTaxTreatment !== "NONE" && !hasAddTaxRates) {
+      setActionError("No tax rates are configured for this direction.");
       return;
     }
     if (addTaxTreatment !== "NONE" && !addTaxRateId) {
@@ -1395,7 +1522,7 @@ function BankFeedPage() {
                                 value={createTaxTreatment}
                                 onChange={(e) => setCreateTaxTreatment(e.target.value as TaxTreatment)}
                                 className="h-9 rounded-full border border-slate-200 bg-white px-3 text-xs outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 disabled:bg-slate-100 disabled:text-slate-400"
-                                disabled={taxRates.length === 0}
+                                disabled={!hasApplicableTaxRates}
                               >
                                 <option value="NONE">No tax</option>
                                 <option value="INCLUDED">Tax included</option>
@@ -1404,13 +1531,13 @@ function BankFeedPage() {
                               <select
                                 value={createTaxRateId}
                                 onChange={(e) => setCreateTaxRateId(e.target.value)}
-                                disabled={createTaxTreatment === "NONE" || taxRates.length === 0}
+                                disabled={createTaxTreatment === "NONE" || !hasApplicableTaxRates}
                                 className="h-9 rounded-full border border-slate-200 bg-white px-3 text-xs outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 disabled:bg-slate-100"
                               >
-                                {taxRates.length === 0 ? (
+                                {!hasApplicableTaxRates ? (
                                   <option value="">No tax codes</option>
                                 ) : (
-                                  taxRates.map((tr) => (
+                                  applicableTaxRates.map((tr) => (
                                     <option key={tr.id} value={tr.id}>
                                       {tr.name} ({tr.percentage}%)
                                     </option>
@@ -1422,9 +1549,9 @@ function BankFeedPage() {
                                 {formatMoney(createTaxParts.gross)}
                               </span>
                             </div>
-                            {taxRates.length === 0 && (
+                            {!hasApplicableTaxRates && (
                               <p className="mt-1 text-[11px] text-slate-500">
-                                No tax rates configured. Tax selection is disabled.
+                                No tax rates configured for this transaction. Configure rates in Settings → Taxes.
                               </p>
                             )}
                             {!createAmountMatches && (
@@ -1552,7 +1679,7 @@ function BankFeedPage() {
                               <p className="text-[11px] text-slate-500">No manual splits yet.</p>
                             )}
                             {manualAllocations.map((row) => {
-                              const rate = taxRates.find((tr) => String(tr.id) === row.taxRateId)?.percentage || 0;
+                              const rate = findRatePct(row.taxRateId, selectedTx?.side);
                               const parts = computeTaxParts(row.amount, row.taxTreatment || "NONE", rate);
                               const options =
                                 selectedTx.side === "IN"
@@ -1607,7 +1734,7 @@ function BankFeedPage() {
                                         })
                                       }
                                       className="h-9 rounded-full border border-slate-200 bg-white px-3 text-xs outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 disabled:bg-slate-100 disabled:text-slate-400"
-                                      disabled={taxRates.length === 0}
+                                      disabled={!hasApplicableTaxRates}
                                     >
                                       <option value="NONE">No tax</option>
                                       <option value="INCLUDED">Tax included</option>
@@ -1618,13 +1745,13 @@ function BankFeedPage() {
                                       onChange={(e) =>
                                         updateManualAllocationRow(row.key, { taxRateId: e.target.value })
                                       }
-                                      disabled={(row.taxTreatment || "NONE") === "NONE" || taxRates.length === 0}
+                                      disabled={(row.taxTreatment || "NONE") === "NONE" || !hasApplicableTaxRates}
                                       className="h-9 rounded-full border border-slate-200 bg-white px-3 text-xs outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 disabled:bg-slate-100"
                                     >
-                                      {taxRates.length === 0 ? (
+                                      {!hasApplicableTaxRates ? (
                                         <option value="">No tax codes</option>
                                       ) : (
-                                        taxRates.map((tr) => (
+                                        applicableTaxRates.map((tr) => (
                                           <option key={tr.id} value={tr.id}>
                                             {tr.name} ({tr.percentage}%)
                                           </option>
@@ -1646,6 +1773,11 @@ function BankFeedPage() {
                                 </div>
                               );
                             })}
+                            {!hasApplicableTaxRates && (
+                              <p className="text-[11px] text-slate-500">
+                                No tax rates configured for this transaction. Configure rates in Settings → Taxes.
+                              </p>
+                            )}
                           </div>
                         </div>
 
@@ -1876,7 +2008,8 @@ function BankFeedPage() {
                               <select
                                 value={addTaxTreatment}
                                 onChange={(e) => setAddTaxTreatment(e.target.value as TaxTreatment)}
-                                className="h-9 rounded-full border border-slate-200 bg-white px-3 text-xs outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                                className="h-9 rounded-full border border-slate-200 bg-white px-3 text-xs outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 disabled:bg-slate-100 disabled:text-slate-400"
+                                disabled={!hasAddTaxRates}
                               >
                                 <option value="NONE">No tax</option>
                                 <option value="INCLUDED">Tax included</option>
@@ -1885,13 +2018,13 @@ function BankFeedPage() {
                               <select
                                 value={addTaxRateId}
                                 onChange={(e) => setAddTaxRateId(e.target.value)}
-                                disabled={addTaxTreatment === "NONE" || taxRates.length === 0}
+                                disabled={addTaxTreatment === "NONE" || !hasAddTaxRates}
                                 className="h-9 rounded-full border border-slate-200 bg-white px-3 text-xs outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 disabled:bg-slate-100"
                               >
-                                {taxRates.length === 0 ? (
+                                {!hasAddTaxRates ? (
                                   <option value="">No tax codes</option>
                                 ) : (
-                                  taxRates.map((tr) => (
+                                  addFlowTaxRates.map((tr) => (
                                     <option key={tr.id} value={tr.id}>
                                       {tr.name} ({tr.percentage}%)
                                     </option>
@@ -1903,9 +2036,9 @@ function BankFeedPage() {
                               Net {formatMoney(addTaxParts.net)} · Tax {formatMoney(addTaxParts.tax)} · Gross{" "}
                               {formatMoney(addTaxParts.gross)}
                             </p>
-                            {taxRates.length === 0 && (
+                            {!hasAddTaxRates && (
                               <p className="mt-1 text-[11px] text-slate-500">
-                                No tax rates configured. Tax selection is disabled.
+                                No tax rates configured for this transaction. Configure rates in Settings → Taxes.
                               </p>
                             )}
                             {!addAmountMatches && (

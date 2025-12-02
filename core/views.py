@@ -265,6 +265,86 @@ def _json_from_body(request):
         return {}
 
 
+def _normalize_tax_treatment(raw: str | None) -> str:
+    normalized = (raw or "NONE").upper()
+    mapping = {
+        "NO_TAX": "NONE",
+        "TAX_ON_TOP": "ON_TOP",
+        "TAX_INCLUDED": "INCLUDED",
+    }
+    return mapping.get(normalized, normalized)
+
+
+def _tax_rate_payload(rate: TaxRate) -> dict[str, object]:
+    default_sales = bool(rate.is_default_sales or rate.is_default_sales_rate)
+    default_purchase = bool(rate.is_default_purchases or rate.is_default_purchase_rate)
+    return {
+        "id": rate.id,
+        "name": rate.name,
+        "code": rate.code,
+        "rate": float(rate.rate),
+        "percentage": float(rate.percentage),
+        "country": rate.country,
+        "region": rate.region,
+        "applies_to_sales": rate.applies_to_sales,
+        "applies_to_purchases": rate.applies_to_purchases,
+        "is_default_sales_rate": default_sales,
+        "is_default_purchase_rate": default_purchase,
+        "is_active": rate.is_active,
+    }
+
+
+def _load_tax_rate(
+    business: Business,
+    rate_id,
+    *,
+    require_sales: bool = False,
+    require_purchases: bool = False,
+):
+    try:
+        rate_pk = int(rate_id)
+    except (TypeError, ValueError):
+        raise ValidationError("Invalid tax rate id.")
+
+    rate = TaxRate.objects.filter(pk=rate_pk, business=business, is_active=True).first()
+    if not rate:
+        raise ValidationError("Tax rate not found.")
+    if require_sales and not rate.applies_to_sales:
+        raise ValidationError("This tax rate is not configured for sales.")
+    if require_purchases and not rate.applies_to_purchases:
+        raise ValidationError("This tax rate is not configured for purchases.")
+    return rate
+
+
+def _percentage_from_rate_value(raw_value) -> Decimal:
+    try:
+        rate_decimal = Decimal(str(raw_value))
+    except (InvalidOperation, ValueError, TypeError):
+        raise ValidationError("Enter a valid tax rate.")
+    if rate_decimal < 0:
+        raise ValidationError("Tax rate cannot be negative.")
+    # Accept decimals (0.13) or percentages (13)
+    percentage = rate_decimal * Decimal("100") if rate_decimal <= 1 else rate_decimal
+    if percentage > Decimal("1000"):
+        raise ValidationError("Tax rate looks too large.")
+    return percentage.quantize(Decimal("0.01"))
+
+
+def _clear_default_tax_flags(business: Business, *, sales: bool = False, purchases: bool = False, exclude_id=None):
+    qs = TaxRate.objects.filter(business=business)
+    if exclude_id:
+        qs = qs.exclude(pk=exclude_id)
+    updates = {}
+    if sales:
+        updates["is_default_sales"] = False
+        updates["is_default_sales_rate"] = False
+    if purchases:
+        updates["is_default_purchases"] = False
+        updates["is_default_purchase_rate"] = False
+    if updates:
+        qs.update(**updates)
+
+
 def _get_bank_tx_for_business(business, tx_id, *, for_update=False):
     qs = BankTransaction.objects.filter(
         pk=tx_id,
@@ -658,6 +738,17 @@ def account_settings(request):
             "logoutAll": logout_all_url,
         },
         "messages": _messages_payload(request),
+        "taxSettings": {
+            "is_tax_registered": business.is_tax_registered if business else False,
+            "tax_country": business.tax_country if business else "CA",
+            "tax_region": business.tax_region if business else "",
+            "tax_rates": [
+                _tax_rate_payload(rate)
+                for rate in TaxRate.objects.filter(business=business).order_by("name")
+            ]
+            if business
+            else [],
+        },
     }
 
     return render(
@@ -667,6 +758,211 @@ def account_settings(request):
             "account_settings_payload": json.dumps(payload, cls=DjangoJSONEncoder),
         },
     )
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def api_tax_settings(request):
+    business = get_current_business(request.user)
+    if business is None:
+        return JsonResponse({"detail": "No business"}, status=400)
+
+    if request.method == "GET":
+        tax_rates = list(
+            TaxRate.objects.filter(business=business).order_by("name")
+        )
+        return JsonResponse(
+            {
+                "is_tax_registered": business.is_tax_registered,
+                "tax_country": business.tax_country,
+                "tax_region": business.tax_region,
+                "tax_rates": [_tax_rate_payload(rate) for rate in tax_rates],
+            }
+        )
+
+    payload = _json_from_body(request)
+    country = (payload.get("tax_country") or business.tax_country or "CA").upper()
+    region = (payload.get("tax_region") or "").upper()
+    is_tax_registered = bool(payload.get("is_tax_registered"))
+    if country not in {"CA", "US"}:
+        return JsonResponse({"detail": "Unsupported country."}, status=400)
+
+    business.is_tax_registered = is_tax_registered
+    business.tax_country = country
+    business.tax_region = region
+    business.save(update_fields=["is_tax_registered", "tax_country", "tax_region"])
+
+    tax_rates = list(
+        TaxRate.objects.filter(business=business).order_by("name")
+    )
+    return JsonResponse(
+        {
+            "is_tax_registered": business.is_tax_registered,
+            "tax_country": business.tax_country,
+            "tax_region": business.tax_region,
+            "tax_rates": [_tax_rate_payload(rate) for rate in tax_rates],
+        }
+    )
+
+
+def _tax_rate_from_payload(business: Business, payload: dict, *, existing: TaxRate | None = None) -> dict:
+    name = (payload.get("name") or "").strip()
+    code = (payload.get("code") or slugify(name) or "").upper().replace("-", "_")
+    if not name:
+        raise ValidationError("Tax rate name is required.")
+    if not code:
+        raise ValidationError("Tax rate code is required.")
+
+    percentage = None
+    if "rate" in payload or "percentage" in payload:
+        percentage = _percentage_from_rate_value(payload.get("rate") if "rate" in payload else payload.get("percentage"))
+    elif existing is None:
+        raise ValidationError("Tax rate percentage is required.")
+
+    country = (payload.get("country") or business.tax_country or "CA").upper()
+    region = (payload.get("region") or "").upper()
+    applies_to_sales = bool(payload.get("applies_to_sales", True))
+    applies_to_purchases = bool(payload.get("applies_to_purchases", True))
+    is_active = payload.get("is_active")
+    is_default_sales_rate = payload.get("is_default_sales_rate")
+    is_default_purchase_rate = payload.get("is_default_purchase_rate")
+
+    return {
+        "name": name,
+        "code": code[:20],
+        "percentage": percentage,
+        "country": country,
+        "region": region[:10],
+        "applies_to_sales": applies_to_sales,
+        "applies_to_purchases": applies_to_purchases,
+        "is_active": bool(is_active) if is_active is not None else None,
+        "is_default_sales_rate": bool(is_default_sales_rate) if is_default_sales_rate is not None else None,
+        "is_default_purchase_rate": bool(is_default_purchase_rate) if is_default_purchase_rate is not None else None,
+    }
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def api_tax_rates(request):
+    business = get_current_business(request.user)
+    if business is None:
+        return JsonResponse({"detail": "No business"}, status=400)
+
+    if request.method == "GET":
+        qs = TaxRate.objects.filter(business=business)
+        if request.GET.get("active") == "1":
+            qs = qs.filter(is_active=True)
+        tax_rates = [_tax_rate_payload(rate) for rate in qs.order_by("name")]
+        return JsonResponse({"tax_rates": tax_rates})
+
+    payload = _json_from_body(request)
+    try:
+        parsed = _tax_rate_from_payload(business, payload)
+    except ValidationError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+
+    if TaxRate.objects.filter(business=business, code__iexact=parsed["code"]).exists():
+        return JsonResponse({"detail": "A tax rate with this code already exists."}, status=400)
+
+    with db_transaction.atomic():
+        if parsed["is_default_sales_rate"]:
+            _clear_default_tax_flags(business, sales=True)
+        if parsed["is_default_purchase_rate"]:
+            _clear_default_tax_flags(business, purchases=True)
+
+        rate = TaxRate.objects.create(
+            business=business,
+            name=parsed["name"],
+            code=parsed["code"],
+            percentage=parsed["percentage"],
+            country=parsed["country"],
+            region=parsed["region"],
+            applies_to_sales=parsed["applies_to_sales"],
+            applies_to_purchases=parsed["applies_to_purchases"],
+            is_active=True,
+            is_default_sales=bool(parsed["is_default_sales_rate"]),
+            is_default_purchases=bool(parsed["is_default_purchase_rate"]),
+            is_default_sales_rate=bool(parsed["is_default_sales_rate"]),
+            is_default_purchase_rate=bool(parsed["is_default_purchase_rate"]),
+        )
+
+    return JsonResponse({"tax_rate": _tax_rate_payload(rate)}, status=201)
+
+
+@login_required
+@require_http_methods(["PATCH", "DELETE"])
+def api_tax_rate_detail(request, rate_id):
+    business = get_current_business(request.user)
+    if business is None:
+        return JsonResponse({"detail": "No business"}, status=400)
+
+    rate = TaxRate.objects.filter(pk=rate_id, business=business).first()
+    if not rate:
+        return JsonResponse({"detail": "Tax rate not found."}, status=404)
+
+    if request.method == "DELETE":
+        rate.is_active = False
+        rate.is_default_sales = False
+        rate.is_default_purchases = False
+        rate.is_default_sales_rate = False
+        rate.is_default_purchase_rate = False
+        rate.save(
+            update_fields=[
+                "is_active",
+                "is_default_sales",
+                "is_default_purchases",
+                "is_default_sales_rate",
+                "is_default_purchase_rate",
+            ]
+        )
+        return JsonResponse({"tax_rate": _tax_rate_payload(rate)})
+
+    payload = _json_from_body(request)
+    try:
+        parsed = _tax_rate_from_payload(business, payload, existing=rate)
+    except ValidationError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+
+    if (
+        parsed["code"]
+        and parsed["code"].lower() != (rate.code or "").lower()
+        and TaxRate.objects.filter(business=business, code__iexact=parsed["code"])
+        .exclude(pk=rate.id)
+        .exists()
+    ):
+        return JsonResponse({"detail": "A tax rate with this code already exists."}, status=400)
+
+    with db_transaction.atomic():
+        if parsed["is_default_sales_rate"]:
+            _clear_default_tax_flags(business, sales=True, exclude_id=rate.id)
+        if parsed["is_default_purchase_rate"]:
+            _clear_default_tax_flags(business, purchases=True, exclude_id=rate.id)
+
+        update_fields = []
+        for field in ("name", "code", "country", "region", "applies_to_sales", "applies_to_purchases"):
+            new_val = parsed[field]
+            if new_val is not None and getattr(rate, field) != new_val:
+                setattr(rate, field, new_val)
+                update_fields.append(field)
+        if parsed["percentage"] is not None and rate.percentage != parsed["percentage"]:
+            rate.percentage = parsed["percentage"]
+            update_fields.append("percentage")
+        if parsed["is_active"] is not None and rate.is_active != parsed["is_active"]:
+            rate.is_active = parsed["is_active"]
+            update_fields.append("is_active")
+        if parsed["is_default_sales_rate"] is not None:
+            rate.is_default_sales = parsed["is_default_sales_rate"]
+            rate.is_default_sales_rate = parsed["is_default_sales_rate"]
+            update_fields.extend(["is_default_sales", "is_default_sales_rate"])
+        if parsed["is_default_purchase_rate"] is not None:
+            rate.is_default_purchases = parsed["is_default_purchase_rate"]
+            rate.is_default_purchase_rate = parsed["is_default_purchase_rate"]
+            update_fields.extend(["is_default_purchases", "is_default_purchase_rate"])
+
+        if update_fields:
+            rate.save(update_fields=list(dict.fromkeys(update_fields)))
+
+    return JsonResponse({"tax_rate": _tax_rate_payload(rate)})
 
 
 @login_required
@@ -3439,7 +3735,7 @@ def api_allocate_bank_transaction(request, bank_tx_id):
         )
         if kind_raw not in allowed_kinds:
             raise ValidationError("Invalid allocation type.")
-        tax_treatment = str(raw.get("tax_treatment") or "").upper() or None
+        tax_treatment = _normalize_tax_treatment(raw.get("tax_treatment"))
         if tax_treatment and tax_treatment not in ("NONE", "INCLUDED", "ON_TOP"):
             raise ValidationError("Invalid tax treatment.")
         tax_rate_id = raw.get("tax_rate_id")
@@ -3462,6 +3758,23 @@ def api_allocate_bank_transaction(request, bank_tx_id):
     try:
         allocation_items = payload.get("allocations") or []
         allocations = [_build_allocation(item) for item in allocation_items]
+
+        has_active_tax_rates = (
+            TaxRate.objects.filter(business=business, is_active=True).exists()
+        )
+        for alloc in allocations:
+            alloc.tax_treatment = _normalize_tax_treatment(alloc.tax_treatment)
+            if alloc.tax_treatment != "NONE":
+                if not has_active_tax_rates:
+                    raise ValidationError("No active tax rates are configured for this business.")
+                if not alloc.tax_rate_id:
+                    raise ValidationError("Select a tax rate when tax is enabled.")
+                _load_tax_rate(
+                    business,
+                    alloc.tax_rate_id,
+                    require_sales=alloc.kind == "DIRECT_INCOME",
+                    require_purchases=alloc.kind == "DIRECT_EXPENSE",
+                )
 
         fees = None
         if payload.get("fees"):
@@ -3575,11 +3888,10 @@ def api_banking_feed_metadata(request):
         .order_by("code", "name")
         .values("id", "name", "code")
     )
-    tax_rates = list(
-        TaxRate.objects.filter(business=business, is_active=True)
-        .order_by("name")
-        .values("id", "name", "code", "percentage")
-    )
+    tax_rates = [
+        _tax_rate_payload(rate)
+        for rate in TaxRate.objects.filter(business=business, is_active=True).order_by("name")
+    ]
     return JsonResponse(
         {
             "expense_categories": expense_categories,
@@ -3627,18 +3939,12 @@ def api_banking_feed_create_entry(request, tx_id):
         return JsonResponse({"detail": "Category not found"}, status=404)
 
     memo = (payload.get("memo") or "").strip()
-    tax_treatment = str(payload.get("tax_treatment") or "NONE").upper()
+    tax_treatment = _normalize_tax_treatment(payload.get("tax_treatment"))
     if tax_treatment not in ("NONE", "INCLUDED", "ON_TOP"):
         return JsonResponse({"detail": "Invalid tax treatment."}, status=400)
-    tax_rate = None
     tax_rate_id = payload.get("tax_rate_id")
     if tax_treatment != "NONE" and tax_rate_id in (None, "", 0, "0"):
         return JsonResponse({"detail": "Select a tax code when tax is enabled."}, status=400)
-    if tax_rate_id not in (None, "", 0, "0"):
-        try:
-            tax_rate = TaxRate.objects.get(pk=int(tax_rate_id), business=business)
-        except (TaxRate.DoesNotExist, ValueError, TypeError):
-            return JsonResponse({"detail": "Tax rate not found."}, status=404)
     amount_override = payload.get("amount")
 
     with db_transaction.atomic():
@@ -3652,6 +3958,24 @@ def api_banking_feed_create_entry(request, tx_id):
             )
         if bank_tx.amount == 0:
             return JsonResponse({"detail": "Transaction amount is zero."}, status=400)
+
+        has_active_tax_rates = TaxRate.objects.filter(business=business, is_active=True).exists()
+        tax_rate = None
+        if tax_treatment != "NONE":
+            if not has_active_tax_rates:
+                return JsonResponse(
+                    {"detail": "No active tax rates are configured for this business."},
+                    status=400,
+                )
+            try:
+                tax_rate = _load_tax_rate(
+                    business,
+                    tax_rate_id,
+                    require_sales=bank_tx.amount > 0,
+                    require_purchases=bank_tx.amount < 0,
+                )
+            except ValidationError as exc:
+                return JsonResponse({"detail": str(exc)}, status=400)
 
         bank_abs = abs(bank_tx.amount)
         try:
@@ -3969,18 +4293,12 @@ def api_banking_feed_add_entry(request, tx_id):
     except (Account.DoesNotExist, ValueError, TypeError):
         return JsonResponse({"detail": "Account not found"}, status=404)
 
-    tax_treatment = str(payload.get("tax_treatment") or "NONE").upper()
+    tax_treatment = _normalize_tax_treatment(payload.get("tax_treatment"))
     if tax_treatment not in ("NONE", "INCLUDED", "ON_TOP"):
         return JsonResponse({"detail": "Invalid tax treatment."}, status=400)
-    tax_rate = None
     tax_rate_id = payload.get("tax_rate_id")
     if tax_treatment != "NONE" and tax_rate_id in (None, "", 0, "0"):
         return JsonResponse({"detail": "Select a tax code when tax is enabled."}, status=400)
-    if tax_rate_id not in (None, "", 0, "0"):
-        try:
-            tax_rate = TaxRate.objects.get(pk=int(tax_rate_id), business=business)
-        except (TaxRate.DoesNotExist, ValueError, TypeError):
-            return JsonResponse({"detail": "Tax rate not found."}, status=404)
 
     memo = (payload.get("memo") or "").strip()
     contact_customer_id = payload.get("customer_id")
@@ -4019,6 +4337,24 @@ def api_banking_feed_add_entry(request, tx_id):
             return JsonResponse({"detail": "Deposit cannot be posted as money out."}, status=400)
         if bank_tx.amount < 0 and direction == "IN":
             return JsonResponse({"detail": "Withdrawal cannot be posted as money in."}, status=400)
+
+        has_active_tax_rates = TaxRate.objects.filter(business=business, is_active=True).exists()
+        tax_rate = None
+        if tax_treatment != "NONE":
+            if not has_active_tax_rates:
+                return JsonResponse(
+                    {"detail": "No active tax rates are configured for this business."},
+                    status=400,
+                )
+            try:
+                tax_rate = _load_tax_rate(
+                    business,
+                    tax_rate_id,
+                    require_sales=direction == "IN",
+                    require_purchases=direction == "OUT",
+                )
+            except ValidationError as exc:
+                return JsonResponse({"detail": str(exc)}, status=400)
 
         amount_override = payload.get("amount")
         try:

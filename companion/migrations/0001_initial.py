@@ -9,7 +9,7 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ("core", "0031b_make_email_token_unique"),
+        ("core", "0035_set_tax_defaults"),
     ]
 
     operations = [
