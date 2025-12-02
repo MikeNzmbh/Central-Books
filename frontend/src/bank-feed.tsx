@@ -324,11 +324,11 @@ function BankFeedPage() {
         prev.map((acc) =>
           acc.id === selectedAccountId
             ? {
-                ...acc,
-                ledgerBalance: latestBalance,
-                ledgerAccountId: accountMeta.ledger_account_id ?? acc.ledgerAccountId ?? null,
-                currency: accountMeta.currency || acc.currency,
-              }
+              ...acc,
+              ledgerBalance: latestBalance,
+              ledgerAccountId: accountMeta.ledger_account_id ?? acc.ledgerAccountId ?? null,
+              currency: accountMeta.currency || acc.currency,
+            }
             : acc,
         ),
       );
@@ -1037,670 +1037,633 @@ function BankFeedPage() {
     <>
       <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
         <div className="mx-auto max-w-6xl px-6 py-8">
-        <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <div className="text-[11px] font-semibold tracking-[0.18em] text-slate-400 uppercase mb-2">
-              BANK FEED
+          <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <div className="text-[11px] font-semibold tracking-[0.18em] text-slate-400 uppercase mb-2">
+                BANK FEED
+              </div>
+              <h1 className="text-2xl font-semibold tracking-tight text-slate-900 mb-1">
+                Review bank transactions
+              </h1>
+              <p className="text-sm text-slate-500 max-w-xl">
+                Match bank activity to invoices and expenses, or create new transactions directly from your feed.
+              </p>
             </div>
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-900 mb-1">
-              Review bank transactions
-            </h1>
-            <p className="text-sm text-slate-500 max-w-xl">
-              Match bank activity to invoices and expenses, or create new transactions directly from your feed.
-            </p>
-          </div>
 
-          <div className="flex flex-col items-stretch gap-3 sm:items-end">
-            <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-              <select
-                className="h-9 rounded-full border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 shadow-sm focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-100"
-                value={selectedAccountId ?? ""}
-                onChange={(e) =>
-                  setSelectedAccountId(e.target.value ? Number(e.target.value) : null)
-                }
-                disabled={accountsLoading || !accounts.length}
-              >
-                {accounts.map((acc) => (
-                  <option key={acc.id} value={acc.id}>
-                    {`${acc.name}${acc.last4 ? ` ••••${acc.last4}` : ""}`}
-                  </option>
-                ))}
-              </select>
-              <a
-                href="/bank-feeds/new/"
-                className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm hover:bg-slate-50"
-              >
-                Import CSV
-              </a>
-              <div className="relative" onMouseLeave={() => setCreateMenuOpen(false)}>
-                <button
-                  type="button"
-                  onClick={() => setCreateMenuOpen((open) => !open)}
-                  className="inline-flex items-center rounded-full bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-black"
+            <div className="flex flex-col items-stretch gap-3 sm:items-end">
+              <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                <select
+                  className="h-9 rounded-full border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 shadow-sm focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-100"
+                  value={selectedAccountId ?? ""}
+                  onChange={(e) =>
+                    setSelectedAccountId(e.target.value ? Number(e.target.value) : null)
+                  }
+                  disabled={accountsLoading || !accounts.length}
                 >
-                  + Create
-                </button>
-                {createMenuOpen && (
-                  <div className="absolute right-0 z-20 mt-1 w-48 rounded-2xl border border-slate-200 bg-white p-1 text-left shadow-lg">
-                    <button
-                      type="button"
-                      onClick={openCategoryDrawer}
-                      className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
-                    >
-                      <span>New category</span>
-                      <span className="text-slate-400">⌘C</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={openTxDrawer}
-                      disabled={!account?.ledgerAccountId}
-                      className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-[11px] font-medium ${account?.ledgerAccountId ? "text-slate-700 hover:bg-slate-50" : "cursor-not-allowed text-slate-300"}`}
-                    >
-                      <span>New transaction</span>
-                      <span className="text-slate-400">⌘T</span>
-                    </button>
-                    {!account?.ledgerAccountId && (
-                      <p className="px-3 pb-2 text-[10px] text-slate-400">
-                        Link this bank to a ledger account to post manual transactions.
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-right text-xs text-slate-500 shadow-sm">
-              <div className="text-[10px] uppercase tracking-[0.18em] text-slate-400 mb-1">
-                Current balance (ledger)
-              </div>
-              <div className="text-sm font-semibold text-slate-900">
-                {account ? formatMoney(account.ledgerBalance) : "—"}
-              </div>
-            </div>
-          </div>
-        </header>
-
-        {accountsError && (
-          <div className="mb-4 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-xs text-rose-600">
-            {accountsError}
-          </div>
-        )}
-
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,2.2fr)_minmax(0,3fr)]">
-          <section className="rounded-3xl bg-white shadow-[0_18px_45px_rgba(15,23,42,0.06)] ring-1 ring-slate-100 flex flex-col min-h-[420px]">
-            <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-              <div className="min-w-0 flex-shrink-0">
-                <h2 className="text-[13px] font-semibold text-slate-900">Imported transactions</h2>
-                <p className="text-[11px] text-slate-500">Review and assign each line to keep your books up to date.</p>
-              </div>
-              <div className="w-full flex-1 sm:w-auto">
-                <div className="flex max-w-full flex-wrap items-center gap-1 overflow-x-auto rounded-2xl bg-slate-50 p-2 sm:flex-nowrap sm:justify-end sm:rounded-full sm:p-1 sm:pl-2">
-                  {statusFilters.map((f) => (
-                    <button
-                      key={f.key}
-                      type="button"
-                      onClick={() => setStatusFilter(f.key)}
-                      className={`flex-shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium transition ${statusFilter === f.key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"
-                        }`}
-                    >
-                      <span>{f.label}</span>
-                      <span className="ml-1 text-[10px] font-semibold text-slate-400">{f.count ?? 0}</span>
-                    </button>
+                  {accounts.map((acc) => (
+                    <option key={acc.id} value={acc.id}>
+                      {`${acc.name}${acc.last4 ? ` ••••${acc.last4}` : ""}`}
+                    </option>
                   ))}
+                </select>
+                <a
+                  href="/bank-feeds/new/"
+                  className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm hover:bg-slate-50"
+                >
+                  Import CSV
+                </a>
+                <div className="relative" onMouseLeave={() => setCreateMenuOpen(false)}>
+                  <button
+                    type="button"
+                    onClick={() => setCreateMenuOpen((open) => !open)}
+                    className="inline-flex items-center rounded-full bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-black"
+                  >
+                    + Create
+                  </button>
+                  {createMenuOpen && (
+                    <div className="absolute right-0 z-20 mt-1 w-48 rounded-2xl border border-slate-200 bg-white p-1 text-left shadow-lg">
+                      <button
+                        type="button"
+                        onClick={openCategoryDrawer}
+                        className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                      >
+                        <span>New category</span>
+                        <span className="text-slate-400">⌘C</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={openTxDrawer}
+                        disabled={!account?.ledgerAccountId}
+                        className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-[11px] font-medium ${account?.ledgerAccountId ? "text-slate-700 hover:bg-slate-50" : "cursor-not-allowed text-slate-300"}`}
+                      >
+                        <span>New transaction</span>
+                        <span className="text-slate-400">⌘T</span>
+                      </button>
+                      {!account?.ledgerAccountId && (
+                        <p className="px-3 pb-2 text-[10px] text-slate-400">
+                          Link this bank to a ledger account to post manual transactions.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-right text-xs text-slate-500 shadow-sm">
+                <div className="text-[10px] uppercase tracking-[0.18em] text-slate-400 mb-1">
+                  Current balance (ledger)
+                </div>
+                <div className="text-sm font-semibold text-slate-900">
+                  {account ? formatMoney(account.ledgerBalance) : "—"}
                 </div>
               </div>
             </div>
+          </header>
 
-            <div className="border-b border-slate-100 px-4 py-2">
-              <input
-                type="search"
-                placeholder="Search description or amount"
-                className="h-8 w-full rounded-full border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700 outline-none focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-100"
-                disabled
-              />
+          {accountsError && (
+            <div className="mb-4 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-xs text-rose-600">
+              {accountsError}
             </div>
+          )}
 
-            <div className="flex-1 overflow-y-auto">
-              {transactionsError ? (
-                <div className="flex h-full flex-col items-center justify-center px-8 py-10 text-center text-xs text-rose-500">
-                  <p>{transactionsError}</p>
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,2.2fr)_minmax(0,3fr)]">
+            <section className="rounded-3xl bg-white shadow-[0_18px_45px_rgba(15,23,42,0.06)] ring-1 ring-slate-100 flex flex-col min-h-[420px]">
+              <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                <div className="min-w-0 flex-shrink-0">
+                  <h2 className="text-[13px] font-semibold text-slate-900">Imported transactions</h2>
+                  <p className="text-[11px] text-slate-500">Review and assign each line to keep your books up to date.</p>
                 </div>
-              ) : transactionsLoading ? (
-                <div className="flex h-full flex-col items-center justify-center px-8 py-10 text-center text-xs text-slate-400">
-                  <p>Loading transactions…</p>
-                </div>
-              ) : filteredTransactions.length === 0 ? (
-                <div className="flex h-full flex-col items-center justify-center px-8 py-10 text-center text-xs text-slate-400">
-                  <p>No transactions for this filter yet.</p>
-                  <p className="mt-1">Try switching the status filter or importing a new CSV.</p>
-                </div>
-              ) : (
-                <ul className="divide-y divide-slate-100">
-                  {filteredTransactions.map((tx) => {
-                    const isSelected = selectedTx && tx.id === selectedTx.id;
-                    return (
-                      <li
-                        key={tx.id}
-                        className={`cursor-pointer px-4 py-3 text-xs transition hover:bg-slate-50 ${isSelected ? "bg-slate-50" : "bg-white"
-                          }`}
-                        onClick={() => setSelectedTxId(tx.id)}
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-[11px] font-medium text-slate-500">{tx.date}</span>
-                              <StatusPill status={tx.status} />
-                            </div>
-                            <p className="mt-1 truncate text-[13px] font-medium text-slate-900">{tx.description}</p>
-                          </div>
-
-                          <div className="flex flex-col items-end gap-1">
-                            <SidePill side={tx.side} />
-                            <div
-                              className={`text-sm font-semibold ${tx.amount >= 0 ? "text-emerald-600" : "text-rose-600"
-                                }`}
-                            >
-                              {formatMoney(tx.amount)}
-                            </div>
-                          </div>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
-          </section>
-
-          <section className="rounded-3xl bg-white shadow-[0_18px_45px_rgba(15,23,42,0.06)] ring-1 ring-slate-100 min-h-[420px] flex flex-col">
-            {selectedTx ? (
-              <>
-                <div className="border-b border-slate-100 px-6 py-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-[11px] font-semibold tracking-[0.16em] text-slate-400 uppercase">
-                        {selectedTx.date}
-                      </p>
-                      <h2 className="mt-1 text-sm font-semibold text-slate-900">
-                        {selectedTx.description}
-                      </h2>
-                      <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
-                        <SidePill side={selectedTx.side} />
-                        <span className="inline-flex items-center rounded-full bg-slate-50 px-2 py-0.5 font-medium text-slate-500 ring-1 ring-slate-100">
-                          Bank feed
-                        </span>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div
-                        className={`text-lg font-semibold ${selectedTx.amount >= 0 ? "text-emerald-600" : "text-rose-600"
-                          }`}
-                      >
-                        {formatMoney(selectedTx.amount)}
-                      </div>
-                      <div className="mt-1 flex items-center justify-end gap-2 text-[11px] text-slate-500">
-                        Status: <StatusPill status={selectedTx.status} />
-                      </div>
-                      <div className="text-[11px] text-slate-500">
-                        Allocated: {formatMoney(selectedTx.allocatedAmount)}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="border-b border-slate-100 px-6">
-                  <nav className="flex gap-4 text-xs font-medium text-slate-500">
-                    {[
-                      { key: "ALLOCATE", label: "Allocate" },
-                      { key: "CREATE", label: "Create" },
-                      { key: "ADD", label: "Add to bank account" },
-                      { key: "TRANSFER", label: "Transfer" },
-                      { key: "EXCLUDE", label: "Exclude" },
-                    ].map((tab) => (
+                <div className="w-full flex-1 sm:w-auto">
+                  <div className="flex max-w-full flex-wrap items-center gap-1 overflow-x-auto rounded-2xl bg-slate-50 p-2 sm:flex-nowrap sm:justify-end sm:rounded-full sm:p-1 sm:pl-2">
+                    {statusFilters.map((f) => (
                       <button
-                        key={tab.key}
+                        key={f.key}
                         type="button"
-                        onClick={() =>
-                          setActiveTab(
-                            tab.key as "ALLOCATE" | "CREATE" | "ADD" | "TRANSFER" | "EXCLUDE",
-                          )
-                        }
-                        className={`relative py-3 transition ${activeTab === tab.key
-                          ? "text-slate-900"
-                          : "text-slate-500 hover:text-slate-800"
+                        onClick={() => setStatusFilter(f.key)}
+                        className={`flex-shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium transition ${statusFilter === f.key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"
                           }`}
                       >
-                        {tab.label}
-                        {activeTab === tab.key && (
-                          <span className="absolute inset-x-0 -bottom-px block h-[2px] rounded-full bg-sky-500" />
-                        )}
+                        <span>{f.label}</span>
+                        <span className="ml-1 text-[10px] font-semibold text-slate-400">{f.count ?? 0}</span>
                       </button>
                     ))}
-                  </nav>
+                  </div>
                 </div>
+              </div>
 
-                <div className="flex-1 overflow-y-auto px-6 py-4 text-sm">
-                  {actionError && (
-                    <div className="mb-3 rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-[11px] text-rose-600">
-                      {actionError}
-                    </div>
-                  )}
-                  {actionSuccess && (
-                    <div className="mb-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-[11px] text-emerald-700">
-                      {actionSuccess}
-                    </div>
-                  )}
-                  {activeTab === "CREATE" && (
-                    <div className="space-y-5 max-w-md">
-                      <p className="text-xs text-slate-500">
-                        Turn this bank line into a new expense or income entry. CERN Books will post it to the right accounts in your ledger.
-                      </p>
+              <div className="border-b border-slate-100 px-4 py-2">
+                <input
+                  type="search"
+                  placeholder="Search description or amount"
+                  className="h-8 w-full rounded-full border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700 outline-none focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-100"
+                  disabled
+                />
+              </div>
 
-                      {metadataError && (
-                        <div className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-[11px] text-rose-600">
-                          {metadataError}
-                        </div>
-                      )}
+              <div className="flex-1 overflow-y-auto">
+                {transactionsError ? (
+                  <div className="flex h-full flex-col items-center justify-center px-8 py-10 text-center text-xs text-rose-500">
+                    <p>{transactionsError}</p>
+                  </div>
+                ) : transactionsLoading ? (
+                  <div className="flex h-full flex-col items-center justify-center px-8 py-10 text-center text-xs text-slate-400">
+                    <p>Loading transactions…</p>
+                  </div>
+                ) : filteredTransactions.length === 0 ? (
+                  <div className="flex h-full flex-col items-center justify-center px-8 py-10 text-center text-xs text-slate-400">
+                    <p>No transactions for this filter yet.</p>
+                    <p className="mt-1">Try switching the status filter or importing a new CSV.</p>
+                  </div>
+                ) : (
+                  <ul className="divide-y divide-slate-100">
+                    {filteredTransactions.map((tx) => {
+                      const isSelected = selectedTx && tx.id === selectedTx.id;
+                      return (
+                        <li
+                          key={tx.id}
+                          className={`cursor-pointer px-4 py-3 text-xs transition hover:bg-slate-50 ${isSelected ? "bg-slate-50" : "bg-white"
+                            }`}
+                          onClick={() => setSelectedTxId(tx.id)}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[11px] font-medium text-slate-500">{tx.date}</span>
+                                <StatusPill status={tx.status} />
+                              </div>
+                              <p className="mt-1 truncate text-[13px] font-medium text-slate-900">{tx.description}</p>
+                            </div>
 
-                      <div className="space-y-3">
-                        <div>
-                          <label className="mb-1 block text-xs font-medium text-slate-600">
-                            Transaction type
-                          </label>
-                          <div className="inline-flex gap-1 rounded-full bg-slate-50 p-1 text-xs font-medium">
-                            <button className="rounded-full bg-white px-3 py-1 shadow-sm text-slate-900">
-                              {selectedTx.amount >= 0 ? "Income" : "Expense"}
-                            </button>
-                            <button className="rounded-full px-3 py-1 text-slate-400" disabled>
-                              Transfer
-                            </button>
+                            <div className="flex flex-col items-end gap-1">
+                              <SidePill side={tx.side} />
+                              <div
+                                className={`text-sm font-semibold ${tx.amount >= 0 ? "text-emerald-600" : "text-rose-600"
+                                  }`}
+                              >
+                                {formatMoney(tx.amount)}
+                              </div>
+                            </div>
                           </div>
-                        </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            </section>
 
-                        <div>
-                          <div className="mb-1 flex items-center justify-between">
-                            <label className="text-xs font-medium text-slate-600">
-                              Category
-                            </label>
-                            <button
-                              type="button"
-                              onClick={openCategoryDrawer}
-                              className="text-[11px] font-semibold text-sky-600 hover:text-sky-700"
-                              disabled={metadataLoading}
-                            >
-                              Create
-                            </button>
-                          </div>
-                          <select
-                            className="h-9 w-full rounded-2xl border border-slate-200 bg-white px-3 text-xs text-slate-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100"
-                            value={createCategoryId}
-                            onChange={(e) => setCreateCategoryId(e.target.value)}
-                            disabled={
-                              metadataLoading ||
-                              availableCategories.length === 0 ||
-                              actionSubmitting
-                            }
-                          >
-                            {availableCategories.map((cat) => (
-                              <option key={cat.id} value={cat.id}>
-                                {cat.name}
-                              </option>
-                            ))}
-                          </select>
-                          {!metadataLoading && availableCategories.length === 0 && (
-                            <p className="mt-1 text-[11px] text-rose-500">
-                              Add {selectedTx.amount >= 0 ? "income" : "expense"} categories to
-                              your chart of accounts to post directly from the feed.
-                            </p>
+            <section className="rounded-3xl bg-white shadow-[0_18px_45px_rgba(15,23,42,0.06)] ring-1 ring-slate-100 min-h-[420px] flex flex-col">
+              {selectedTx ? (
+                <>
+                  <div className="border-b border-slate-100 px-6 py-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-[11px] font-semibold tracking-[0.16em] text-slate-400 uppercase">
+                          {selectedTx.date}
+                        </p>
+                        <h2 className="mt-1 text-sm font-semibold text-slate-900">
+                          {selectedTx.description}
+                        </h2>
+                        <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
+                          <SidePill side={selectedTx.side} />
+                          <span className="inline-flex items-center rounded-full bg-slate-50 px-2 py-0.5 font-medium text-slate-500 ring-1 ring-slate-100">
+                            Bank feed
+                          </span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div
+                          className={`text-lg font-semibold ${selectedTx.amount >= 0 ? "text-emerald-600" : "text-rose-600"
+                            }`}
+                        >
+                          {formatMoney(selectedTx.amount)}
+                        </div>
+                        <div className="mt-1 flex items-center justify-end gap-2 text-[11px] text-slate-500">
+                          Status: <StatusPill status={selectedTx.status} />
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          Allocated: {formatMoney(selectedTx.allocatedAmount)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="border-b border-slate-100 px-6">
+                    <nav className="flex gap-4 text-xs font-medium text-slate-500">
+                      {[
+                        { key: "ALLOCATE", label: "Allocate" },
+                        { key: "CREATE", label: "Create" },
+                        { key: "ADD", label: "Add to bank account" },
+                        { key: "TRANSFER", label: "Transfer" },
+                        { key: "EXCLUDE", label: "Exclude" },
+                      ].map((tab) => (
+                        <button
+                          key={tab.key}
+                          type="button"
+                          onClick={() =>
+                            setActiveTab(
+                              tab.key as "ALLOCATE" | "CREATE" | "ADD" | "TRANSFER" | "EXCLUDE",
+                            )
+                          }
+                          className={`relative py-3 transition ${activeTab === tab.key
+                            ? "text-slate-900"
+                            : "text-slate-500 hover:text-slate-800"
+                            }`}
+                        >
+                          {tab.label}
+                          {activeTab === tab.key && (
+                            <span className="absolute inset-x-0 -bottom-px block h-[2px] rounded-full bg-sky-500" />
                           )}
-                        </div>
+                        </button>
+                      ))}
+                    </nav>
+                  </div>
 
-                        <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="flex-1 overflow-y-auto px-6 py-4 text-sm">
+                    {actionError && (
+                      <div className="mb-3 rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-[11px] text-rose-600">
+                        {actionError}
+                      </div>
+                    )}
+                    {actionSuccess && (
+                      <div className="mb-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-[11px] text-emerald-700">
+                        {actionSuccess}
+                      </div>
+                    )}
+                    {activeTab === "CREATE" && (
+                      <div className="space-y-5 max-w-md">
+                        <p className="text-xs text-slate-500">
+                          Turn this bank line into a new expense or income entry. CERN Books will post it to the right accounts in your ledger.
+                        </p>
+
+                        {metadataError && (
+                          <div className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-[11px] text-rose-600">
+                            {metadataError}
+                          </div>
+                        )}
+
+                        <div className="space-y-3">
                           <div>
                             <label className="mb-1 block text-xs font-medium text-slate-600">
-                              {contactLabel} (optional)
+                              Transaction type
                             </label>
+                            <div className="inline-flex gap-1 rounded-full bg-slate-50 p-1 text-xs font-medium">
+                              <button className="rounded-full bg-white px-3 py-1 shadow-sm text-slate-900">
+                                {selectedTx.amount >= 0 ? "Income" : "Expense"}
+                              </button>
+                              <button className="rounded-full px-3 py-1 text-slate-400" disabled>
+                                Transfer
+                              </button>
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="mb-1 flex items-center justify-between">
+                              <label className="text-xs font-medium text-slate-600">
+                                Category
+                              </label>
+                              <button
+                                type="button"
+                                onClick={openCategoryDrawer}
+                                className="text-[11px] font-semibold text-sky-600 hover:text-sky-700"
+                                disabled={metadataLoading}
+                              >
+                                Create
+                              </button>
+                            </div>
                             <select
                               className="h-9 w-full rounded-2xl border border-slate-200 bg-white px-3 text-xs text-slate-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100"
-                              value={createContactId}
-                              onChange={(e) => setCreateContactId(e.target.value)}
-                              disabled={actionSubmitting || availableContacts.length === 0}
+                              value={createCategoryId}
+                              onChange={(e) => setCreateCategoryId(e.target.value)}
+                              disabled={
+                                metadataLoading ||
+                                availableCategories.length === 0 ||
+                                actionSubmitting
+                              }
                             >
-                              <option value="">
-                                {selectedTx.side === "OUT" ? "No supplier" : "No customer"}
-                              </option>
-                              {availableContacts.map((contact) => (
-                                <option key={contact.id} value={contact.id}>
-                                  {contact.name}
+                              {availableCategories.map((cat) => (
+                                <option key={cat.id} value={cat.id}>
+                                  {cat.name}
                                 </option>
                               ))}
                             </select>
-                          </div>
-                          <div>
-                            <label className="mb-1 block text-xs font-medium text-slate-600">
-                              Memo
-                            </label>
-                            <input
-                              className="h-9 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-xs text-slate-800 outline-none focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-100"
-                              placeholder="Internal note"
-                            value={createMemo}
-                            onChange={(e) => setCreateMemo(e.target.value)}
-                            disabled={actionSubmitting}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <select
-                            value={createTaxTreatment}
-                            onChange={(e) => setCreateTaxTreatment(e.target.value as TaxTreatment)}
-                            className="h-9 rounded-full border border-slate-200 bg-white px-3 text-xs outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
-                          >
-                            <option value="NONE">No tax</option>
-                            <option value="INCLUDED">Tax included</option>
-                            <option value="ON_TOP">Tax on top</option>
-                          </select>
-                          <select
-                            value={createTaxRateId}
-                            onChange={(e) => setCreateTaxRateId(e.target.value)}
-                            disabled={createTaxTreatment === "NONE" || taxRates.length === 0}
-                            className="h-9 rounded-full border border-slate-200 bg-white px-3 text-xs outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 disabled:bg-slate-100"
-                          >
-                            {taxRates.length === 0 ? (
-                              <option value="">No tax codes</option>
-                            ) : (
-                              taxRates.map((tr) => (
-                                <option key={tr.id} value={tr.id}>
-                                  {tr.name} ({tr.percentage}%)
-                                </option>
-                              ))
+                            {!metadataLoading && availableCategories.length === 0 && (
+                              <p className="mt-1 text-[11px] text-rose-500">
+                                Add {selectedTx.amount >= 0 ? "income" : "expense"} categories to
+                                your chart of accounts to post directly from the feed.
+                              </p>
                             )}
-                          </select>
-                          <span className="text-[11px] text-slate-600">
-                            Net {formatMoney(createTaxParts.net)} · Tax {formatMoney(createTaxParts.tax)} · Gross{" "}
-                            {formatMoney(createTaxParts.gross)}
-                          </span>
-                        </div>
-                        {!createAmountMatches && (
-                          <p className="mt-1 text-[11px] text-rose-600">
-                            Gross must match the bank amount ({formatMoney(Math.abs(selectedTx.amount || 0))}).
-                          </p>
-                        )}
-                      </div>
+                          </div>
 
-                      <div className="pt-2">
-                        <button
-                          type="button"
-                          onClick={handleCreateEntry}
-                            disabled={!canCreateEntry || actionSubmitting || metadataLoading || !createAmountMatches}
-                            className={`inline-flex items-center rounded-full px-4 py-1.5 text-xs font-semibold text-white shadow-sm ${!canCreateEntry || actionSubmitting || metadataLoading || !createAmountMatches
-                              ? "cursor-not-allowed bg-emerald-400"
-                              : "bg-emerald-600 hover:bg-emerald-700"
-                              }`}
-                          >
-                            {actionSubmitting ? "Posting…" : "Create & post to ledger"}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <div>
+                              <label className="mb-1 block text-xs font-medium text-slate-600">
+                                {contactLabel} (optional)
+                              </label>
+                              <select
+                                className="h-9 w-full rounded-2xl border border-slate-200 bg-white px-3 text-xs text-slate-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100"
+                                value={createContactId}
+                                onChange={(e) => setCreateContactId(e.target.value)}
+                                disabled={actionSubmitting || availableContacts.length === 0}
+                              >
+                                <option value="">
+                                  {selectedTx.side === "OUT" ? "No supplier" : "No customer"}
+                                </option>
+                                {availableContacts.map((contact) => (
+                                  <option key={contact.id} value={contact.id}>
+                                    {contact.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-xs font-medium text-slate-600">
+                                Memo
+                              </label>
+                              <input
+                                className="h-9 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-xs text-slate-800 outline-none focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-100"
+                                placeholder="Internal note"
+                                value={createMemo}
+                                onChange={(e) => setCreateMemo(e.target.value)}
+                                disabled={actionSubmitting}
+                              />
+                            </div>
+                          </div>
 
-                  {activeTab === "ALLOCATE" && selectedTx && (
-                    <div className="space-y-5">
-                      {actionSuccess && (
-                        <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-[11px] text-emerald-700">
-                          {actionSuccess}
-                        </div>
-                      )}
-                      {actionError && (
-                        <div className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-[11px] text-rose-600">
-                          {actionError}
-                        </div>
-                      )}
+                          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <select
+                                value={createTaxTreatment}
+                                onChange={(e) => setCreateTaxTreatment(e.target.value as TaxTreatment)}
+                                className="h-9 rounded-full border border-slate-200 bg-white px-3 text-xs outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 disabled:bg-slate-100 disabled:text-slate-400"
+                                disabled={taxRates.length === 0}
+                              >
+                                <option value="NONE">No tax</option>
+                                <option value="INCLUDED">Tax included</option>
+                                <option value="ON_TOP">Tax on top</option>
+                              </select>
+                              <select
+                                value={createTaxRateId}
+                                onChange={(e) => setCreateTaxRateId(e.target.value)}
+                                disabled={createTaxTreatment === "NONE" || taxRates.length === 0}
+                                className="h-9 rounded-full border border-slate-200 bg-white px-3 text-xs outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 disabled:bg-slate-100"
+                              >
+                                {taxRates.length === 0 ? (
+                                  <option value="">No tax codes</option>
+                                ) : (
+                                  taxRates.map((tr) => (
+                                    <option key={tr.id} value={tr.id}>
+                                      {tr.name} ({tr.percentage}%)
+                                    </option>
+                                  ))
+                                )}
+                              </select>
+                              <span className="text-[11px] text-slate-600">
+                                Net {formatMoney(createTaxParts.net)} · Tax {formatMoney(createTaxParts.tax)} · Gross{" "}
+                                {formatMoney(createTaxParts.gross)}
+                              </span>
+                            </div>
+                            {taxRates.length === 0 && (
+                              <p className="mt-1 text-[11px] text-slate-500">
+                                No tax rates configured. Tax selection is disabled.
+                              </p>
+                            )}
+                            {!createAmountMatches && (
+                              <p className="mt-1 text-[11px] text-rose-600">
+                                Gross must match the bank amount ({formatMoney(Math.abs(selectedTx.amount || 0))}).
+                              </p>
+                            )}
+                          </div>
 
-                      <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4">
-                        <div className="mb-3 flex items-center justify-between">
-                          <div>
-                            <p className="text-[11px] font-semibold text-slate-500 uppercase">
-                              Suggested {isDeposit ? "invoices" : "bills"}
-                            </p>
-                            <p className="text-[11px] text-slate-500">
-                              Select which documents this bank line belongs to.
-                            </p>
+                          <div className="pt-2">
+                            <button
+                              type="button"
+                              onClick={handleCreateEntry}
+                              disabled={!canCreateEntry || actionSubmitting || metadataLoading || !createAmountMatches}
+                              className={`inline-flex items-center rounded-full px-4 py-1.5 text-xs font-semibold text-white shadow-sm ${!canCreateEntry || actionSubmitting || metadataLoading || !createAmountMatches
+                                ? "cursor-not-allowed bg-emerald-400"
+                                : "bg-emerald-600 hover:bg-emerald-700"
+                                }`}
+                            >
+                              {actionSubmitting ? "Posting…" : "Create & post to ledger"}
+                            </button>
                           </div>
                         </div>
-                        <div className="space-y-3">
-                          {candidateList.length ? (
-                            candidateList.map((candidate) => {
-                              const checked = Object.prototype.hasOwnProperty.call(
-                                allocationSelections,
-                                candidate.id,
-                              );
-                              const value = allocationSelections[candidate.id] || "";
+                      </div>
+                    )}
+
+                    {activeTab === "ALLOCATE" && selectedTx && (
+                      <div className="space-y-5">
+                        {actionSuccess && (
+                          <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-[11px] text-emerald-700">
+                            {actionSuccess}
+                          </div>
+                        )}
+                        {actionError && (
+                          <div className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-[11px] text-rose-600">
+                            {actionError}
+                          </div>
+                        )}
+
+                        <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4">
+                          <div className="mb-3 flex items-center justify-between">
+                            <div>
+                              <p className="text-[11px] font-semibold text-slate-500 uppercase">
+                                Suggested {isDeposit ? "invoices" : "bills"}
+                              </p>
+                              <p className="text-[11px] text-slate-500">
+                                Select which documents this bank line belongs to.
+                              </p>
+                            </div>
+                          </div>
+                          <div className="space-y-3">
+                            {candidateList.length ? (
+                              candidateList.map((candidate) => {
+                                const checked = Object.prototype.hasOwnProperty.call(
+                                  allocationSelections,
+                                  candidate.id,
+                                );
+                                const value = allocationSelections[candidate.id] || "";
+                                return (
+                                  <div
+                                    key={candidate.id}
+                                    className="rounded-xl bg-white px-3 py-2 text-xs text-slate-700 shadow-sm"
+                                  >
+                                    <div className="flex flex-wrap items-center justify-between gap-3">
+                                      <label className="flex items-center gap-2">
+                                        <input
+                                          type="checkbox"
+                                          className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                                          checked={checked}
+                                          onChange={(e) => handleCandidateToggle(candidate, e.target.checked)}
+                                        />
+                                        <div>
+                                          <div className="font-medium text-slate-900">
+                                            {candidate.invoice_number
+                                              ? `Invoice #${candidate.invoice_number}`
+                                              : candidate.description || (isDeposit ? "Invoice" : "Bill")}
+                                            {candidate.customer ? ` · ${candidate.customer}` : ""}
+                                          </div>
+                                          <div className="text-[11px] text-slate-500">
+                                            {candidate.date} • {formatMoney(candidate.amount)}
+                                          </div>
+                                        </div>
+                                      </label>
+                                      <input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        className="h-9 w-32 rounded-full border border-slate-200 bg-white px-3 text-right text-xs text-slate-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 disabled:bg-slate-100"
+                                        value={value}
+                                        disabled={!checked}
+                                        onChange={(e) =>
+                                          handleCandidateAmountChange(candidate.id, e.target.value)
+                                        }
+                                      />
+                                    </div>
+                                  </div>
+                                );
+                              })
+                            ) : (
+                              <p className="text-[11px] text-slate-500">No suggestions yet.</p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="rounded-2xl border border-slate-100 bg-white px-4 py-4">
+                          <div className="mb-3 flex items-center justify-between">
+                            <div>
+                              <p className="text-[11px] font-semibold text-slate-500 uppercase">
+                                Additional splits
+                              </p>
+                              <p className="text-[11px] text-slate-500">
+                                Send part of the amount directly to ledger accounts.
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={addManualAllocationRow}
+                              className="inline-flex items-center rounded-full bg-slate-900 px-3 py-1 text-[11px] font-semibold text-white shadow-sm hover:bg-black"
+                            >
+                              + Add split
+                            </button>
+                          </div>
+                          <div className="space-y-3 text-xs">
+                            {manualAllocations.length === 0 && (
+                              <p className="text-[11px] text-slate-500">No manual splits yet.</p>
+                            )}
+                            {manualAllocations.map((row) => {
+                              const rate = taxRates.find((tr) => String(tr.id) === row.taxRateId)?.percentage || 0;
+                              const parts = computeTaxParts(row.amount, row.taxTreatment || "NONE", rate);
+                              const options =
+                                selectedTx.side === "IN"
+                                  ? [{ value: "DIRECT_INCOME", label: "Direct income" }]
+                                  : [{ value: "DIRECT_EXPENSE", label: "Direct expense" }];
                               return (
                                 <div
-                                  key={candidate.id}
-                                  className="rounded-xl bg-white px-3 py-2 text-xs text-slate-700 shadow-sm"
+                                  key={row.key}
+                                  className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2"
                                 >
-                                  <div className="flex flex-wrap items-center justify-between gap-3">
-                                    <label className="flex items-center gap-2">
-                                      <input
-                                        type="checkbox"
-                                        className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
-                                        checked={checked}
-                                        onChange={(e) => handleCandidateToggle(candidate, e.target.checked)}
-                                      />
-                                      <div>
-                                        <div className="font-medium text-slate-900">
-                                          {candidate.invoice_number
-                                            ? `Invoice #${candidate.invoice_number}`
-                                            : candidate.description || (isDeposit ? "Invoice" : "Bill")}
-                                          {candidate.customer ? ` · ${candidate.customer}` : ""}
-                                        </div>
-                                        <div className="text-[11px] text-slate-500">
-                                          {candidate.date} • {formatMoney(candidate.amount)}
-                                        </div>
-                                      </div>
-                                    </label>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <select
+                                      value={row.type}
+                                      onChange={(e) =>
+                                        updateManualAllocationRow(row.key, {
+                                          type: e.target.value as ManualAllocationRow["type"],
+                                        })
+                                      }
+                                      className="h-9 rounded-full border border-slate-200 bg-white px-3 text-xs outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                                      disabled={options.length === 1}
+                                    >
+                                      {options.map((opt) => (
+                                        <option key={opt.value} value={opt.value}>
+                                          {opt.label}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <input
+                                      className="h-9 flex-1 rounded-full border border-slate-200 bg-white px-3 text-xs outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                                      placeholder="Account ID"
+                                      value={row.accountId}
+                                      onChange={(e) =>
+                                        updateManualAllocationRow(row.key, { accountId: e.target.value })
+                                      }
+                                    />
                                     <input
                                       type="number"
                                       step="0.01"
                                       min="0"
-                                      className="h-9 w-32 rounded-full border border-slate-200 bg-white px-3 text-right text-xs text-slate-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 disabled:bg-slate-100"
-                                      value={value}
-                                      disabled={!checked}
+                                      className="h-9 w-28 rounded-full border border-slate-200 bg-white px-3 text-right text-xs outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                                      placeholder="Amount"
+                                      value={row.amount}
                                       onChange={(e) =>
-                                        handleCandidateAmountChange(candidate.id, e.target.value)
+                                        updateManualAllocationRow(row.key, { amount: e.target.value })
                                       }
                                     />
+                                    <select
+                                      value={row.taxTreatment || "NONE"}
+                                      onChange={(e) =>
+                                        updateManualAllocationRow(row.key, {
+                                          taxTreatment: e.target.value as TaxTreatment,
+                                        })
+                                      }
+                                      className="h-9 rounded-full border border-slate-200 bg-white px-3 text-xs outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 disabled:bg-slate-100 disabled:text-slate-400"
+                                      disabled={taxRates.length === 0}
+                                    >
+                                      <option value="NONE">No tax</option>
+                                      <option value="INCLUDED">Tax included</option>
+                                      <option value="ON_TOP">Tax on top</option>
+                                    </select>
+                                    <select
+                                      value={row.taxRateId}
+                                      onChange={(e) =>
+                                        updateManualAllocationRow(row.key, { taxRateId: e.target.value })
+                                      }
+                                      disabled={(row.taxTreatment || "NONE") === "NONE" || taxRates.length === 0}
+                                      className="h-9 rounded-full border border-slate-200 bg-white px-3 text-xs outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 disabled:bg-slate-100"
+                                    >
+                                      {taxRates.length === 0 ? (
+                                        <option value="">No tax codes</option>
+                                      ) : (
+                                        taxRates.map((tr) => (
+                                          <option key={tr.id} value={tr.id}>
+                                            {tr.name} ({tr.percentage}%)
+                                          </option>
+                                        ))
+                                      )}
+                                    </select>
+                                    <button
+                                      type="button"
+                                      onClick={() => removeManualAllocationRow(row.key)}
+                                      className="text-[11px] font-medium text-rose-500 hover:text-rose-600"
+                                    >
+                                      Remove
+                                    </button>
+                                  </div>
+                                  <div className="mt-1 text-[11px] text-slate-600">
+                                    Net {formatMoney(parts.net)} · Tax {formatMoney(parts.tax)} · Gross{" "}
+                                    {formatMoney(parts.gross)}
                                   </div>
                                 </div>
                               );
-                            })
-                          ) : (
-                            <p className="text-[11px] text-slate-500">No suggestions yet.</p>
-                          )}
+                            })}
+                          </div>
                         </div>
-                      </div>
 
-                      <div className="rounded-2xl border border-slate-100 bg-white px-4 py-4">
-                        <div className="mb-3 flex items-center justify-between">
-                          <div>
-                            <p className="text-[11px] font-semibold text-slate-500 uppercase">
-                              Additional splits
-                            </p>
-                            <p className="text-[11px] text-slate-500">
-                              Send part of the amount directly to ledger accounts.
-                            </p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={addManualAllocationRow}
-                            className="inline-flex items-center rounded-full bg-slate-900 px-3 py-1 text-[11px] font-semibold text-white shadow-sm hover:bg-black"
-                          >
-                            + Add split
-                          </button>
-                        </div>
-                        <div className="space-y-3 text-xs">
-                          {manualAllocations.length === 0 && (
-                            <p className="text-[11px] text-slate-500">No manual splits yet.</p>
-                          )}
-                          {manualAllocations.map((row) => {
-                            const rate = taxRates.find((tr) => String(tr.id) === row.taxRateId)?.percentage || 0;
-                            const parts = computeTaxParts(row.amount, row.taxTreatment || "NONE", rate);
-                            const options =
-                              selectedTx.side === "IN"
-                                ? [{ value: "DIRECT_INCOME", label: "Direct income" }]
-                                : [{ value: "DIRECT_EXPENSE", label: "Direct expense" }];
-                            return (
-                              <div
-                                key={row.key}
-                                className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2"
-                              >
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <select
-                                    value={row.type}
-                                    onChange={(e) =>
-                                      updateManualAllocationRow(row.key, {
-                                        type: e.target.value as ManualAllocationRow["type"],
-                                      })
-                                    }
-                                    className="h-9 rounded-full border border-slate-200 bg-white px-3 text-xs outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
-                                    disabled={options.length === 1}
-                                  >
-                                    {options.map((opt) => (
-                                      <option key={opt.value} value={opt.value}>
-                                        {opt.label}
-                                      </option>
-                                    ))}
-                                  </select>
-                                  <input
-                                    className="h-9 flex-1 rounded-full border border-slate-200 bg-white px-3 text-xs outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
-                                    placeholder="Account ID"
-                                    value={row.accountId}
-                                    onChange={(e) =>
-                                      updateManualAllocationRow(row.key, { accountId: e.target.value })
-                                    }
-                                  />
-                                  <input
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    className="h-9 w-28 rounded-full border border-slate-200 bg-white px-3 text-right text-xs outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
-                                    placeholder="Amount"
-                                    value={row.amount}
-                                    onChange={(e) =>
-                                      updateManualAllocationRow(row.key, { amount: e.target.value })
-                                    }
-                                  />
-                                  <select
-                                    value={row.taxTreatment || "NONE"}
-                                    onChange={(e) =>
-                                      updateManualAllocationRow(row.key, {
-                                        taxTreatment: e.target.value as TaxTreatment,
-                                      })
-                                    }
-                                    className="h-9 rounded-full border border-slate-200 bg-white px-3 text-xs outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
-                                  >
-                                    <option value="NONE">No tax</option>
-                                    <option value="INCLUDED">Tax included</option>
-                                    <option value="ON_TOP">Tax on top</option>
-                                  </select>
-                                  <select
-                                    value={row.taxRateId}
-                                    onChange={(e) =>
-                                      updateManualAllocationRow(row.key, { taxRateId: e.target.value })
-                                    }
-                                    disabled={(row.taxTreatment || "NONE") === "NONE" || taxRates.length === 0}
-                                    className="h-9 rounded-full border border-slate-200 bg-white px-3 text-xs outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 disabled:bg-slate-100"
-                                  >
-                                    {taxRates.length === 0 ? (
-                                      <option value="">No tax codes</option>
-                                    ) : (
-                                      taxRates.map((tr) => (
-                                        <option key={tr.id} value={tr.id}>
-                                          {tr.name} ({tr.percentage}%)
-                                        </option>
-                                      ))
-                                    )}
-                                  </select>
-                                  <button
-                                    type="button"
-                                    onClick={() => removeManualAllocationRow(row.key)}
-                                    className="text-[11px] font-medium text-rose-500 hover:text-rose-600"
-                                  >
-                                    Remove
-                                  </button>
-                                </div>
-                                <div className="mt-1 text-[11px] text-slate-600">
-                                  Net {formatMoney(parts.net)} · Tax {formatMoney(parts.tax)} · Gross{" "}
-                                  {formatMoney(parts.gross)}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      <div className="rounded-2xl border border-slate-100 bg-white px-4 py-4">
-                        <p className="text-[11px] font-semibold text-slate-500 uppercase mb-3">
-                          Adjustments
-                        </p>
-                        <div className="grid gap-3 text-xs md:grid-cols-2">
-                          <div className="space-y-2">
-                            <label className="text-[11px] font-medium text-slate-600">
-                              Processor fee
-                            </label>
-                            <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
-                              <input
-                                className="h-9 min-w-[150px] flex-1 rounded-full border border-slate-200 bg-slate-50 px-3 text-xs outline-none focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-100"
-                                placeholder="Account ID"
-                                value={feeAccountId}
-                                onChange={(e) => setFeeAccountId(e.target.value)}
-                              />
-                              <input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                className="h-9 w-32 flex-shrink-0 rounded-full border border-slate-200 bg-slate-50 px-3 text-right text-xs outline-none focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-100"
-                                placeholder="0.00"
-                                value={feeAmount}
-                                onChange={(e) => setFeeAmount(e.target.value)}
-                              />
-                            </div>
-                          </div>
-                          <div className="space-y-2">
-                            <label className="text-[11px] font-medium text-slate-600">
-                              Rounding
-                            </label>
-                            <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
-                              <input
-                                className="h-9 min-w-[150px] flex-1 rounded-full border border-slate-200 bg-slate-50 px-3 text-xs outline-none focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-100"
-                                placeholder="Account ID"
-                                value={roundingAccountId}
-                                onChange={(e) => setRoundingAccountId(e.target.value)}
-                              />
-                              <input
-                                type="number"
-                                step="0.01"
-                                className="h-9 w-32 flex-shrink-0 rounded-full border border-slate-200 bg-slate-50 px-3 text-right text-xs outline-none focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-100"
-                                placeholder="0.00"
-                                value={roundingAmount}
-                                onChange={(e) => setRoundingAmount(e.target.value)}
-                              />
-                            </div>
-                          </div>
-                          {isDeposit && (
-                            <div className="space-y-2 md:col-span-2">
+                        <div className="rounded-2xl border border-slate-100 bg-white px-4 py-4">
+                          <p className="text-[11px] font-semibold text-slate-500 uppercase mb-3">
+                            Adjustments
+                          </p>
+                          <div className="grid gap-3 text-xs md:grid-cols-2">
+                            <div className="space-y-2">
                               <label className="text-[11px] font-medium text-slate-600">
-                                Overpayment → credit
+                                Processor fee
                               </label>
-                              <div className="flex flex-col flex-wrap gap-2 sm:flex-row sm:items-center">
+                              <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
                                 <input
-                                  className="h-9 min-w-[180px] flex-1 rounded-full border border-slate-200 bg-slate-50 px-3 text-xs outline-none focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-100"
-                                  placeholder="Liability account ID"
-                                  value={overpaymentAccountId}
-                                  onChange={(e) => setOverpaymentAccountId(e.target.value)}
+                                  className="h-9 min-w-[150px] flex-1 rounded-full border border-slate-200 bg-slate-50 px-3 text-xs outline-none focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-100"
+                                  placeholder="Account ID"
+                                  value={feeAccountId}
+                                  onChange={(e) => setFeeAccountId(e.target.value)}
                                 />
                                 <input
                                   type="number"
@@ -1708,309 +1671,358 @@ function BankFeedPage() {
                                   min="0"
                                   className="h-9 w-32 flex-shrink-0 rounded-full border border-slate-200 bg-slate-50 px-3 text-right text-xs outline-none focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-100"
                                   placeholder="0.00"
-                                  value={overpaymentAmount}
-                                  onChange={(e) => setOverpaymentAmount(e.target.value)}
+                                  value={feeAmount}
+                                  onChange={(e) => setFeeAmount(e.target.value)}
                                 />
                               </div>
                             </div>
-                          )}
+                            <div className="space-y-2">
+                              <label className="text-[11px] font-medium text-slate-600">
+                                Rounding
+                              </label>
+                              <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
+                                <input
+                                  className="h-9 min-w-[150px] flex-1 rounded-full border border-slate-200 bg-slate-50 px-3 text-xs outline-none focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-100"
+                                  placeholder="Account ID"
+                                  value={roundingAccountId}
+                                  onChange={(e) => setRoundingAccountId(e.target.value)}
+                                />
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  className="h-9 w-32 flex-shrink-0 rounded-full border border-slate-200 bg-slate-50 px-3 text-right text-xs outline-none focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-100"
+                                  placeholder="0.00"
+                                  value={roundingAmount}
+                                  onChange={(e) => setRoundingAmount(e.target.value)}
+                                />
+                              </div>
+                            </div>
+                            {isDeposit && (
+                              <div className="space-y-2 md:col-span-2">
+                                <label className="text-[11px] font-medium text-slate-600">
+                                  Overpayment → credit
+                                </label>
+                                <div className="flex flex-col flex-wrap gap-2 sm:flex-row sm:items-center">
+                                  <input
+                                    className="h-9 min-w-[180px] flex-1 rounded-full border border-slate-200 bg-slate-50 px-3 text-xs outline-none focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-100"
+                                    placeholder="Liability account ID"
+                                    value={overpaymentAccountId}
+                                    onChange={(e) => setOverpaymentAccountId(e.target.value)}
+                                  />
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    className="h-9 w-32 flex-shrink-0 rounded-full border border-slate-200 bg-slate-50 px-3 text-right text-xs outline-none focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-100"
+                                    placeholder="0.00"
+                                    value={overpaymentAmount}
+                                    onChange={(e) => setOverpaymentAmount(e.target.value)}
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </div>
 
-                      <div className="rounded-2xl border border-slate-100 bg-white px-4 py-4">
-                        <div className="grid gap-3 text-xs sm:grid-cols-3">
-                          <div>
-                            <p className="text-[11px] font-medium text-slate-500 uppercase">
-                              Bank amount
-                            </p>
-                            <p className="text-sm font-semibold text-slate-900">
-                              {formatMoney(allocationSummary.bankAmount)}
-                            </p>
+                        <div className="rounded-2xl border border-slate-100 bg-white px-4 py-4">
+                          <div className="grid gap-3 text-xs sm:grid-cols-3">
+                            <div>
+                              <p className="text-[11px] font-medium text-slate-500 uppercase">
+                                Bank amount
+                              </p>
+                              <p className="text-sm font-semibold text-slate-900">
+                                {formatMoney(allocationSummary.bankAmount)}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-[11px] font-medium text-slate-500 uppercase">
+                                Allocated
+                              </p>
+                              <p className="text-sm font-semibold text-slate-900">
+                                {formatMoney(allocationSummary.totalAllocations)}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-[11px] font-medium text-slate-500 uppercase">
+                                Remaining
+                              </p>
+                              <p
+                                className={`text-sm font-semibold ${Math.abs(allocationSummary.remaining) <= toleranceValue
+                                  ? "text-emerald-600"
+                                  : "text-rose-600"
+                                  }`}
+                              >
+                                {formatMoney(allocationSummary.remaining)}
+                              </p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="text-[11px] font-medium text-slate-500 uppercase">
-                              Allocated
-                            </p>
-                            <p className="text-sm font-semibold text-slate-900">
-                              {formatMoney(allocationSummary.totalAllocations)}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-[11px] font-medium text-slate-500 uppercase">
-                              Remaining
-                            </p>
-                            <p
-                              className={`text-sm font-semibold ${Math.abs(allocationSummary.remaining) <= toleranceValue
-                                ? "text-emerald-600"
-                                : "text-rose-600"
+                          <p className="mt-2 text-[11px] text-slate-500">
+                            {Math.abs(allocationSummary.remaining) <= toleranceValue
+                              ? `✓ Within tolerance (±$${toleranceValue.toFixed(2)})`
+                              : `⚠️ Remaining amount of ${formatMoney(allocationSummary.remaining)} will be posted automatically as a rounding adjustment (use a rounding account to override the default).`}
+                          </p>
+                          <div className="pt-3">
+                            <button
+                              type="button"
+                              onClick={handleAllocate}
+                              disabled={!allocationSummary.isReady || actionSubmitting}
+                              className={`inline-flex w-full items-center justify-center rounded-full px-4 py-2 text-xs font-semibold shadow-sm ${!allocationSummary.isReady || actionSubmitting
+                                ? "cursor-not-allowed bg-slate-100 text-slate-400"
+                                : "bg-slate-900 text-white hover:bg-black"
                                 }`}
                             >
-                              {formatMoney(allocationSummary.remaining)}
-                            </p>
+                              {actionSubmitting ? "Posting…" : "Allocate"}
+                            </button>
                           </div>
-                        </div>
-                        <p className="mt-2 text-[11px] text-slate-500">
-                          {Math.abs(allocationSummary.remaining) <= toleranceValue
-                            ? `✓ Within tolerance (±$${toleranceValue.toFixed(2)})`
-                            : `⚠️ Remaining amount of ${formatMoney(allocationSummary.remaining)} will be posted automatically as a rounding adjustment (use a rounding account to override the default).`}
-                        </p>
-                        <div className="pt-3">
-                          <button
-                            type="button"
-                            onClick={handleAllocate}
-                            disabled={!allocationSummary.isReady || actionSubmitting}
-                            className={`inline-flex w-full items-center justify-center rounded-full px-4 py-2 text-xs font-semibold shadow-sm ${!allocationSummary.isReady || actionSubmitting
-                              ? "cursor-not-allowed bg-slate-100 text-slate-400"
-                              : "bg-slate-900 text-white hover:bg-black"
-                              }`}
-                          >
-                          {actionSubmitting ? "Posting…" : "Allocate"}
-                          </button>
                         </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {activeTab === "ADD" && selectedTx && (
-                    <div className="space-y-4 max-w-md">
-                      <p className="text-xs text-slate-500">
-                        Post this bank line directly to a single ledger account with optional tax. No splits required.
-                      </p>
-                      <div className="space-y-3">
-                        <div>
-                          <label className="mb-1 block text-xs font-medium text-slate-600">
-                            Direction
-                          </label>
-                          <div className="inline-flex gap-1 rounded-full bg-slate-50 p-1 text-xs font-medium">
-                            <button
-                              type="button"
-                              onClick={() => setAddDirection("IN")}
-                              className={`rounded-full px-3 py-1 ${addDirection === "IN" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"}`}
-                            >
-                              Money in
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setAddDirection("OUT")}
-                              className={`rounded-full px-3 py-1 ${addDirection === "OUT" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"}`}
-                            >
-                              Money out
-                            </button>
-                          </div>
-                        </div>
-
-                        <div>
-                          <div className="mb-1 flex items-center justify-between">
-                            <label className="text-xs font-medium text-slate-600">Category (ledger)</label>
-                          </div>
-                          <select
-                            className="h-9 w-full rounded-2xl border border-slate-200 bg-white px-3 text-xs text-slate-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100"
-                            value={addAccountId}
-                            onChange={(e) => setAddAccountId(e.target.value)}
-                            disabled={addAccountOptions.length === 0 || actionSubmitting}
-                          >
-                            {addAccountOptions.map((acc) => (
-                              <option key={acc.id} value={acc.id}>
-                                {`${acc.code ? `${acc.code} · ` : ""}${acc.name}`}
-                              </option>
-                            ))}
-                          </select>
-                          {addAccountOptions.length === 0 && (
-                            <p className="mt-1 text-[11px] text-rose-500">
-                              Add {addDirection === "IN" ? "income" : "expense/equity"} accounts to post this entry.
-                            </p>
-                          )}
-                        </div>
-
-                        <div className="grid gap-3 sm:grid-cols-2">
+                    {activeTab === "ADD" && selectedTx && (
+                      <div className="space-y-4 max-w-md">
+                        <p className="text-xs text-slate-500">
+                          Post this bank line directly to a single ledger account with optional tax. No splits required.
+                        </p>
+                        <div className="space-y-3">
                           <div>
                             <label className="mb-1 block text-xs font-medium text-slate-600">
-                              {addDirection === "IN" ? "Customer" : "Supplier"} (optional)
+                              Direction
                             </label>
+                            <div className="inline-flex gap-1 rounded-full bg-slate-50 p-1 text-xs font-medium">
+                              <button
+                                type="button"
+                                onClick={() => setAddDirection("IN")}
+                                className={`rounded-full px-3 py-1 ${addDirection === "IN" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"}`}
+                              >
+                                Money in
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setAddDirection("OUT")}
+                                className={`rounded-full px-3 py-1 ${addDirection === "OUT" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"}`}
+                              >
+                                Money out
+                              </button>
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="mb-1 flex items-center justify-between">
+                              <label className="text-xs font-medium text-slate-600">Category (ledger)</label>
+                            </div>
                             <select
                               className="h-9 w-full rounded-2xl border border-slate-200 bg-white px-3 text-xs text-slate-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100"
-                              value={addContactId}
-                              onChange={(e) => setAddContactId(e.target.value)}
-                              disabled={actionSubmitting || (addDirection === "IN" ? customers.length === 0 : suppliers.length === 0)}
+                              value={addAccountId}
+                              onChange={(e) => setAddAccountId(e.target.value)}
+                              disabled={addAccountOptions.length === 0 || actionSubmitting}
                             >
-                              <option value="">
-                                {addDirection === "IN" ? "No customer" : "No supplier"}
-                              </option>
-                              {(addDirection === "IN" ? customers : suppliers).map((contact) => (
-                                <option key={contact.id} value={contact.id}>
-                                  {contact.name}
+                              {addAccountOptions.map((acc) => (
+                                <option key={acc.id} value={acc.id}>
+                                  {`${acc.code ? `${acc.code} · ` : ""}${acc.name}`}
                                 </option>
                               ))}
                             </select>
+                            {addAccountOptions.length === 0 && (
+                              <p className="mt-1 text-[11px] text-rose-500">
+                                Add {addDirection === "IN" ? "income" : "expense/equity"} accounts to post this entry.
+                              </p>
+                            )}
                           </div>
+
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <div>
+                              <label className="mb-1 block text-xs font-medium text-slate-600">
+                                {addDirection === "IN" ? "Customer" : "Supplier"} (optional)
+                              </label>
+                              <select
+                                className="h-9 w-full rounded-2xl border border-slate-200 bg-white px-3 text-xs text-slate-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100"
+                                value={addContactId}
+                                onChange={(e) => setAddContactId(e.target.value)}
+                                disabled={actionSubmitting || (addDirection === "IN" ? customers.length === 0 : suppliers.length === 0)}
+                              >
+                                <option value="">
+                                  {addDirection === "IN" ? "No customer" : "No supplier"}
+                                </option>
+                                {(addDirection === "IN" ? customers : suppliers).map((contact) => (
+                                  <option key={contact.id} value={contact.id}>
+                                    {contact.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-xs font-medium text-slate-600">
+                                Category amount
+                              </label>
+                              <input
+                                className="h-9 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-xs text-slate-800 outline-none focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-100"
+                                type="number"
+                                step="0.01"
+                                value={addAmount}
+                                onChange={(e) => setAddAmount(e.target.value)}
+                                disabled={actionSubmitting}
+                              />
+                              <p className="mt-1 text-[11px] text-slate-500">
+                                Bank amount: {formatMoney(bankAmountAbs)}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
+                            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                              <span className="text-[11px] font-semibold text-slate-600">Tax</span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <select
+                                value={addTaxTreatment}
+                                onChange={(e) => setAddTaxTreatment(e.target.value as TaxTreatment)}
+                                className="h-9 rounded-full border border-slate-200 bg-white px-3 text-xs outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                              >
+                                <option value="NONE">No tax</option>
+                                <option value="INCLUDED">Tax included</option>
+                                <option value="ON_TOP">Tax on top</option>
+                              </select>
+                              <select
+                                value={addTaxRateId}
+                                onChange={(e) => setAddTaxRateId(e.target.value)}
+                                disabled={addTaxTreatment === "NONE" || taxRates.length === 0}
+                                className="h-9 rounded-full border border-slate-200 bg-white px-3 text-xs outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 disabled:bg-slate-100"
+                              >
+                                {taxRates.length === 0 ? (
+                                  <option value="">No tax codes</option>
+                                ) : (
+                                  taxRates.map((tr) => (
+                                    <option key={tr.id} value={tr.id}>
+                                      {tr.name} ({tr.percentage}%)
+                                    </option>
+                                  ))
+                                )}
+                              </select>
+                            </div>
+                            <p className="mt-2 text-[11px] text-slate-600">
+                              Net {formatMoney(addTaxParts.net)} · Tax {formatMoney(addTaxParts.tax)} · Gross{" "}
+                              {formatMoney(addTaxParts.gross)}
+                            </p>
+                            {taxRates.length === 0 && (
+                              <p className="mt-1 text-[11px] text-slate-500">
+                                No tax rates configured. Tax selection is disabled.
+                              </p>
+                            )}
+                            {!addAmountMatches && (
+                              <p className="mt-1 text-[11px] text-rose-600">
+                                Gross must match the bank amount ({formatMoney(bankAmountAbs)}). Adjust the base amount or tax.
+                              </p>
+                            )}
+                          </div>
+
                           <div>
                             <label className="mb-1 block text-xs font-medium text-slate-600">
-                              Category amount
+                              Memo (optional)
                             </label>
                             <input
                               className="h-9 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-xs text-slate-800 outline-none focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-100"
-                              type="number"
-                              step="0.01"
-                              value={addAmount}
-                              onChange={(e) => setAddAmount(e.target.value)}
+                              placeholder="Internal note"
+                              value={addMemo}
+                              onChange={(e) => setAddMemo(e.target.value)}
                               disabled={actionSubmitting}
                             />
-                            <p className="mt-1 text-[11px] text-slate-500">
-                              Bank amount: {formatMoney(bankAmountAbs)}
-                            </p>
                           </div>
-                        </div>
 
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
-                          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                            <span className="text-[11px] font-semibold text-slate-600">Tax</span>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <select
-                              value={addTaxTreatment}
-                              onChange={(e) => setAddTaxTreatment(e.target.value as TaxTreatment)}
-                              className="h-9 rounded-full border border-slate-200 bg-white px-3 text-xs outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                          <div className="pt-2">
+                            <button
+                              type="button"
+                              onClick={handleAddToLedger}
+                              disabled={!canAddEntry}
+                              className={`inline-flex items-center rounded-full px-4 py-1.5 text-xs font-semibold text-white shadow-sm ${!canAddEntry
+                                ? "cursor-not-allowed bg-emerald-300"
+                                : "bg-emerald-600 hover:bg-emerald-700"
+                                }`}
                             >
-                              <option value="NONE">No tax</option>
-                              <option value="INCLUDED">Tax included</option>
-                              <option value="ON_TOP">Tax on top</option>
-                            </select>
-                            <select
-                              value={addTaxRateId}
-                              onChange={(e) => setAddTaxRateId(e.target.value)}
-                              disabled={addTaxTreatment === "NONE" || taxRates.length === 0}
-                              className="h-9 rounded-full border border-slate-200 bg-white px-3 text-xs outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 disabled:bg-slate-100"
-                            >
-                              {taxRates.length === 0 ? (
-                                <option value="">No tax codes</option>
-                              ) : (
-                                taxRates.map((tr) => (
-                                  <option key={tr.id} value={tr.id}>
-                                    {tr.name} ({tr.percentage}%)
-                                  </option>
-                                ))
-                              )}
-                            </select>
+                              {actionSubmitting ? "Posting…" : "Add to bank account"}
+                            </button>
                           </div>
-                          <p className="mt-2 text-[11px] text-slate-600">
-                            Net {formatMoney(addTaxParts.net)} · Tax {formatMoney(addTaxParts.tax)} · Gross{" "}
-                            {formatMoney(addTaxParts.gross)}
-                          </p>
-                          {!addAmountMatches && (
-                            <p className="mt-1 text-[11px] text-rose-600">
-                              Gross must match the bank amount ({formatMoney(bankAmountAbs)}). Adjust the base amount or tax.
-                            </p>
-                          )}
-                        </div>
-
-                        <div>
-                          <label className="mb-1 block text-xs font-medium text-slate-600">
-                            Memo (optional)
-                          </label>
-                          <input
-                            className="h-9 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-xs text-slate-800 outline-none focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-100"
-                            placeholder="Internal note"
-                            value={addMemo}
-                            onChange={(e) => setAddMemo(e.target.value)}
-                            disabled={actionSubmitting}
-                          />
-                        </div>
-
-                        <div className="pt-2">
-                          <button
-                            type="button"
-                            onClick={handleAddToLedger}
-                            disabled={!canAddEntry}
-                            className={`inline-flex items-center rounded-full px-4 py-1.5 text-xs font-semibold text-white shadow-sm ${!canAddEntry
-                              ? "cursor-not-allowed bg-emerald-300"
-                              : "bg-emerald-600 hover:bg-emerald-700"
-                              }`}
-                          >
-                            {actionSubmitting ? "Posting…" : "Add to bank account"}
-                          </button>
                         </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {activeTab === "TRANSFER" && (
-                    <div className="space-y-5 max-w-md">
-                      <p className="text-xs text-slate-500">
-                        Use a transfer when this movement is between your own accounts (for example, moving money from checking to savings).
-                      </p>
-                      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
-                        Tax not applicable for pure transfers.
-                      </div>
-
-                      <div className="space-y-3">
-                        <div>
-                          <label className="mb-1 block text-xs font-medium text-slate-600">
-                            From account
-                          </label>
-                          <input
-                            className="h-9 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-xs text-slate-800 outline-none focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-100"
-                            defaultValue={account?.name || ""}
-                            disabled
-                          />
+                    {activeTab === "TRANSFER" && (
+                      <div className="space-y-5 max-w-md">
+                        <p className="text-xs text-slate-500">
+                          Use a transfer when this movement is between your own accounts (for example, moving money from checking to savings).
+                        </p>
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
+                          Tax not applicable for pure transfers.
                         </div>
-                        <div>
-                          <label className="mb-1 block text-xs font-medium text-slate-600">
-                            To account
-                          </label>
-                          <input
-                            className="h-9 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-xs text-slate-800 outline-none focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-100"
-                            placeholder="e.g. Savings, Credit card"
-                          />
-                        </div>
-                        <div className="pt-2">
-                          <button className="inline-flex items-center rounded-full bg-sky-600 px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-sky-700">
-                            Record transfer
-                          </button>
+
+                        <div className="space-y-3">
+                          <div>
+                            <label className="mb-1 block text-xs font-medium text-slate-600">
+                              From account
+                            </label>
+                            <input
+                              className="h-9 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-xs text-slate-800 outline-none focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-100"
+                              defaultValue={account?.name || ""}
+                              disabled
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs font-medium text-slate-600">
+                              To account
+                            </label>
+                            <input
+                              className="h-9 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-xs text-slate-800 outline-none focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-100"
+                              placeholder="e.g. Savings, Credit card"
+                            />
+                          </div>
+                          <div className="pt-2">
+                            <button className="inline-flex items-center rounded-full bg-sky-600 px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-sky-700">
+                              Record transfer
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {activeTab === "EXCLUDE" && (
-                    <div className="space-y-4 max-w-md">
-                      <p className="text-xs text-slate-500">
-                        Exclude this line if it's a duplicate, personal transaction, or otherwise not relevant to your business books. It will remain in the feed but won't affect your reports.
-                      </p>
+                    {activeTab === "EXCLUDE" && (
+                      <div className="space-y-4 max-w-md">
+                        <p className="text-xs text-slate-500">
+                          Exclude this line if it's a duplicate, personal transaction, or otherwise not relevant to your business books. It will remain in the feed but won't affect your reports.
+                        </p>
 
-                      <div className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-3 text-[11px] text-rose-700">
-                        You can always undo this later from the bank feed if you exclude something by mistake.
+                        <div className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-3 text-[11px] text-rose-700">
+                          You can always undo this later from the bank feed if you exclude something by mistake.
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={handleExclude}
+                          disabled={
+                            !selectedTx ||
+                            selectedTx.status !== "NEW" ||
+                            actionSubmitting
+                          }
+                          className={`inline-flex items-center rounded-full px-4 py-1.5 text-xs font-semibold ring-1 ${!selectedTx || selectedTx.status !== "NEW" || actionSubmitting
+                            ? "cursor-not-allowed bg-slate-100 text-slate-400 ring-slate-200"
+                            : "bg-white text-rose-600 ring-rose-200 hover:bg-rose-50"
+                            }`}
+                        >
+                          Exclude from books
+                        </button>
                       </div>
-
-                      <button
-                        type="button"
-                        onClick={handleExclude}
-                        disabled={
-                          !selectedTx ||
-                          selectedTx.status !== "NEW" ||
-                          actionSubmitting
-                        }
-                        className={`inline-flex items-center rounded-full px-4 py-1.5 text-xs font-semibold ring-1 ${!selectedTx || selectedTx.status !== "NEW" || actionSubmitting
-                          ? "cursor-not-allowed bg-slate-100 text-slate-400 ring-slate-200"
-                          : "bg-white text-rose-600 ring-rose-200 hover:bg-rose-50"
-                          }`}
-                      >
-                        Exclude from books
-                      </button>
-                    </div>
-                  )}
+                    )}
+                  </div>
+                </>
+              ) : transactionsLoading ? (
+                <div className="flex flex-1 flex-col items-center justify-center px-8 py-10 text-center text-xs text-slate-400">
+                  <p>Loading transaction…</p>
                 </div>
-              </>
-            ) : transactionsLoading ? (
-              <div className="flex flex-1 flex-col items-center justify-center px-8 py-10 text-center text-xs text-slate-400">
-                <p>Loading transaction…</p>
-              </div>
-            ) : (
-              <div className="flex flex-1 flex-col items-center justify-center px-8 py-10 text-center text-xs text-slate-400">
-                <p>Select a transaction on the left to review or create a posting.</p>
-              </div>
-            )}
-          </section>
-        </div>
+              ) : (
+                <div className="flex flex-1 flex-col items-center justify-center px-8 py-10 text-center text-xs text-slate-400">
+                  <p>Select a transaction on the left to review or create a posting.</p>
+                </div>
+              )}
+            </section>
+          </div>
         </div>
       </div>
       {categoryDrawerOpen && (
