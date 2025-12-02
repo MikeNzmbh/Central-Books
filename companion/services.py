@@ -94,6 +94,9 @@ def gather_workspace_metrics(workspace) -> Dict[str, int]:
         ).count()
     )
 
+    # Activity tracking - include journal entries for accurate "last activity" metric
+    from core.services import calculate_ledger_activity_date
+
     activity_dates = []
     latest_invoice = Invoice.objects.filter(business=workspace).order_by("-issue_date").values_list("issue_date", flat=True).first()
     latest_expense = Expense.objects.filter(business=workspace).order_by("-date").values_list("date", flat=True).first()
@@ -103,7 +106,7 @@ def gather_workspace_metrics(workspace) -> Dict[str, int]:
         .values_list("date", flat=True)
         .first()
     )
-    latest_journal = JournalEntry.objects.filter(business=workspace).order_by("-date").values_list("date", flat=True).first()
+    latest_journal = calculate_ledger_activity_date(workspace)
 
     for candidate in [latest_invoice, latest_expense, latest_bank_tx, latest_journal]:
         candidate_date = _as_date(candidate)

@@ -986,32 +986,24 @@ def dashboard(request):
     next_month_start = _add_months(month_start, 1)
     month_end = next_month_start - timedelta(days=1)
 
-    total_income_month = (
-        invoices_qs.filter(
-            status=Invoice.Status.PAID,
-            issue_date__gte=month_start,
-            issue_date__lte=month_end,
-        ).aggregate(total=Sum("net_total"))["total"]
-        or Decimal("0")
+    # Use ledger-based calculation for accurate P&L
+    from core.services import (
+        calculate_ledger_income,
+        calculate_ledger_expenses,
+        calculate_ledger_expense_by_account_name,
     )
-    total_expenses_month = (
-        expenses_qs.filter(date__gte=month_start, date__lte=month_end).aggregate(total=Sum("net_total"))["total"]
-        or Decimal("0")
-    )
+
+    total_income_month = calculate_ledger_income(business, month_start, month_end)
+    total_expenses_month = calculate_ledger_expenses(business, month_start, month_end)
     net_income_month = total_income_month - total_expenses_month
 
-    def month_expense_for_category(category_name: str) -> Decimal:
-        return (
-            expenses_qs.filter(
-                date__gte=month_start,
-                date__lte=month_end,
-                category__name__iexact=category_name,
-            ).aggregate(total=Sum("net_total"))["total"]
-            or Decimal("0")
-        )
-
-    subscriptions_month = month_expense_for_category("Subscriptions")
-    taxes_month = month_expense_for_category("Taxes")
+    # Category-specific expenses for legacy dashboard sections
+    subscriptions_month = calculate_ledger_expense_by_account_name(
+        business, month_start, month_end, "Subscriptions"
+    )
+    taxes_month = calculate_ledger_expense_by_account_name(
+        business, month_start, month_end, "Taxes"
+    )
 
     category_grand_total = total_income_month + subscriptions_month + taxes_month
     if category_grand_total > 0:
@@ -1033,16 +1025,9 @@ def dashboard(request):
     draft_total = draft_qs.aggregate(total=Sum("grand_total"))["total"] or Decimal("0")
     draft_count = draft_qs.count()
 
-    revenue_30 = (
-        invoices_qs.filter(status=Invoice.Status.PAID, issue_date__gte=thirty_days_ago).aggregate(
-            total=Sum("net_total")
-        )["total"]
-        or Decimal("0")
-    )
-    expenses_30 = (
-        expenses_qs.filter(date__gte=thirty_days_ago).aggregate(total=Sum("net_total"))["total"]
-        or Decimal("0")
-    )
+    # Use ledger-based calculation for 30-day P&L
+    revenue_30 = calculate_ledger_income(business, thirty_days_ago, today)
+    expenses_30 = calculate_ledger_expenses(business, thirty_days_ago, today)
 
     labels = []
     income_series = []
