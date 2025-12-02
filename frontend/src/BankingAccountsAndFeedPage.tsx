@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import CompanionStrip from "./companion/CompanionStrip";
 
 const BANK_GRADIENTS: Record<string, string> = {
   rbc: "from-indigo-500 to-indigo-700",
@@ -354,6 +355,8 @@ const BankingAccountsAndFeedPage: React.FC<BankingAccountsAndFeedPageProps> = ({
             </a>
           </div>
         </header>
+
+        <CompanionStrip context="bank" className="mb-4" />
 
         <div className="grid gap-4 lg:grid-cols-[minmax(0,2.3fr)_minmax(0,2fr)]">
           <section className="space-y-3">

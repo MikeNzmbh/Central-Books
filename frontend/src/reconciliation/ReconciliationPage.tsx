@@ -52,6 +52,7 @@ import { Separator } from "../components/ui/separator";
 
 import "../index.css";
 import { ReportExportButton } from "../reports/ReportExportButton";
+import CompanionStrip from "../companion/CompanionStrip";
 
 // --- Types ---
 
@@ -607,6 +608,7 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
       <PageHeader session={state.session} />
 
       <main className="flex-1 px-4 py-6 md:px-8">
+        <CompanionStrip context="reconciliation" className="mb-4" />
         {state.error && (
           <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 flex items-center gap-3 justify-between">
             <div className="flex items-center gap-2">

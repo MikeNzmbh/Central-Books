@@ -1,0 +1,21 @@
+import React from "react";
+import { createRoot } from "react-dom/client";
+
+import CompanionStrip from "./CompanionStrip";
+import type { CompanionContext } from "./api";
+import "../index.css";
+
+function mountStrip(node: HTMLElement) {
+  const ctx = (node.dataset.companionContext as CompanionContext) || "dashboard";
+  const root = createRoot(node);
+  root.render(
+    <React.StrictMode>
+      <CompanionStrip context={ctx} />
+    </React.StrictMode>
+  );
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const targets = Array.from(document.querySelectorAll<HTMLElement>("[data-companion-context]"));
+  targets.forEach(mountStrip);
+});

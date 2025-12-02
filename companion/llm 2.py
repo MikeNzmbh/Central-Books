@@ -12,7 +12,7 @@ import requests
 from django.conf import settings
 from django.utils import timezone
 
-from .models import CompanionInsight, CompanionSuggestedAction, HealthIndexSnapshot
+from .models import CompanionInsight, HealthIndexSnapshot
 
 logger = logging.getLogger(__name__)
 
@@ -131,7 +131,6 @@ def generate_companion_narrative(
         {
             "id": insight.id,
             "domain": insight.domain,
-            "context": getattr(insight, "context", CompanionInsight.CONTEXT_DASHBOARD),
             "severity": insight.severity,
             "title": insight.title,
             "body": insight.body,
@@ -144,7 +143,6 @@ def generate_companion_narrative(
         "Do not invent or guess new numbers, dates, or facts. "
         "If you mention numbers, they must match exactly the input. "
         "If nothing looks problematic, say everything looks fine. "
-        "Insights and actions include a context tag (banking, invoices, reconciliation, expenses, reports, tax_fx); use it only to orient the user. "
         "Keep responses short and in JSON."
     )
 
@@ -155,7 +153,6 @@ def generate_companion_narrative(
             {
                 "id": action.id,
                 "action_type": action.action_type,
-                "context": getattr(action, "context", CompanionSuggestedAction.CONTEXT_DASHBOARD),
                 "confidence": float(action.confidence or 0),
                 "payload": {
                     "bank_transaction_id": payload.get("bank_transaction_id"),
@@ -163,12 +160,6 @@ def generate_companion_narrative(
                     "amount": payload.get("amount"),
                     "date": payload.get("date"),
                     "currency": payload.get("currency"),
-                    "invoice_id": payload.get("invoice_id"),
-                    "invoice_number": payload.get("invoice_number"),
-                    "customer_name": payload.get("customer_name"),
-                    "days_overdue": payload.get("days_overdue"),
-                    "expense_ids": payload.get("expense_ids"),
-                    "expenses": payload.get("expenses"),
                 },
             }
         )
@@ -237,7 +228,6 @@ def generate_insights_for_snapshot(snapshot: HealthIndexSnapshot) -> list[Compan
     candidates = [
         {
             "domain": "reconciliation",
-            "context": CompanionInsight.CONTEXT_RECONCILIATION,
             "title": "Tighten reconciliation cadence",
             "body": f"{metrics.get('unreconciled_count', 0)} items remain unreconciled; clear the queue weekly.",
             "severity": "warning",
@@ -245,7 +235,6 @@ def generate_insights_for_snapshot(snapshot: HealthIndexSnapshot) -> list[Compan
         },
         {
             "domain": "invoices",
-            "context": CompanionInsight.CONTEXT_INVOICES,
             "title": "Follow up on overdue invoices",
             "body": f"{metrics.get('overdue_invoices', 0)} invoices are past due — nudge customers.",
             "severity": "info",
@@ -253,7 +242,6 @@ def generate_insights_for_snapshot(snapshot: HealthIndexSnapshot) -> list[Compan
         },
         {
             "domain": "expenses",
-            "context": CompanionInsight.CONTEXT_EXPENSES,
             "title": "Categorize uncategorized expenses",
             "body": f"{metrics.get('uncategorized_expenses', 0)} expenses need categories for accurate P&L.",
             "severity": "info",
@@ -261,7 +249,6 @@ def generate_insights_for_snapshot(snapshot: HealthIndexSnapshot) -> list[Compan
         },
         {
             "domain": "tax_fx",
-            "context": CompanionInsight.CONTEXT_TAX_FX,
             "title": "Resolve tax mismatches",
             "body": f"{metrics.get('tax_mismatches', 0)} entries have tax set but no tax group/rate.",
             "severity": "warning",
@@ -269,7 +256,6 @@ def generate_insights_for_snapshot(snapshot: HealthIndexSnapshot) -> list[Compan
         },
         {
             "domain": "ledger_integrity",
-            "context": CompanionInsight.CONTEXT_REPORTS,
             "title": "Investigate unbalanced journal entries",
             "body": f"{metrics.get('unbalanced_journal_entries', 0)} journal entries look unbalanced.",
             "severity": "critical" if metrics.get("unbalanced_journal_entries", 0) else "info",

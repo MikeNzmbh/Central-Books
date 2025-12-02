@@ -268,12 +268,18 @@ def allocate_bank_transaction(
                 if not alloc.tax_rate_id:
                     raise ValidationError("Tax rate is required when tax is enabled.")
                 tax_rate = (
-                    TaxRate.objects.filter(business=business, pk=alloc.tax_rate_id)
-                    .only("percentage")
+                    TaxRate.objects.filter(
+                        business=business, pk=alloc.tax_rate_id, is_active=True
+                    )
+                    .only("percentage", "applies_to_sales", "applies_to_purchases")
                     .first()
                 )
                 if not tax_rate:
                     raise ValidationError("Tax rate not found for this business.")
+                if alloc.kind == "DIRECT_INCOME" and not tax_rate.applies_to_sales:
+                    raise ValidationError("This tax rate is not configured for sales.")
+                if alloc.kind == "DIRECT_EXPENSE" and not tax_rate.applies_to_purchases:
+                    raise ValidationError("This tax rate is not configured for purchases.")
                 net_value, tax_value, gross_value = compute_tax_breakdown(
                     amount, treatment, tax_rate.percentage
                 )

@@ -237,6 +237,7 @@ def ensure_metric_insights(workspace, metrics: Dict[str, int]) -> list[Companion
         candidates.append(
             {
                 "domain": "reconciliation",
+                "context": CompanionInsight.CONTEXT_RECONCILIATION,
                 "title": "Unreconciled transactions to clear",
                 "body": f"{metrics.get('unreconciled_count', 0)} bank items need reconciliation.",
                 "severity": "warning" if metrics.get("old_unreconciled_60d", 0) else "info",
@@ -247,6 +248,7 @@ def ensure_metric_insights(workspace, metrics: Dict[str, int]) -> list[Companion
         candidates.append(
             {
                 "domain": "invoices",
+                "context": CompanionInsight.CONTEXT_INVOICES,
                 "title": "Customers have overdue invoices",
                 "body": f"{metrics.get('overdue_invoices', 0)} invoices past due. Follow up to improve cash flow.",
                 "severity": "warning" if metrics.get("overdue_invoices_60d", 0) else "info",
@@ -257,6 +259,7 @@ def ensure_metric_insights(workspace, metrics: Dict[str, int]) -> list[Companion
         candidates.append(
             {
                 "domain": "expenses",
+                "context": CompanionInsight.CONTEXT_EXPENSES,
                 "title": "Expenses missing categories",
                 "body": f"{metrics.get('uncategorized_expenses', 0)} expenses need a category for clean books.",
                 "severity": "info",
@@ -356,6 +359,7 @@ def generate_bank_match_suggestions_for_workspace(workspace, snapshot: HealthInd
         )
         CompanionSuggestedAction.objects.create(
             workspace=workspace,
+            context=CompanionSuggestedAction.CONTEXT_BANK,
             action_type=CompanionSuggestedAction.ACTION_BANK_MATCH_REVIEW,
             status=CompanionSuggestedAction.STATUS_OPEN,
             payload={
@@ -372,6 +376,152 @@ def generate_bank_match_suggestions_for_workspace(workspace, snapshot: HealthInd
         open_count += 1
 
 
+def generate_overdue_invoice_suggestions_for_workspace(
+    workspace,
+    snapshot: HealthIndexSnapshot | None = None,
+    grace_days: int = 7,
+    max_actions: int = 20,
+):
+    """
+    Create reminder suggestions for overdue invoices without duplicating existing open actions.
+    """
+    if not workspace:
+        return []
+
+    today = timezone.now().date()
+    cutoff = today - timedelta(days=grace_days)
+
+    existing_invoice_ids: set[int] = set()
+    for action in CompanionSuggestedAction.objects.filter(
+        workspace=workspace,
+        status=CompanionSuggestedAction.STATUS_OPEN,
+        action_type=CompanionSuggestedAction.ACTION_INVOICE_REMINDER,
+    ):
+        payload = action.payload or {}
+        inv_id = payload.get("invoice_id")
+        if inv_id is not None:
+            try:
+                existing_invoice_ids.add(int(inv_id))
+            except (TypeError, ValueError):
+                continue
+
+    candidates = Invoice.objects.filter(
+        business=workspace,
+        status__in=[Invoice.Status.SENT, Invoice.Status.PARTIAL],
+        due_date__lt=cutoff,
+    ).order_by("due_date")
+
+    created: list[CompanionSuggestedAction] = []
+    for invoice in candidates:
+        if len(created) >= max_actions:
+            break
+        if invoice.id in existing_invoice_ids:
+            continue
+        days_overdue = (today - invoice.due_date).days if invoice.due_date else 0
+        customer_name = getattr(invoice.customer, "name", None)
+        payload = {
+            "invoice_id": invoice.id,
+            "invoice_number": invoice.invoice_number,
+            "customer_name": customer_name,
+            "amount": str(invoice.grand_total or invoice.total_amount),
+            "days_overdue": days_overdue,
+        }
+        summary = f"Follow up on invoice {invoice.invoice_number or invoice.id} ({days_overdue} days overdue)"
+        created.append(
+            CompanionSuggestedAction.objects.create(
+                workspace=workspace,
+                context=CompanionSuggestedAction.CONTEXT_INVOICES,
+                action_type=CompanionSuggestedAction.ACTION_INVOICE_REMINDER,
+                status=CompanionSuggestedAction.STATUS_OPEN,
+                payload=payload,
+                confidence=Decimal("0.8"),
+                summary=summary[:255],
+                source_snapshot=snapshot,
+            )
+        )
+
+    return created
+
+
+def generate_uncategorized_expense_suggestions_for_workspace(
+    workspace,
+    max_actions: int = 5,
+):
+    """
+    Suggest categorizing uncategorized expenses, leveraging vendor memory hints when available.
+    """
+    if not workspace:
+        return []
+
+    existing_expense_ids: set[int] = set()
+    for action in CompanionSuggestedAction.objects.filter(
+        workspace=workspace,
+        status=CompanionSuggestedAction.STATUS_OPEN,
+        action_type=CompanionSuggestedAction.ACTION_CATEGORIZE_EXPENSES_BATCH,
+    ):
+        for exp_id in action.payload.get("expense_ids", []):
+            if exp_id is None:
+                continue
+            try:
+                existing_expense_ids.add(int(exp_id))
+            except (TypeError, ValueError):
+                continue
+
+    uncategorized = Expense.objects.filter(
+        business=workspace,
+    ).filter(
+        Q(category__isnull=True)
+        | Q(category__name__icontains="uncategorized")
+        | Q(category__account__code="9999")
+    ).order_by("-date")[: max_actions * 3]
+
+    selected: list[Expense] = []
+    for expense in uncategorized:
+        if expense.id in existing_expense_ids:
+            continue
+        selected.append(expense)
+        if len(selected) >= max_actions:
+            break
+
+    if not selected:
+        return []
+
+    expenses_payload = []
+    for expense in selected:
+        vendor_name = getattr(expense.supplier, "name", None)
+        memory = get_vendor_category_hint(workspace, vendor_name) or {}
+        expenses_payload.append(
+            {
+                "expense_id": expense.id,
+                "vendor_name": vendor_name,
+                "amount": str(expense.amount),
+                "date": str(expense.date),
+                "suggested_category_id": memory.get("category_id"),
+            }
+        )
+
+    summary = f"Categorize {len(expenses_payload)} expenses"
+    action = CompanionSuggestedAction.objects.create(
+        workspace=workspace,
+        context=CompanionSuggestedAction.CONTEXT_EXPENSES,
+        action_type=CompanionSuggestedAction.ACTION_CATEGORIZE_EXPENSES_BATCH,
+        status=CompanionSuggestedAction.STATUS_OPEN,
+        payload={"expense_ids": [e["expense_id"] for e in expenses_payload], "expenses": expenses_payload},
+        confidence=Decimal("0.6"),
+        summary=summary[:255],
+    )
+    return [action]
+
+
+def refresh_suggested_actions_for_workspace(workspace, snapshot: HealthIndexSnapshot | None = None):
+    """
+    Run all deterministic suggestion generators for a workspace.
+    """
+    generate_bank_match_suggestions_for_workspace(workspace, snapshot=snapshot)
+    generate_overdue_invoice_suggestions_for_workspace(workspace, snapshot=snapshot)
+    generate_uncategorized_expense_suggestions_for_workspace(workspace)
+
+
 def apply_suggested_action(action: CompanionSuggestedAction, user=None):
     """
     Apply a bank match review suggestion using existing reconciliation service.
@@ -379,24 +529,36 @@ def apply_suggested_action(action: CompanionSuggestedAction, user=None):
     if action.status != CompanionSuggestedAction.STATUS_OPEN:
         raise ValueError("Action is not open.")
     payload = action.payload or {}
-    bank_tx_id = payload.get("bank_transaction_id")
-    journal_entry_id = payload.get("journal_entry_id")
-    if not bank_tx_id or not journal_entry_id:
-        raise ValueError("Missing payload identifiers.")
+    if action.action_type == CompanionSuggestedAction.ACTION_BANK_MATCH_REVIEW:
+        bank_tx_id = payload.get("bank_transaction_id")
+        journal_entry_id = payload.get("journal_entry_id")
+        if not bank_tx_id or not journal_entry_id:
+            raise ValueError("Missing payload identifiers.")
 
-    bank_tx = BankTransaction.objects.select_related("bank_account").get(id=bank_tx_id, bank_account__business=action.workspace)
-    journal_entry = JournalEntry.objects.get(id=journal_entry_id, business=action.workspace)
-
-    with transaction.atomic():
-        BankReconciliationService.confirm_match(
-            bank_transaction=bank_tx,
-            journal_entry=journal_entry,
-            match_confidence=Decimal(action.confidence or 0),
-            user=user,
+        bank_tx = BankTransaction.objects.select_related("bank_account").get(
+            id=bank_tx_id, bank_account__business=action.workspace
         )
+        journal_entry = JournalEntry.objects.get(id=journal_entry_id, business=action.workspace)
+
+        with transaction.atomic():
+            BankReconciliationService.confirm_match(
+                bank_transaction=bank_tx,
+                journal_entry=journal_entry,
+                match_confidence=Decimal(action.confidence or 0),
+                user=user,
+            )
+            action.status = CompanionSuggestedAction.STATUS_APPLIED
+            action.resolved_at = timezone.now()
+            action.save(update_fields=["status", "resolved_at"])
+    elif action.action_type in {
+        CompanionSuggestedAction.ACTION_INVOICE_REMINDER,
+        CompanionSuggestedAction.ACTION_CATEGORIZE_EXPENSES_BATCH,
+    }:
         action.status = CompanionSuggestedAction.STATUS_APPLIED
         action.resolved_at = timezone.now()
         action.save(update_fields=["status", "resolved_at"])
+    else:
+        raise ValueError("Unsupported action type.")
 
 
 def dismiss_suggested_action(action: CompanionSuggestedAction):

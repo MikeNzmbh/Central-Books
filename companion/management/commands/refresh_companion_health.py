@@ -2,7 +2,7 @@ from django.core.management.base import BaseCommand
 
 from core.models import Business
 from companion.models import WorkspaceCompanionProfile
-from companion.services import create_health_snapshot, generate_bank_match_suggestions_for_workspace
+from companion.services import create_health_snapshot, refresh_suggested_actions_for_workspace
 
 
 class Command(BaseCommand):
@@ -27,7 +27,7 @@ class Command(BaseCommand):
             try:
                 snapshot = create_health_snapshot(workspace)
                 snapshots += 1
-                generate_bank_match_suggestions_for_workspace(workspace, snapshot=snapshot)
+                refresh_suggested_actions_for_workspace(workspace, snapshot=snapshot)
             except Exception as exc:  # pragma: no cover - logged for operational visibility
                 errors += 1
                 self.stderr.write(f"[companion] Failed snapshot for workspace {workspace.id}: {exc}")

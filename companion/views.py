@@ -16,7 +16,7 @@ from .services import (
     ensure_metric_insights,
     gather_workspace_metrics,
     get_latest_health_snapshot,
-    generate_bank_match_suggestions_for_workspace,
+    refresh_suggested_actions_for_workspace,
     apply_suggested_action,
     dismiss_suggested_action,
 )
@@ -68,7 +68,7 @@ class CompanionOverviewView(APIView):
             )
             insights_data = CompanionInsightSerializer(insights, many=True).data
 
-        generate_bank_match_suggestions_for_workspace(workspace, snapshot=snapshot)
+        refresh_suggested_actions_for_workspace(workspace, snapshot=snapshot)
         actions_qs = CompanionSuggestedAction.objects.filter(
             workspace=workspace, status=CompanionSuggestedAction.STATUS_OPEN
         ).order_by("-created_at")
@@ -147,8 +147,6 @@ class CompanionActionApplyView(APIView):
             return Response(status=status.HTTP_404_NOT_FOUND)
         if action.status != CompanionSuggestedAction.STATUS_OPEN:
             return Response({"detail": "Action already resolved."}, status=status.HTTP_400_BAD_REQUEST)
-        if action.action_type != CompanionSuggestedAction.ACTION_BANK_MATCH_REVIEW:
-            return Response({"detail": "Unsupported action type."}, status=status.HTTP_400_BAD_REQUEST)
         try:
             apply_suggested_action(action, user=request.user)
         except Exception as exc:

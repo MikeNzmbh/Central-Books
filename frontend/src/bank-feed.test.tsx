@@ -64,4 +64,10 @@
 // File: bank-feed.test.tsx (to be created)
 // Place this file alongside bank-feed.tsx when implementing tests
 
-export { };  // Make this a module
+describe("Bank feed tax behavior", () => {
+  it("placeholder until detailed tests are implemented", () => {
+    expect(true).toBe(true);
+  });
+});
+
+export {};  // Make this a module

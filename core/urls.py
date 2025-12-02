@@ -205,6 +205,13 @@ urlpatterns = [
         views.api_banking_feed_metadata,
         name="api_banking_feed_metadata",
     ),
+    path("api/taxes/settings/", views.api_tax_settings, name="api_tax_settings"),
+    path("api/taxes/rates/", views.api_tax_rates, name="api_tax_rates"),
+    path(
+        "api/taxes/rates/<int:rate_id>/",
+        views.api_tax_rate_detail,
+        name="api_tax_rate_detail",
+    ),
     path("api/categories/", views.api_create_category, name="api_create_category"),
     path(
         "api/banking/feed/transactions/<int:tx_id>/create/",

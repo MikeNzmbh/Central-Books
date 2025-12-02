@@ -29,6 +29,9 @@ class Business(models.Model):
     is_deleted = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     bank_setup_completed = models.BooleanField(default=False)
+    is_tax_registered = models.BooleanField(default=False)
+    tax_country = models.CharField(max_length=2, default="CA", blank=True)
+    tax_region = models.CharField(max_length=10, blank=True, default="")
     
     # Email configuration for sending invoices
     email_from = models.EmailField(
@@ -117,6 +120,11 @@ class TaxRate(models.Model):
     is_default_purchases = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     country = models.CharField(max_length=2, default="CA")
+    region = models.CharField(max_length=10, blank=True, default="")
+    applies_to_sales = models.BooleanField(default=True)
+    applies_to_purchases = models.BooleanField(default=True)
+    is_default_sales_rate = models.BooleanField(default=False)
+    is_default_purchase_rate = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -154,6 +162,9 @@ class TaxRate(models.Model):
                 "percentage": Decimal("0.00"),
                 "is_recoverable": False,
                 "is_default_purchases": True,
+                "is_default_purchase_rate": True,
+                "applies_to_sales": True,
+                "applies_to_purchases": True,
             },
         )
         cls.objects.get_or_create(
@@ -164,8 +175,27 @@ class TaxRate(models.Model):
                 "percentage": Decimal("13.00"),
                 "is_recoverable": True,
                 "is_default_sales": True,
+                "is_default_sales_rate": True,
+                "applies_to_sales": True,
+                "applies_to_purchases": True,
             },
         )
+
+    @property
+    def rate(self) -> Decimal:
+        return (self.percentage or Decimal("0")) / Decimal("100")
+
+    @rate.setter
+    def rate(self, value: Decimal):
+        self.percentage = (Decimal(value or 0) * Decimal("100")).quantize(Decimal("0.01"))
+
+    @property
+    def is_default_sales_rate_value(self) -> bool:
+        return bool(self.is_default_sales or self.is_default_sales_rate)
+
+    @property
+    def is_default_purchase_rate_value(self) -> bool:
+        return bool(self.is_default_purchases or self.is_default_purchase_rate)
 
     @property
     def amount_owed(self):

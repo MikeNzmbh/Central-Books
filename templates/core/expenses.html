@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static mb_extras %}
 
 {% block title %} · Expenses{% endblock %}
 
@@ -16,6 +17,9 @@
     </div>
   </div>
 
+  <div class="mb-4">
+    <div data-companion-context="expenses"></div>
+  </div>
   <section class="page-kpi-grid expenses-kpis">
     <div class="kpi-card">
       <div class="kpi-label">Total expenses (YTD)</div>
@@ -257,4 +261,14 @@
     </aside>
   </section>
 </div>
+
+{% vite_asset 'companion-strip' as companion_js %}
+{% if companion_js %}
+  <script type="module" src="{% static companion_js %}"></script>
+{% endif %}
+
+{% vite_asset 'companion-strip' 'css' as companion_css %}
+{% if companion_css %}
+  <link rel="stylesheet" href="{% static companion_css %}">
+{% endif %}
 {% endblock %}

@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, afterEach, type Mock } from "vitest";
 
 import CompanionPanel from "./CompanionPanel";
@@ -32,6 +32,7 @@ describe("CompanionPanel", () => {
       insights: [
         {
           id: 1,
+          context: "reconciliation",
           domain: "reconciliation",
           title: "Tighten reconciliation",
           body: "You have unreconciled transactions waiting.",
@@ -52,6 +53,7 @@ describe("CompanionPanel", () => {
       actions: [
         {
           id: 10,
+          context: "reconciliation",
           action_type: "bank_match_review",
           status: "open",
           confidence: 0.97,
@@ -126,6 +128,7 @@ describe("CompanionPanel", () => {
       actions: [
         {
           id: 5,
+          context: "reconciliation",
           action_type: "bank_match_review",
           status: "open",
           confidence: 0.9,
@@ -142,10 +145,10 @@ describe("CompanionPanel", () => {
     render(<CompanionPanel />);
 
     await waitFor(() => expect(screen.getByText(/Match bank txn 5/)).toBeInTheDocument());
-    screen.getByText("Apply").click();
-    expect(applyCompanionAction).toHaveBeenCalledWith(5);
+    fireEvent.click(screen.getByText("Apply"));
+    await waitFor(() => expect(applyCompanionAction).toHaveBeenCalledWith(5));
 
-    screen.getByText("Dismiss").click();
-    expect(dismissCompanionAction).toHaveBeenCalledWith(5);
+    fireEvent.click(screen.getByText("Dismiss"));
+    await waitFor(() => expect(dismissCompanionAction).toHaveBeenCalledWith(5));
   });
 });

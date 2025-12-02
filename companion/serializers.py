@@ -15,6 +15,7 @@ class CompanionInsightSerializer(serializers.ModelSerializer):
         model = CompanionInsight
         fields = [
             "id",
+            "context",
             "domain",
             "title",
             "body",
@@ -33,6 +34,7 @@ class CompanionSuggestedActionSerializer(serializers.ModelSerializer):
         model = CompanionSuggestedAction
         fields = [
             "id",
+            "context",
             "action_type",
             "status",
             "confidence",

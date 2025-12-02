@@ -1,0 +1,93 @@
+import React from "react";
+import type { CompanionContext } from "./api";
+import { useCompanionContext } from "./useCompanionContext";
+
+type CompanionStripProps = {
+  context: CompanionContext;
+  className?: string;
+};
+
+const friendlyLabels: Record<CompanionContext, string> = {
+  bank: "banking",
+  reconciliation: "reconciliation",
+  invoices: "invoices",
+  expenses: "expenses",
+  reports: "reports",
+  tax_fx: "tax & FX",
+  dashboard: "workspace",
+};
+
+const combine = (items: string[]) => items.filter(Boolean).slice(0, 3);
+
+const CompanionStrip: React.FC<CompanionStripProps> = ({ context, className }) => {
+  const { isLoading, error, healthSnippet, contextInsights, contextActions } = useCompanionContext(context);
+  const items = combine([
+    ...contextInsights.map((i) => i.title || i.body),
+    ...contextActions.map((a) => a.summary || a.action_type),
+  ]);
+  const hasSignals = items.length > 0;
+  const label = friendlyLabels[context] || "workspace";
+
+  if (isLoading) {
+    return (
+      <div className={`relative overflow-hidden rounded-2xl bg-white/80 p-3 shadow-sm ring-1 ring-slate-100 ${className || ""}`}>
+        <div className="h-2 w-24 animate-pulse rounded-full bg-slate-100" />
+        <div className="mt-2 h-2 w-full animate-pulse rounded-full bg-slate-100" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className={`rounded-2xl border border-slate-100 bg-white/80 px-3 py-2 text-[12px] text-slate-500 shadow-sm ${className || ""}`}>
+        Companion temporarily unavailable.
+      </div>
+    );
+  }
+
+  if (!hasSignals) {
+    return (
+      <div
+        className={`flex items-center gap-3 rounded-2xl border border-slate-100 bg-white/80 px-3 py-2 text-[13px] text-slate-600 shadow-sm ${className || ""}`}
+      >
+        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-[12px] text-slate-500">✓</span>
+        <span>
+          Companion checked your {label} — nothing needs attention right now.
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`flex flex-col gap-1 rounded-2xl border border-sky-100 bg-sky-50/80 px-3 py-2 shadow-sm ${className || ""}`}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-[12px] font-semibold text-slate-700">
+          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-sky-600 text-[11px] font-bold text-white">
+            AI
+          </span>
+          <span>Companion suggests…</span>
+          {healthSnippet && (
+            <span className="text-[11px] font-medium text-slate-500">
+              {healthSnippet.statusText}
+            </span>
+          )}
+        </div>
+        <a
+          className="text-[11px] font-semibold text-sky-700 underline decoration-sky-300 decoration-dotted hover:text-sky-800"
+          href="/dashboard/"
+        >
+          View more
+        </a>
+      </div>
+      <ul className="ml-1 list-disc space-y-1 pl-4 text-[13px] text-slate-700">
+        {items.map((text, idx) => (
+          <li key={idx}>{text}</li>
+        ))}
+      </ul>
+    </div>
+  );
+};
+
+export default CompanionStrip;

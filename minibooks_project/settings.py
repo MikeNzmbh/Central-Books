@@ -100,6 +100,7 @@ def _preferred_site_domain() -> str:
 SITE_DOMAIN = _preferred_site_domain()
 
 INSTALLED_APPS = [
+    "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
@@ -217,13 +218,22 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 INTERNAL_ADMIN_METRICS_MAX_AGE_MINUTES = 5
 
+import environ
+
+# Initialize environ
+env = environ.Env()
+# Read .env file
+environ.Env.read_env(os.path.join(BASE_DIR, ".env"))
+
+# ... (keeping existing imports if needed, but usually environ replaces dotenv)
+
 # Companion LLM (DeepSeek or provider-agnostic) settings
-COMPANION_LLM_ENABLED = os.getenv("COMPANION_LLM_ENABLED", "false").lower() in {"1", "true", "yes"}
-COMPANION_LLM_API_BASE = os.getenv("COMPANION_LLM_API_BASE", "")
-COMPANION_LLM_API_KEY = os.getenv("COMPANION_LLM_API_KEY", "")
-COMPANION_LLM_MODEL = os.getenv("COMPANION_LLM_MODEL", "deepseek-v3.2")
-COMPANION_LLM_TIMEOUT_SECONDS = int(os.getenv("COMPANION_LLM_TIMEOUT_SECONDS", "15"))
-COMPANION_LLM_MAX_TOKENS = int(os.getenv("COMPANION_LLM_MAX_TOKENS", "512"))
+COMPANION_LLM_ENABLED = env.bool("COMPANION_LLM_ENABLED", default=False)
+COMPANION_LLM_API_BASE = env.str("COMPANION_LLM_API_BASE", default="")
+COMPANION_LLM_API_KEY = env.str("COMPANION_LLM_API_KEY", default="")
+COMPANION_LLM_MODEL = env.str("COMPANION_LLM_MODEL", default="deepseek-v3.2")
+COMPANION_LLM_TIMEOUT_SECONDS = env.int("COMPANION_LLM_TIMEOUT_SECONDS", default=12)
+COMPANION_LLM_MAX_TOKENS = env.int("COMPANION_LLM_MAX_TOKENS", default=512)
 
 # --- Sentry & production security hardening ---
 

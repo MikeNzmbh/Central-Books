@@ -1,5 +1,23 @@
 from django.db import models
 
+CONTEXT_DASHBOARD = "dashboard"
+CONTEXT_BANK = "bank"
+CONTEXT_RECONCILIATION = "reconciliation"
+CONTEXT_INVOICES = "invoices"
+CONTEXT_EXPENSES = "expenses"
+CONTEXT_REPORTS = "reports"
+CONTEXT_TAX_FX = "tax_fx"
+
+CONTEXT_CHOICES = [
+    (CONTEXT_DASHBOARD, "Dashboard"),
+    (CONTEXT_BANK, "Bank"),
+    (CONTEXT_RECONCILIATION, "Reconciliation"),
+    (CONTEXT_INVOICES, "Invoices"),
+    (CONTEXT_EXPENSES, "Expenses"),
+    (CONTEXT_REPORTS, "Reports"),
+    (CONTEXT_TAX_FX, "Tax & FX"),
+]
+
 
 class WorkspaceCompanionProfile(models.Model):
     workspace = models.OneToOneField(
@@ -44,6 +62,15 @@ class HealthIndexSnapshot(models.Model):
 
 
 class CompanionInsight(models.Model):
+    CONTEXT_DASHBOARD = CONTEXT_DASHBOARD
+    CONTEXT_BANK = CONTEXT_BANK
+    CONTEXT_RECONCILIATION = CONTEXT_RECONCILIATION
+    CONTEXT_INVOICES = CONTEXT_INVOICES
+    CONTEXT_EXPENSES = CONTEXT_EXPENSES
+    CONTEXT_REPORTS = CONTEXT_REPORTS
+    CONTEXT_TAX_FX = CONTEXT_TAX_FX
+    CONTEXT_CHOICES = CONTEXT_CHOICES
+
     workspace = models.ForeignKey(
         "core.Business",
         on_delete=models.CASCADE,
@@ -66,6 +93,7 @@ class CompanionInsight(models.Model):
     dismissed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     valid_until = models.DateTimeField(null=True, blank=True)
+    context = models.CharField(max_length=32, choices=CONTEXT_CHOICES, default=CONTEXT_DASHBOARD)
 
     def __str__(self) -> str:
         return f"{self.domain} – {self.title}"
@@ -89,9 +117,22 @@ class WorkspaceMemory(models.Model):
 
 
 class CompanionSuggestedAction(models.Model):
+    CONTEXT_DASHBOARD = CONTEXT_DASHBOARD
+    CONTEXT_BANK = CONTEXT_BANK
+    CONTEXT_RECONCILIATION = CONTEXT_RECONCILIATION
+    CONTEXT_INVOICES = CONTEXT_INVOICES
+    CONTEXT_EXPENSES = CONTEXT_EXPENSES
+    CONTEXT_REPORTS = CONTEXT_REPORTS
+    CONTEXT_TAX_FX = CONTEXT_TAX_FX
+    CONTEXT_CHOICES = CONTEXT_CHOICES
+
     ACTION_BANK_MATCH_REVIEW = "bank_match_review"
+    ACTION_INVOICE_REMINDER = "send_invoice_reminder"
+    ACTION_CATEGORIZE_EXPENSES_BATCH = "categorize_expenses_batch"
     ACTION_CHOICES = [
         (ACTION_BANK_MATCH_REVIEW, "Bank match review"),
+        (ACTION_INVOICE_REMINDER, "Send invoice reminder"),
+        (ACTION_CATEGORIZE_EXPENSES_BATCH, "Categorize expenses batch"),
     ]
     STATUS_OPEN = "open"
     STATUS_APPLIED = "applied"
@@ -122,6 +163,7 @@ class CompanionSuggestedAction(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     resolved_at = models.DateTimeField(null=True, blank=True)
+    context = models.CharField(max_length=32, choices=CONTEXT_CHOICES, default=CONTEXT_DASHBOARD)
 
     class Meta:
         ordering = ["-created_at"]

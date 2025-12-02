@@ -47,6 +47,10 @@ export default defineConfig({
           __dirname,
           "src/pages/workspace-home-entry.tsx"
         ),
+        "companion-strip": path.resolve(
+          __dirname,
+          "src/companion/companion-strip-entry.tsx"
+        ),
         "cashflow-report": path.resolve(
           __dirname,
           "src/reports/cashflow-report-entry.tsx"

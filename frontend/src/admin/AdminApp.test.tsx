@@ -40,7 +40,7 @@ afterEach(() => {
 });
 
 describe("AdminApp", () => {
-  it("renders the control center heading", () => {
+  it("renders the control center heading", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -56,7 +56,7 @@ describe("AdminApp", () => {
         <AdminApp />
       </AuthProvider>
     );
-    expect(screen.getByText(/CERN Books control center/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/CERN Books control center/i)).toBeInTheDocument());
   });
 
   it("renders admin view for internal routes without customer navigation", async () => {

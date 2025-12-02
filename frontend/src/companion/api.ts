@@ -7,6 +7,15 @@ type RequestOptions = {
   body?: unknown;
 };
 
+export type CompanionContext =
+  | "dashboard"
+  | "bank"
+  | "reconciliation"
+  | "invoices"
+  | "expenses"
+  | "reports"
+  | "tax_fx";
+
 export interface HealthIndex {
   score: number;
   created_at: string;
@@ -16,6 +25,7 @@ export interface HealthIndex {
 
 export interface CompanionInsight {
   id: number;
+  context?: CompanionContext;
   domain: string;
   title: string;
   body: string;
@@ -32,17 +42,12 @@ export interface CompanionNarrative {
   action_explanations?: Record<string, string>;
 }
 
-export interface CompanionActionPayload {
-  bank_transaction_id: number;
-  journal_entry_id: number;
-  amount: string;
-  date: string;
-  currency?: string;
-}
+export type CompanionActionPayload = Record<string, any>;
 
 export interface CompanionAction {
   id: number;
-  action_type: "bank_match_review";
+  context?: CompanionContext;
+  action_type: "bank_match_review" | "send_invoice_reminder" | "categorize_expenses_batch";
   status: "open" | "applied" | "dismissed";
   confidence: number;
   summary: string;

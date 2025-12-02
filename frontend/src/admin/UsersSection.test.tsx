@@ -57,7 +57,7 @@ describe("UsersSection", () => {
 
     render(<UsersSection />);
     const button = await screen.findByRole("button", { name: /impersonate/i });
-    button.click();
+    fireEvent.click(button);
 
     await waitFor(() =>
       expect((window as any).location.href).toContain("/internal/impersonate/redirect-token/")

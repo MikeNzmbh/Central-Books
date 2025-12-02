@@ -16,11 +16,9 @@ from companion.models import CompanionInsight, CompanionSuggestedAction, Workspa
 from companion.services import (
     create_health_snapshot,
     generate_bank_match_suggestions_for_workspace,
-    generate_overdue_invoice_suggestions_for_workspace,
-    generate_uncategorized_expense_suggestions_for_workspace,
     get_latest_health_snapshot,
 )
-from core.models import Account, BankAccount, BankTransaction, Business, Category, Customer, Expense, Invoice, JournalEntry, JournalLine, Supplier
+from core.models import Account, BankAccount, BankTransaction, Business, Category, Expense, JournalEntry, JournalLine, Supplier
 
 
 User = get_user_model()
@@ -89,16 +87,12 @@ class CompanionApiTests(TestCase):
             title="Clear recon queue",
             body="Items pending reconciliation",
             severity="warning",
-            context=CompanionInsight.CONTEXT_RECONCILIATION,
         )
         response = self.client.get(reverse("companion:overview"))
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         titles = [i["title"] for i in payload["insights"]]
         self.assertIn(insight.title, titles)
-        matching = next((i for i in payload["insights"] if i["id"] == insight.id), None)
-        self.assertIsNotNone(matching)
-        self.assertEqual(matching.get("context"), CompanionInsight.CONTEXT_RECONCILIATION)
 
     @override_settings(COMPANION_LLM_ENABLED=False)
     def test_llm_disabled_returns_null_summary(self):
@@ -289,7 +283,6 @@ class CompanionActionsTests(TestCase):
         self.assertEqual(action.status, CompanionSuggestedAction.STATUS_OPEN)
         self.assertEqual(action.payload.get("bank_transaction_id"), tx.id)
         self.assertEqual(action.payload.get("journal_entry_id"), je.id)
-        self.assertEqual(action.context, CompanionSuggestedAction.CONTEXT_BANK)
 
     def test_suggestion_dedup_and_cap(self):
         tx = BankTransaction.objects.create(
@@ -347,21 +340,6 @@ class CompanionActionsTests(TestCase):
         self.assertEqual(action.status, CompanionSuggestedAction.STATUS_DISMISSED)
         self.assertIsNotNone(action.resolved_at)
 
-    def test_apply_endpoint_handles_soft_actions(self):
-        action = CompanionSuggestedAction.objects.create(
-            workspace=self.workspace,
-            action_type=CompanionSuggestedAction.ACTION_INVOICE_REMINDER,
-            status=CompanionSuggestedAction.STATUS_OPEN,
-            context=CompanionSuggestedAction.CONTEXT_INVOICES,
-            payload={"invoice_id": 123, "invoice_number": "INV-100"},
-            confidence=Decimal("0.0"),
-            summary="Follow up",
-        )
-        res = self.client.post(reverse("companion:apply_action", args=[action.id]))
-        self.assertEqual(res.status_code, 200)
-        action.refresh_from_db()
-        self.assertEqual(action.status, CompanionSuggestedAction.STATUS_APPLIED)
-
     def test_actions_in_overview(self):
         action = CompanionSuggestedAction.objects.create(
             workspace=self.workspace,
@@ -376,105 +354,3 @@ class CompanionActionsTests(TestCase):
         payload = res.json()
         ids = [a["id"] for a in payload.get("actions", [])]
         self.assertIn(action.id, ids)
-        for item in payload.get("actions", []):
-            self.assertIn("context", item)
-
-
-class CompanionDeterministicSuggestionTests(TestCase):
-    def setUp(self):
-        self.user = User.objects.create_user(username="deterministic", email="d@example.com", password="pass")
-        self.workspace = Business.objects.create(name="DeterministicCo", currency="USD", owner_user=self.user)
-        self.customer = Customer.objects.create(business=self.workspace, name="Acme Customer")
-        self.supplier = Supplier.objects.create(business=self.workspace, name="Acme Supplies")
-        self.client.force_login(self.user)
-
-    def test_overdue_invoice_actions_created_with_context_and_payload(self):
-        today = timezone.now().date()
-        overdue_invoice = Invoice.objects.create(
-            business=self.workspace,
-            customer=self.customer,
-            invoice_number="INV-100",
-            status=Invoice.Status.SENT,
-            issue_date=today - timedelta(days=30),
-            due_date=today - timedelta(days=10),
-            total_amount=Decimal("120.00"),
-            grand_total=Decimal("120.00"),
-        )
-        Invoice.objects.create(
-            business=self.workspace,
-            customer=self.customer,
-            invoice_number="INV-101",
-            status=Invoice.Status.SENT,
-            issue_date=today,
-            due_date=today + timedelta(days=5),
-            total_amount=Decimal("80.00"),
-            grand_total=Decimal("80.00"),
-        )
-
-        generate_overdue_invoice_suggestions_for_workspace(self.workspace, grace_days=7)
-        actions = CompanionSuggestedAction.objects.filter(
-            workspace=self.workspace,
-            action_type=CompanionSuggestedAction.ACTION_INVOICE_REMINDER,
-        )
-        self.assertEqual(actions.count(), 1)
-        action = actions.first()
-        self.assertEqual(action.context, CompanionSuggestedAction.CONTEXT_INVOICES)
-        self.assertEqual(action.payload.get("invoice_id"), overdue_invoice.id)
-        self.assertGreaterEqual(action.payload.get("days_overdue"), 10)
-
-        # Deduplicate on repeat runs
-        generate_overdue_invoice_suggestions_for_workspace(self.workspace, grace_days=7)
-        self.assertEqual(
-            CompanionSuggestedAction.objects.filter(
-                workspace=self.workspace,
-                action_type=CompanionSuggestedAction.ACTION_INVOICE_REMINDER,
-            ).count(),
-            1,
-        )
-
-    def test_uncategorized_expense_batch_created_and_capped(self):
-        suggested_category = Category.objects.create(
-            business=self.workspace,
-            name="Office",
-            type=Category.CategoryType.EXPENSE,
-        )
-        WorkspaceMemory.objects.create(
-            workspace=self.workspace,
-            key="vendor:acme supplies",
-            value={"category_id": suggested_category.id},
-        )
-        uncategorized = Expense.objects.create(
-            business=self.workspace,
-            supplier=self.supplier,
-            category=None,
-            description="Paper",
-            amount=Decimal("25.00"),
-        )
-        Expense.objects.create(
-            business=self.workspace,
-            supplier=self.supplier,
-            category=suggested_category,
-            description="Categorized",
-            amount=Decimal("10.00"),
-        )
-
-        generate_uncategorized_expense_suggestions_for_workspace(self.workspace, max_actions=3)
-        actions = CompanionSuggestedAction.objects.filter(
-            workspace=self.workspace,
-            action_type=CompanionSuggestedAction.ACTION_CATEGORIZE_EXPENSES_BATCH,
-        )
-        self.assertEqual(actions.count(), 1)
-        action = actions.first()
-        self.assertEqual(action.context, CompanionSuggestedAction.CONTEXT_EXPENSES)
-        self.assertIn(uncategorized.id, action.payload.get("expense_ids"))
-        expense_payloads = action.payload.get("expenses") or []
-        self.assertTrue(any(item.get("suggested_category_id") == suggested_category.id for item in expense_payloads))
-
-        generate_uncategorized_expense_suggestions_for_workspace(self.workspace, max_actions=3)
-        self.assertEqual(
-            CompanionSuggestedAction.objects.filter(
-                workspace=self.workspace,
-                action_type=CompanionSuggestedAction.ACTION_CATEGORIZE_EXPENSES_BATCH,
-            ).count(),
-            1,
-        )

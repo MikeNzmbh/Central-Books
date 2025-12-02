@@ -1,11 +1,13 @@
 from django.conf import settings
 from django.conf.urls.static import static
+from django.contrib import admin
 from django.urls import include, path, re_path
 from core import views
 from internal_admin import views_impersonation, views_auth
 
 
 urlpatterns = [
+    path("admin/", admin.site.urls),
     path("", include("core.urls")),
     path("internal-admin/login/", views_auth.internal_admin_login, name="internal_admin_login"),
     path("internal-admin/", views.admin_spa, name="admin_spa"),

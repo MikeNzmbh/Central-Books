@@ -150,12 +150,12 @@ class TaxRatesAPITest(TestCase):
         self.assertIn("detail", response.json())
 
     def test_create_tax_rate_invalid_percentage_over_one(self):
-        """Cannot create tax rate with percentage > 1."""
+        """Cannot create tax rate with percentage > 1000."""
         response = self.client.post(
             "/api/taxes/rates/",
             data={
                 "name": "Invalid Tax",
-                "rate": 1.5
+                "rate": 1500  # >1000% should be rejected
             },
             content_type="application/json"
         )
