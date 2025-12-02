@@ -9,7 +9,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0031_invoice_email_last_error_invoice_email_sent_at_and_more'),
+        ("core", "0031b_make_email_token_unique"),
     ]
 
     operations = [

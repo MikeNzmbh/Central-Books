@@ -2155,8 +2155,13 @@ def invoice_send_email_view(request, pk):
     if not to_email:
         return HttpResponseBadRequest("No email address provided")
     
-    # Determine from_email and reply_to from business or settings
-    from_email = business.email_from or getattr(settings, "DEFAULT_FROM_EMAIL", None)
+    # Determine from_email and reply_to from business or settings/user fallback
+    from_email = (
+        business.email_from
+        or getattr(settings, "DEFAULT_FROM_EMAIL", None)
+        or getattr(business.owner_user, "email", None)
+        or getattr(request.user, "email", None)
+    )
     reply_to_email = business.reply_to_email or from_email
     
     # Require a configured sender email
