@@ -71,8 +71,10 @@ const apiFetch = async <T>(path: string, options: RequestOptions = {}): Promise<
   const headers: Record<string, string> = {
     Accept: "application/json",
   };
-  if (method !== "GET" && body !== undefined) {
-    headers["Content-Type"] = "application/json";
+  if (method !== "GET") {
+    if (body !== undefined) {
+      headers["Content-Type"] = "application/json";
+    }
     const csrf = parseCookies(document.cookie).csrftoken;
     if (csrf) {
       headers["X-CSRFToken"] = csrf;
