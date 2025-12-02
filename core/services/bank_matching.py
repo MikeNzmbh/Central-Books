@@ -215,32 +215,33 @@ class BankMatchingEngine:
                 )
                 return candidates  # Return immediately for deterministic match
 
-        # Try matching to expenses by expense_number or reference
-        expense = (
-            Expense.objects.filter(
-                business=business,
-                expense_number=tx.external_id,
-            )
-            .first()
-        )
-
-        if expense:
-            # Explicitly query JournalEntry
-            ct = ContentType.objects.get_for_model(Expense)
-            journal_entry = JournalEntry.objects.filter(
-                source_content_type=ct,
-                source_object_id=expense.id,
-            ).first()
-
-            if journal_entry:
-                candidates.append(
-                    {
-                        "journal_entry": journal_entry,
-                        "confidence": MatchingConfig.CONFIDENCE_TIER1,
-                        "match_type": "ONE_TO_ONE",
-                        "reason": f"Matched expense #{expense.expense_number} by external_id",
-                    }
+        # Try matching to expenses by ID or reference
+        if tx.external_id and tx.external_id.isdigit():
+            expense = (
+                Expense.objects.filter(
+                    business=business,
+                    id=int(tx.external_id),
                 )
+                .first()
+            )
+
+            if expense:
+                # Explicitly query JournalEntry
+                ct = ContentType.objects.get_for_model(Expense)
+                journal_entry = JournalEntry.objects.filter(
+                    source_content_type=ct,
+                    source_object_id=expense.id,
+                ).first()
+
+                if journal_entry:
+                    candidates.append(
+                        {
+                            "journal_entry": journal_entry,
+                            "confidence": MatchingConfig.CONFIDENCE_TIER1,
+                            "match_type": "ONE_TO_ONE",
+                            "reason": f"Matched expense #{expense.id} by external_id",
+                        }
+                    )
 
         return candidates
 
@@ -296,28 +297,29 @@ class BankMatchingEngine:
         for pattern in expense_patterns:
             match = re.search(pattern, tx.description, re.IGNORECASE)
             if match:
-                expense_num = match.group(1)
+                expense_id_str = match.group(1)
+                if expense_id_str.isdigit():
+                    expense_id = int(expense_id_str)
+                    expenses = Expense.objects.filter(
+                        business=business, id=expense_id
+                    )
 
-                expenses = Expense.objects.filter(
-                    business=business, expense_number__icontains=expense_num
-                )
-
-                expense_ct = ContentType.objects.get_for_model(Expense)
-                for expense in expenses:
-                    journal_entry = JournalEntry.objects.filter(
-                        source_content_type=expense_ct,
-                        source_object_id=expense.id,
-                    ).first()
-                    
-                    if journal_entry:
-                        candidates.append(
-                            {
-                                "journal_entry": journal_entry,
-                                "confidence": MatchingConfig.CONFIDENCE_TIER2,
-                                "match_type": "ONE_TO_ONE",
-                                "reason": f"Expense {expense.expense_number} referenced in description",
-                            }
-                        )
+                    expense_ct = ContentType.objects.get_for_model(Expense)
+                    for expense in expenses:
+                        journal_entry = JournalEntry.objects.filter(
+                            source_content_type=expense_ct,
+                            source_object_id=expense.id,
+                        ).first()
+                        
+                        if journal_entry:
+                            candidates.append(
+                                {
+                                    "journal_entry": journal_entry,
+                                    "confidence": MatchingConfig.CONFIDENCE_TIER2,
+                                    "match_type": "ONE_TO_ONE",
+                                    "reason": f"Expense #{expense.id} referenced in description",
+                                }
+                            )
 
         return candidates
 
