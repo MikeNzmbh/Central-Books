@@ -13,6 +13,7 @@ from django.urls import reverse
 
 from .ledger_reports import ledger_pnl_for_period
 from .ledger_services import compute_ledger_pl
+from .services.ledger_metrics import get_pl_period_dates, PLPeriod
 from .models import BankTransaction, ReconciliationSession
 from .utils import get_current_business
 
@@ -162,30 +163,7 @@ def build_cashflow_payload(business) -> dict:
 
 
 def _get_period_dates_local(period: str) -> tuple[date, date, str, str]:
-    today = timezone.localdate()
-
-    if period == "last_month":
-        first_of_this_month = today.replace(day=1)
-        end_date = first_of_this_month - timedelta(days=1)
-        start_date = end_date.replace(day=1)
-        label = f"Last month · {start_date:%b %d, %Y} – {end_date:%b %d, %Y}"
-        normalized = "last_month"
-    elif period == "this_year":
-        start_date = today.replace(month=1, day=1)
-        end_date = today
-        label = f"This year · {start_date:%b %d, %Y} – {end_date:%b %d, %Y}"
-        normalized = "this_year"
-    else:
-        start_date = today.replace(day=1)
-        if start_date.month == 12:
-            next_month = start_date.replace(year=start_date.year + 1, month=1, day=1)
-        else:
-            next_month = start_date.replace(month=start_date.month + 1, day=1)
-        end_date = next_month - timedelta(days=1)
-        label = f"This month · {start_date:%b %d, %Y} – {end_date:%b %d, %Y}"
-        normalized = "this_month"
-
-    return start_date, end_date, label, normalized
+    return get_pl_period_dates(period or PLPeriod.THIS_MONTH.value)
 
 
 def build_pl_payload(business, period: str = "this_month") -> dict:

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import type { CompanionContext } from "./api";
 import { useCompanionContext } from "./useCompanionContext";
 
@@ -20,13 +20,35 @@ const friendlyLabels: Record<CompanionContext, string> = {
 const combine = (items: string[]) => items.filter(Boolean).slice(0, 3);
 
 const CompanionStrip: React.FC<CompanionStripProps> = ({ context, className }) => {
-  const { isLoading, error, healthSnippet, contextInsights, contextActions } = useCompanionContext(context);
+  const {
+    isLoading,
+    error,
+    healthSnippet,
+    contextInsights,
+    contextActions,
+    contextAllClear,
+    contextNarrative,
+    hasNewActions,
+    markContextSeen,
+  } = useCompanionContext(context);
   const items = combine([
     ...contextInsights.map((i) => i.title || i.body),
     ...contextActions.map((a) => a.summary || a.action_type),
   ]);
   const hasSignals = items.length > 0;
   const label = friendlyLabels[context] || "workspace";
+  const didMarkSeenRef = useRef(false);
+  const showNewBadge = hasNewActions && !contextAllClear && hasSignals;
+
+  useEffect(() => {
+    if (didMarkSeenRef.current) return;
+    if (!isLoading && !error) {
+      didMarkSeenRef.current = true;
+      markContextSeen().catch(() => {
+        didMarkSeenRef.current = false;
+      });
+    }
+  }, [isLoading, error, markContextSeen]);
 
   if (isLoading) {
     return (
@@ -45,14 +67,17 @@ const CompanionStrip: React.FC<CompanionStripProps> = ({ context, className }) =
     );
   }
 
-  if (!hasSignals) {
+  if (contextAllClear || !hasSignals) {
     return (
       <div
-        className={`flex items-center gap-3 rounded-2xl border border-slate-100 bg-white/80 px-3 py-2 text-[13px] text-slate-600 shadow-sm ${className || ""}`}
+        className={`flex flex-col gap-1 rounded-2xl border border-slate-100 bg-white/80 px-3 py-2 text-[13px] text-slate-600 shadow-sm ${className || ""}`}
       >
-        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-[12px] text-slate-500">✓</span>
-        <span>
-          Companion checked your {label} — nothing needs attention right now.
+        <div className="flex items-center gap-2">
+          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-[12px] text-slate-500">✓</span>
+          <span className="font-semibold text-slate-700">Everything looks good here.</span>
+        </div>
+        <span className="text-[12px] text-slate-500">
+          Companion checked this {label} area and found nothing urgent.
         </span>
       </div>
     );
@@ -67,7 +92,14 @@ const CompanionStrip: React.FC<CompanionStripProps> = ({ context, className }) =
           <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-sky-600 text-[11px] font-bold text-white">
             AI
           </span>
-          <span>Companion suggests…</span>
+          <span className="flex items-center gap-2">
+            <span>Companion suggests…</span>
+            {showNewBadge ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-[2px] text-[10px] font-semibold text-sky-700 ring-1 ring-sky-200">
+                New
+              </span>
+            ) : null}
+          </span>
           {healthSnippet && (
             <span className="text-[11px] font-medium text-slate-500">
               {healthSnippet.statusText}
@@ -82,10 +114,13 @@ const CompanionStrip: React.FC<CompanionStripProps> = ({ context, className }) =
         </a>
       </div>
       <ul className="ml-1 list-disc space-y-1 pl-4 text-[13px] text-slate-700">
-        {items.map((text, idx) => (
+        {items.slice(0, 2).map((text, idx) => (
           <li key={idx}>{text}</li>
         ))}
       </ul>
+      {contextNarrative ? (
+        <p className="text-[12px] text-slate-600">{contextNarrative}</p>
+      ) : null}
     </div>
   );
 };

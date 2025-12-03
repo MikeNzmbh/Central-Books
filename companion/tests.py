@@ -144,6 +144,63 @@ class CompanionApiTests(TestCase):
         self.assertIsNotNone(memory)
         self.assertEqual(memory.value.get("category_id"), self.category.id)
 
+    def test_overview_includes_new_actions_flags(self):
+        CompanionSuggestedAction.objects.create(
+            workspace=self.workspace,
+            action_type=CompanionSuggestedAction.ACTION_BANK_MATCH_REVIEW,
+            status=CompanionSuggestedAction.STATUS_OPEN,
+            payload={"bank_transaction_id": 1},
+            confidence=Decimal("0.5"),
+            summary="Review bank matches",
+            context=CompanionSuggestedAction.CONTEXT_BANK,
+        )
+
+        response = self.client.get(reverse("companion:overview") + "?context=bank")
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload.get("has_new_actions"))
+        self.assertEqual(payload.get("new_actions_count"), 1)
+
+    def test_mark_context_seen_resets_new_actions(self):
+        profile, _ = WorkspaceCompanionProfile.objects.get_or_create(workspace=self.workspace)
+        profile.last_seen_bank_at = timezone.now() - timedelta(days=2)
+        profile.save(update_fields=["last_seen_bank_at"])
+
+        action = CompanionSuggestedAction.objects.create(
+            workspace=self.workspace,
+            action_type=CompanionSuggestedAction.ACTION_BANK_MATCH_REVIEW,
+            status=CompanionSuggestedAction.STATUS_OPEN,
+            payload={"bank_transaction_id": 2},
+            confidence=Decimal("0.7"),
+            summary="New bank match",
+            context=CompanionSuggestedAction.CONTEXT_BANK,
+        )
+        action.created_at = timezone.now() - timedelta(hours=1)
+        action.save(update_fields=["created_at"])
+
+        initial = self.client.get(reverse("companion:overview") + "?context=bank").json()
+        self.assertTrue(initial.get("has_new_actions"))
+        self.assertGreater(initial.get("new_actions_count", 0), 0)
+
+        res = self.client.post(
+            reverse("companion:context_seen"),
+            data=json.dumps({"context": "bank"}),
+            content_type="application/json",
+        )
+        self.assertEqual(res.status_code, 200)
+
+        follow = self.client.get(reverse("companion:overview") + "?context=bank").json()
+        self.assertFalse(follow.get("has_new_actions"))
+        self.assertEqual(follow.get("new_actions_count"), 0)
+
+    def test_context_seen_invalid_context_rejected(self):
+        res = self.client.post(
+            reverse("companion:context_seen"),
+            data=json.dumps({"context": "invalid"}),
+            content_type="application/json",
+        )
+        self.assertEqual(res.status_code, 400)
+
 
 class CompanionInsightLifecycleTests(TestCase):
     def setUp(self):
@@ -237,6 +294,41 @@ class CompanionCommandsTests(TestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertEqual(payload["health_index"]["score"], latest.score)
+
+
+class CompanionMaintenanceCommandTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="maint", email="maint@example.com", password="pass")
+
+    def test_maintenance_runs_with_no_workspaces(self):
+        call_command("companion_run_maintenance")
+        self.assertEqual(Business.objects.count(), 0)
+
+    def test_companion_run_maintenance_refreshes_stale_workspaces(self):
+        workspace = Business.objects.create(name="MaintCo", currency="USD", owner_user=self.user)
+        customer = Customer.objects.create(business=workspace, name="Maint Customer")
+
+        snapshot = create_health_snapshot(workspace)
+        snapshot.created_at = timezone.now() - timedelta(days=2)
+        snapshot.save(update_fields=["created_at"])
+
+        Invoice.objects.create(
+            business=workspace,
+            customer=customer,
+            invoice_number="INV-200",
+            status=Invoice.Status.SENT,
+            issue_date=timezone.now().date() - timedelta(days=30),
+            due_date=timezone.now().date() - timedelta(days=10),
+            total_amount=Decimal("150.00"),
+            grand_total=Decimal("150.00"),
+        )
+
+        call_command("companion_run_maintenance", max_age_hours=24)
+
+        latest = get_latest_health_snapshot(workspace)
+        self.assertGreater(latest.created_at, snapshot.created_at)
+        actions = CompanionSuggestedAction.objects.filter(workspace=workspace, status=CompanionSuggestedAction.STATUS_OPEN)
+        self.assertTrue(actions.exists())
 
 
 class CompanionActionsTests(TestCase):

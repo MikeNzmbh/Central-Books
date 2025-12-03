@@ -1253,7 +1253,7 @@ function BankFeedPage() {
           )}
 
           <div className="grid gap-4 lg:grid-cols-[minmax(0,2.2fr)_minmax(0,3fr)]">
-            <section className="rounded-3xl bg-white shadow-[0_18px_45px_rgba(15,23,42,0.06)] ring-1 ring-slate-100 flex flex-col min-h-[420px]">
+            <section className="rounded-3xl bg-white shadow-[0_18px_45px_rgba(15,23,42,0.06)] ring-1 ring-slate-100 flex flex-col max-h-[calc(100vh-12rem)]">
               <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                 <div className="min-w-0 flex-shrink-0">
                   <h2 className="text-[13px] font-semibold text-slate-900">Imported transactions</h2>
@@ -1277,7 +1277,7 @@ function BankFeedPage() {
                 </div>
               </div>
 
-              <div className="border-b border-slate-100 px-4 py-2">
+              <div className="border-b border-slate-100 px-4 py-2 flex-shrink-0">
                 <input
                   type="search"
                   placeholder="Search description or amount"
@@ -1286,7 +1286,7 @@ function BankFeedPage() {
                 />
               </div>
 
-              <div className="flex-1 overflow-y-auto">
+              <div className="flex-1 overflow-y-auto min-h-0">
                 {transactionsError ? (
                   <div className="flex h-full flex-col items-center justify-center px-8 py-10 text-center text-xs text-rose-500">
                     <p>{transactionsError}</p>
@@ -1338,7 +1338,7 @@ function BankFeedPage() {
               </div>
             </section>
 
-            <section className="rounded-3xl bg-white shadow-[0_18px_45px_rgba(15,23,42,0.06)] ring-1 ring-slate-100 min-h-[420px] flex flex-col">
+            <section className="rounded-3xl bg-white shadow-[0_18px_45px_rgba(15,23,42,0.06)] ring-1 ring-slate-100 max-h-[calc(100vh-12rem)] flex flex-col">
               {selectedTx ? (
                 <>
                   <div className="border-b border-slate-100 px-6 py-4">

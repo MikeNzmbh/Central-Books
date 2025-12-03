@@ -2,6 +2,11 @@ import React, { useMemo } from "react";
 import CompanionPanel from "../companion/CompanionPanel";
 import { useAuth } from "../contexts/AuthContext";
 
+type PLMonthOption = {
+  value: string;
+  label: string;
+};
+
 type DashboardMetrics = {
   cash_on_hand?: number;
   open_invoices_total?: number;
@@ -14,6 +19,27 @@ type DashboardMetrics = {
   unpaid_expenses_total?: number;
   revenue_month?: number;
   expenses_month?: number;
+  pl_period_start?: string;
+  pl_period_end?: string;
+  pl_selected_month?: string;
+  pl_month_options?: PLMonthOption[];
+  pl_period_label?: string;
+  pl_prev_period_label?: string;
+  pl_prev_income?: number;
+  pl_prev_expenses?: number;
+  pl_prev_net?: number;
+  pl_change_income_pct?: number | null;
+  pl_change_expenses_pct?: number | null;
+  pl_change_net_pct?: number | null;
+  pl_debug?: {
+    period_start?: string | null;
+    period_end?: string | null;
+    income_line_count?: number;
+    expense_line_count?: number;
+    last_income_entry_date?: string | null;
+    last_expense_entry_date?: string | null;
+    no_ledger_activity_for_period?: boolean;
+  };
 };
 
 type InvoiceSummary = {
@@ -106,6 +132,14 @@ const CentralBooksDashboard: React.FC<CentralBooksDashboardProps> = ({
   }, [currency]);
 
   const formatMoney = (value?: number) => formatter.format(value || 0);
+  const pnlZero =
+    (metrics?.revenue_month || 0) === 0 &&
+    (metrics?.expenses_month || 0) === 0 &&
+    (metrics?.net_income_month || 0) === 0;
+  const noLedgerActivity = Boolean(metrics?.pl_debug?.no_ledger_activity_for_period);
+  const showNoActivityMessage = pnlZero && noLedgerActivity;
+  const plPeriodLabel = metrics?.pl_period_label || "This month";
+  const plPrevPeriodLabel = metrics?.pl_prev_period_label || "last month";
 
   const cashflowBars = useMemo(() => {
     const labels = cashflow?.labels || [];
@@ -131,7 +165,7 @@ const CentralBooksDashboard: React.FC<CentralBooksDashboardProps> = ({
     if ((metrics?.overdue_count || 0) > 0) {
       items.push({
         title: `${metrics?.overdue_count} invoice${metrics?.overdue_count === 1 ? "" : "s"} overdue`,
-        body: `Customers owe ${formatMoney(metrics?.overdue_total)}`,
+        body: `Customers owe ${formatMoney(metrics?.overdue_total)} `,
         color: "bg-amber-500",
         cta: "Review",
         href: safeUrl(urls?.overdueInvoices || urls?.invoices),
@@ -140,7 +174,7 @@ const CentralBooksDashboard: React.FC<CentralBooksDashboardProps> = ({
     if (bankFeed.length) {
       items.push({
         title: `${bankFeed.length} bank item${bankFeed.length === 1 ? "" : "s"} to review`,
-        body: `Latest entry: ${bankFeed[0].description}`,
+        body: `Latest entry: ${bankFeed[0].description} `,
         color: "bg-sky-500",
         cta: "Open",
         href: safeUrl(urls?.bankReview || urls?.banking),
@@ -228,14 +262,32 @@ const CentralBooksDashboard: React.FC<CentralBooksDashboardProps> = ({
             </div>
 
             <div className="rounded-3xl border border-slate-100 bg-white/90 px-4 py-4 shadow-sm">
-              <p className="text-xs font-medium text-slate-500">Month-to-date P&amp;L</p>
-              <p className="mt-2 text-xl font-semibold text-slate-900">{formatMoney(metrics?.net_income_month)}</p>
-              <div className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-600">
-                <span className="rounded-full bg-sky-50 px-2 py-0.5 font-medium text-sky-700">
-                  Revenue {formatMoney(metrics?.revenue_30)}
-                </span>
-                <span>vs expenses {formatMoney(metrics?.expenses_30)}</span>
-              </div>
+              <p className="text-xs font-medium text-slate-500">Profit &amp; loss</p>
+              <p className="mt-0.5 text-[11px] text-slate-500">{plPeriodLabel}</p>
+              {showNoActivityMessage ? (
+                <div className="mt-2 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2 text-[12px] text-slate-600">
+                  No income or expenses have been posted to your ledger for this period. Try last month or another date
+                  range.
+                </div>
+              ) : (
+                <>
+                  <p className="mt-2 text-xl font-semibold text-slate-900">{formatMoney(metrics?.net_income_month)}</p>
+                  <div className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-600">
+                    <span className="rounded-full bg-sky-50 px-2 py-0.5 font-medium text-sky-700">
+                      Revenue {formatMoney(metrics?.revenue_month)}
+                    </span>
+                    <span>Expenses {formatMoney(metrics?.expenses_month)}</span>
+                  </div>
+                  <div className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-600">
+                    <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700">
+                      vs {plPrevPeriodLabel}
+                    </span>
+                    <span>
+                      Revenue {formatMoney(metrics?.pl_prev_income)} · Expenses {formatMoney(metrics?.pl_prev_expenses)}
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -266,14 +318,14 @@ const CentralBooksDashboard: React.FC<CentralBooksDashboardProps> = ({
                     const incomeHeight = Math.max(6, (bar.income / maxCashflowValue) * 90);
                     const expenseHeight = Math.max(4, (bar.expenses / maxCashflowValue) * 60);
                     return (
-                      <div key={`${bar.label}-${idx}`} className="flex-1 flex flex-col justify-end gap-1 h-full">
+                      <div key={`${bar.label} -${idx} `} className="flex-1 flex flex-col justify-end gap-1 h-full">
                         <div
                           className="rounded-full bg-emerald-200 transition-all duration-200"
-                          style={{ height: `${incomeHeight}%` }}
+                          style={{ height: `${incomeHeight}% ` }}
                         />
                         <div
                           className="rounded-full bg-rose-200 transition-all duration-200"
-                          style={{ height: `${expenseHeight}%` }}
+                          style={{ height: `${expenseHeight}% ` }}
                         />
                       </div>
                     );
@@ -288,7 +340,7 @@ const CentralBooksDashboard: React.FC<CentralBooksDashboardProps> = ({
             <div className="flex items-center justify-between text-[11px] text-slate-500">
               <span>
                 {cashflowBars.length
-                  ? `${cashflowBars[0].label} → ${cashflowBars[cashflowBars.length - 1].label}`
+                  ? `${cashflowBars[0].label} → ${cashflowBars[cashflowBars.length - 1].label} `
                   : "Waiting for activity"}
               </span>
               <a
@@ -390,12 +442,12 @@ const CentralBooksDashboard: React.FC<CentralBooksDashboardProps> = ({
               <div className="space-y-1.5 text-xs">
                 {bankFeed.length ? (
                   bankFeed.map((item, idx) => (
-                    <div key={`${item.description}-${idx}`} className="flex items-center justify-between rounded-2xl bg-slate-50 px-3 py-2">
+                    <div key={`${item.description} -${idx} `} className="flex items-center justify-between rounded-2xl bg-slate-50 px-3 py-2">
                       <div className="flex flex-col">
                         <span className="font-medium text-slate-900">{item.description}</span>
                         <span className="text-[11px] text-slate-500">{item.note}</span>
                       </div>
-                      <span className={`font-semibold ${item.amount >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
+                      <span className={`font - semibold ${item.amount >= 0 ? "text-emerald-700" : "text-rose-600"} `}>
                         {item.amount >= 0 ? "+" : "-"}{formatMoney(Math.abs(item.amount))}
                       </span>
                     </div>
@@ -464,7 +516,7 @@ const CentralBooksDashboard: React.FC<CentralBooksDashboardProps> = ({
             </div>
             <div className="space-y-1.5 text-xs">
               {topSuppliers.slice(0, 4).map((supplier) => (
-                <div key={`supplier-${supplier.name}`} className="flex items-center justify-between rounded-2xl bg-slate-50 px-3 py-2">
+                <div key={`supplier - ${supplier.name} `} className="flex items-center justify-between rounded-2xl bg-slate-50 px-3 py-2">
                   <div className="flex flex-col">
                     <span className="font-medium text-slate-900">{supplier.name}</span>
                     <span className="text-[11px] text-slate-500">
@@ -494,8 +546,10 @@ const CentralBooksDashboard: React.FC<CentralBooksDashboardProps> = ({
             <div className="rounded-3xl border border-slate-100 bg-white/90 p-4 sm:p-5 shadow-sm flex flex-col gap-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-medium text-slate-500">Profit &amp; loss summary</p>
-                  <p className="mt-1 text-sm text-slate-500">Month-to-date performance.</p>
+                  <p className="text-xs font-medium text-slate-500">Profit & loss summary</p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {metrics?.pl_period_label || "Month-to-date"} performance.
+                  </p>
                 </div>
                 <a
                   href={safeUrl(urls?.profitAndLoss)}
@@ -505,27 +559,65 @@ const CentralBooksDashboard: React.FC<CentralBooksDashboardProps> = ({
                 </a>
               </div>
 
-              <div className="grid gap-3 text-xs sm:grid-cols-2">
-                <div className="rounded-2xl bg-slate-50/80 border border-slate-100 px-3 py-3">
-                  <p className="text-[11px] text-slate-500">Revenue</p>
-                  <p className="mt-1 text-lg font-semibold text-slate-900">{formatMoney(metrics?.revenue_month)}</p>
+              {/* Month Selector */}
+              {(metrics?.pl_month_options && metrics.pl_month_options.length > 0) && (
+                <div className="flex items-center gap-2">
+                  <label htmlFor="pl-month-select" className="text-xs text-slate-600">
+                    Period:
+                  </label>
+                  <select
+                    id="pl-month-select"
+                    value={metrics?.pl_selected_month || ""}
+                    onChange={(e) => {
+                      const newMonth = e.target.value;
+                      window.location.href = `/dashboard/?pl_month=${newMonth}`;
+                    }}
+                    className="text-xs rounded-lg border border-slate-200 bg-white px-2 py-1 text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300"
+                  >
+                    {metrics.pl_month_options.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                <div className="rounded-2xl bg-slate-50/80 border border-slate-100 px-3 py-3">
-                  <p className="text-[11px] text-slate-500">Expenses</p>
-                  <p className="mt-1 text-lg font-semibold text-slate-900">{formatMoney(metrics?.expenses_month)}</p>
-                </div>
-              </div>
+              )}
 
-              <div className="mt-1 rounded-2xl bg-slate-50/80 border border-slate-100 px-3 py-3 text-xs">
-                <div className="flex items-center justify-between">
-                  <p className="font-medium text-slate-900">Net profit</p>
-                  <p className="font-semibold text-emerald-700">{formatMoney(metrics?.net_income_month)}</p>
+              {metrics?.pl_debug?.no_ledger_activity_for_period ? (
+                <div className="rounded-2xl bg-slate-50/80 border border-slate-100 px-4 py-6 text-center">
+                  <p className="text-sm text-slate-500">
+                    No ledger activity for this period
+                  </p>
+                  <p className="mt-1 text-xs text-slate-400">
+                    Create invoices or expenses to see P&amp;L data
+                  </p>
                 </div>
-                <p className="mt-1 text-[11px] text-slate-500">
-                  Revenue and expenses pulled directly from your ledger this month.
-                </p>
-              </div>
+              ) : (
+                <>
+                  <div className="grid gap-3 text-xs sm:grid-cols-2">
+                    <div className="rounded-2xl bg-slate-50/80 border border-slate-100 px-3 py-3">
+                      <p className="text-[11px] text-slate-500">Revenue</p>
+                      <p className="mt-1 text-lg font-semibold text-slate-900">{formatMoney(metrics?.revenue_month)}</p>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50/80 border border-slate-100 px-3 py-3">
+                      <p className="text-[11px] text-slate-500">Expenses</p>
+                      <p className="mt-1 text-lg font-semibold text-slate-900">{formatMoney(metrics?.expenses_month)}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-1 rounded-2xl bg-slate-50/80 border border-slate-100 px-3 py-3 text-xs">
+                    <div className="flex items-center justify-between">
+                      <p className="font-medium text-slate-900">Net profit</p>
+                      <p className="font-semibold text-emerald-700">{formatMoney(metrics?.net_income_month)}</p>
+                    </div>
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      Revenue and expenses pulled directly from your ledger.
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
+
 
             <div className="space-y-4">
               <div className="rounded-3xl border border-slate-100 bg-white/90 p-4 sm:p-5 shadow-sm flex flex-col gap-3">
@@ -543,7 +635,7 @@ const CentralBooksDashboard: React.FC<CentralBooksDashboardProps> = ({
                 <ul className="mt-1 space-y-1.5 text-xs">
                   {tasks.map((task) => (
                     <li key={task.title} className="flex items-start gap-2 rounded-2xl bg-slate-50 px-3 py-2">
-                      <span className={`mt-0.5 h-1.5 w-1.5 rounded-full ${task.color}`} />
+                      <span className={`mt - 0.5 h - 1.5 w - 1.5 rounded - full ${task.color} `} />
                       <div className="flex-1">
                         <p className="font-medium text-slate-900">{task.title}</p>
                         <p className="text-[11px] text-slate-500">{task.body}</p>

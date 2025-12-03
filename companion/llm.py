@@ -106,11 +106,12 @@ def generate_companion_narrative(
     insights: Sequence[CompanionInsight],
     raw_metrics: dict,
     actions: Sequence | None = None,
+    context: str | None = None,
 ) -> dict:
     """
     Returns {"summary": str|None, "insight_explanations": {id: str}}
     """
-    default = {"summary": None, "insight_explanations": {}, "action_explanations": {}}
+    default = {"summary": None, "insight_explanations": {}, "action_explanations": {}, "context_summary": None}
     if snapshot is None:
         return default
 
@@ -178,10 +179,12 @@ def generate_companion_narrative(
             "health": health,
             "insights": insight_payload,
             "actions": action_payload,
+            "context": context,
             "expected_output": {
                 "summary": "short paragraph",
                 "insight_explanations": {"<insight_id>": "explanation"},
                 "action_explanations": {"<action_id>": "explanation"},
+                "context_summary": "1-2 line optional summary for the provided context",
             },
         }
     )
@@ -199,6 +202,7 @@ def generate_companion_narrative(
     summary = parsed.get("summary")
     explanations = parsed.get("insight_explanations") or {}
     action_explanations = parsed.get("action_explanations") or {}
+    context_summary = parsed.get("context_summary")
     if not isinstance(explanations, dict):
         explanations = {}
     if not isinstance(action_explanations, dict):
@@ -214,6 +218,7 @@ def generate_companion_narrative(
         "summary": summary if isinstance(summary, str) else None,
         "insight_explanations": filtered_explanations,
         "action_explanations": filtered_action_explanations,
+        "context_summary": context_summary if isinstance(context_summary, str) else None,
     }
     _cache_set(cache_key, result)
     return result

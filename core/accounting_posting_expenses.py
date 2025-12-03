@@ -11,11 +11,16 @@ from .models import Account, JournalEntry, JournalLine, Expense
 
 def _get_expense_account(expense, defaults):
     category = getattr(expense, "category", None)
-    if category and category.account_id:
-        return category.account
+    expense_account = category.account if category and category.account_id else None
+    if expense_account and expense_account.type != Account.AccountType.EXPENSE:
+        expense_account = None
+    if expense_account:
+        return expense_account
+
     fallback = defaults.get("opex")
-    if fallback:
+    if fallback and fallback.type == Account.AccountType.EXPENSE:
         return fallback
+
     return (
         Account.objects.filter(
             business=expense.business,
@@ -50,7 +55,9 @@ def post_expense_paid(expense, bank_account_code="1010"):
 
     expense_account = _get_expense_account(expense, defaults)
     if expense_account is None:
-        raise ValueError("No expense account available for posting.")
+        raise ValueError(
+            "Selected category is not linked to an expense account. Please update the category’s underlying account to an expense account."
+        )
 
     net = expense.net_total or expense.amount or Decimal("0.00")
     tax = expense.tax_total or expense.tax_amount or Decimal("0.00")

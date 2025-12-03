@@ -3,17 +3,44 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi, type Mock } from "vitest";
 
 import CompanionStrip from "./CompanionStrip";
-import { fetchCompanionOverview } from "./api";
+import { fetchCompanionOverview, markCompanionContextSeen } from "./api";
 import { resetCompanionContextCacheForTests } from "./useCompanionContext";
 
 vi.mock("./api", () => ({
   fetchCompanionOverview: vi.fn(),
+  markCompanionContextSeen: vi.fn(),
 }));
 
 describe("CompanionStrip", () => {
   afterEach(() => {
     vi.resetAllMocks();
     resetCompanionContextCacheForTests();
+  });
+
+  it("renders calm mode when context_all_clear flag is true", async () => {
+    const mockedFetch = fetchCompanionOverview as unknown as Mock;
+    mockedFetch.mockResolvedValue({
+      health_index: {
+        score: 80,
+        created_at: "2024-08-01T12:00:00Z",
+        breakdown: {},
+        raw_metrics: {},
+      },
+      insights: [],
+      actions: [],
+      raw_metrics: {},
+      next_refresh_at: null,
+      llm_narrative: null,
+      context: "bank",
+      context_all_clear: true,
+      context_metrics: {},
+      has_new_actions: false,
+      new_actions_count: 0,
+    });
+
+    render(<CompanionStrip context="bank" />);
+    await waitFor(() => expect(screen.getByText(/Everything looks good here/i)).toBeInTheDocument());
+    expect(screen.getByText(/found nothing urgent/i)).toBeInTheDocument();
   });
 
   it("filters insights and actions by context", async () => {
@@ -72,6 +99,11 @@ describe("CompanionStrip", () => {
       raw_metrics: {},
       next_refresh_at: null,
       llm_narrative: { summary: null, insight_explanations: {}, action_explanations: {} },
+      context: "invoices",
+      context_all_clear: false,
+      context_metrics: {},
+      has_new_actions: true,
+      new_actions_count: 2,
     });
 
     render(<CompanionStrip context="invoices" />);
@@ -80,6 +112,7 @@ describe("CompanionStrip", () => {
     expect(screen.getByText(/Overdue invoice/)).toBeInTheDocument();
     expect(screen.getByText(/Send reminder for INV-100/)).toBeInTheDocument();
     expect(screen.queryByText(/Bank match alert/)).not.toBeInTheDocument();
+    expect(screen.getByText(/New/)).toBeInTheDocument();
   });
 
   it("renders calm message when no items", async () => {
@@ -96,11 +129,16 @@ describe("CompanionStrip", () => {
       raw_metrics: {},
       next_refresh_at: null,
       llm_narrative: { summary: null, insight_explanations: {}, action_explanations: {} },
+      context: "expenses",
+      context_all_clear: true,
+      context_metrics: {},
+      has_new_actions: false,
+      new_actions_count: 0,
     });
 
     render(<CompanionStrip context="expenses" />);
 
-    await waitFor(() => expect(screen.getByText(/nothing needs attention/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/Everything looks good here/i)).toBeInTheDocument());
   });
 
   it("handles API errors quietly", async () => {
@@ -110,5 +148,45 @@ describe("CompanionStrip", () => {
     render(<CompanionStrip context="bank" />);
 
     await waitFor(() => expect(screen.getByText(/Companion temporarily unavailable/i)).toBeInTheDocument());
+  });
+
+  it("marks context seen once on load", async () => {
+    const mockedFetch = fetchCompanionOverview as unknown as Mock;
+    mockedFetch.mockResolvedValue({
+      health_index: {
+        score: 75,
+        created_at: "2024-08-01T12:00:00Z",
+        breakdown: {},
+        raw_metrics: {},
+      },
+      insights: [],
+      actions: [
+        {
+          id: 99,
+          context: "bank",
+          action_type: "bank_match_review",
+          status: "open",
+          confidence: 0.6,
+          summary: "Match bank item",
+          payload: {},
+          created_at: "2024-08-01T12:00:00Z",
+        },
+      ],
+      raw_metrics: {},
+      next_refresh_at: null,
+      llm_narrative: { summary: null, insight_explanations: {}, action_explanations: {} },
+      context: "bank",
+      context_all_clear: false,
+      context_metrics: {},
+      has_new_actions: true,
+      new_actions_count: 1,
+    });
+    const mockedMarkSeen = markCompanionContextSeen as unknown as Mock;
+    mockedMarkSeen.mockResolvedValue({ ok: true });
+
+    render(<CompanionStrip context="bank" />);
+
+    await waitFor(() => expect(screen.getByText(/Companion suggests/i)).toBeInTheDocument());
+    await waitFor(() => expect(mockedMarkSeen).toHaveBeenCalledTimes(1));
   });
 });

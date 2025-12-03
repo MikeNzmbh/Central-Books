@@ -36,6 +36,11 @@ class WorkspaceCompanionProfile(models.Model):
         ],
         default="conservative",
     )
+    last_seen_bank_at = models.DateTimeField(null=True, blank=True)
+    last_seen_reconciliation_at = models.DateTimeField(null=True, blank=True)
+    last_seen_invoices_at = models.DateTimeField(null=True, blank=True)
+    last_seen_expenses_at = models.DateTimeField(null=True, blank=True)
+    last_seen_dashboard_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

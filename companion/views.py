@@ -1,12 +1,12 @@
 import logging
 from datetime import timedelta
 
-from django.db.models import Case, IntegerField, When
+from django.db.models import Case, IntegerField, Sum, When
 from django.utils import timezone
 from rest_framework import permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-
+from core.models import Expense, Invoice
 from core.utils import get_current_business
 from .llm import generate_companion_narrative, generate_insights_for_snapshot
 from .models import CompanionInsight, CompanionSuggestedAction, WorkspaceCompanionProfile
@@ -16,6 +16,9 @@ from .services import (
     ensure_metric_insights,
     gather_workspace_metrics,
     get_latest_health_snapshot,
+    get_last_seen_field_name,
+    get_last_seen_value,
+    get_new_actions_count,
     refresh_suggested_actions_for_workspace,
     apply_suggested_action,
     dismiss_suggested_action,
@@ -32,6 +35,7 @@ class CompanionOverviewView(APIView):
         if workspace is None:
             return Response({"detail": "Workspace not found."}, status=status.HTTP_404_NOT_FOUND)
 
+        context_filter = request.query_params.get("context") or None
         profile, _ = WorkspaceCompanionProfile.objects.get_or_create(workspace=workspace)
         if not profile.is_enabled:
             return Response({"detail": "Companion is disabled for this workspace."}, status=status.HTTP_403_FORBIDDEN)
@@ -74,8 +78,72 @@ class CompanionOverviewView(APIView):
         ).order_by("-created_at")
         actions_data = CompanionSuggestedActionSerializer(actions_qs, many=True).data
 
+        context_insights = insights
+        context_actions = actions_qs
+        context_all_clear = False
+        context_metrics = {}
+        new_actions_count = 0
+        has_new_actions = False
+
+        valid_contexts = {
+            CompanionInsight.CONTEXT_BANK,
+            CompanionInsight.CONTEXT_RECONCILIATION,
+            CompanionInsight.CONTEXT_INVOICES,
+            CompanionInsight.CONTEXT_EXPENSES,
+            CompanionInsight.CONTEXT_DASHBOARD,
+        }
+        if context_filter in valid_contexts:
+            last_seen_at = get_last_seen_value(profile, context_filter)
+            new_actions_count = get_new_actions_count(workspace, context_filter, last_seen_at)
+            has_new_actions = new_actions_count > 0
+            context_insights = [i for i in insights if getattr(i, "context", CompanionInsight.CONTEXT_DASHBOARD) == context_filter]
+            context_actions = [a for a in actions_qs if getattr(a, "context", CompanionSuggestedAction.CONTEXT_DASHBOARD) == context_filter]
+            if not context_insights and not context_actions:
+                context_all_clear = True
+
+            if context_filter in {CompanionInsight.CONTEXT_BANK, CompanionInsight.CONTEXT_RECONCILIATION}:
+                context_metrics = {
+                    "unreconciled_count": raw_metrics.get("unreconciled_count"),
+                    "old_unreconciled_60d": raw_metrics.get("old_unreconciled_60d"),
+                    "old_unreconciled_90d": raw_metrics.get("old_unreconciled_90d"),
+                    "suggested_bank_matches": len(context_actions),
+                }
+            elif context_filter == CompanionInsight.CONTEXT_INVOICES:
+                overdue_total = raw_metrics.get("overdue_invoices", 0)
+                open_qs = Invoice.objects.filter(
+                    business=workspace,
+                    status__in=[Invoice.Status.SENT, Invoice.Status.PARTIAL],
+                )
+                open_sum = open_qs.aggregate(total=Sum("grand_total"))["total"] or 0
+                next_due = open_qs.order_by("due_date").values_list("due_date", flat=True).first()
+                context_metrics = {
+                    "overdue_invoices": overdue_total,
+                    "open_invoices_total": open_sum,
+                    "next_due_date": next_due,
+                }
+            elif context_filter == CompanionInsight.CONTEXT_EXPENSES:
+                uncategorized = raw_metrics.get("uncategorized_expenses", 0)
+                top_groups = list(
+                    Expense.objects.filter(business=workspace, category__isnull=False)
+                    .values("category__name")
+                    .annotate(total=Sum("amount"))
+                    .order_by("-total")[:3]
+                )
+                context_metrics = {
+                    "uncategorized_expenses": uncategorized,
+                    "top_expense_groups": top_groups,
+                }
+            insights_data = CompanionInsightSerializer(context_insights, many=True).data
+            actions_data = CompanionSuggestedActionSerializer(context_actions, many=True).data
+
         llm_narrative = (
-            generate_companion_narrative(snapshot, insights, raw_metrics, actions=list(actions_qs))
+            generate_companion_narrative(
+                snapshot,
+                context_insights if context_filter in valid_contexts else insights,
+                raw_metrics,
+                actions=list(context_actions if context_filter in valid_contexts else actions_qs),
+                context=context_filter,
+            )
             if snapshot
             else {"summary": None, "insight_explanations": {}, "action_explanations": {}}
         )
@@ -93,8 +161,43 @@ class CompanionOverviewView(APIView):
                 "next_refresh_at": next_refresh_at.isoformat() if next_refresh_at else None,
                 "llm_narrative": llm_narrative,
                 "actions": actions_data,
+                "has_new_actions": has_new_actions if context_filter in valid_contexts else False,
+                "new_actions_count": new_actions_count if context_filter in valid_contexts else 0,
+                "context": context_filter if context_filter in valid_contexts else None,
+                "context_all_clear": context_all_clear if context_filter in valid_contexts else False,
+                "context_metrics": context_metrics if context_filter in valid_contexts else {},
             }
         )
+
+
+class CompanionContextSeenView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    valid_contexts = {
+        CompanionSuggestedAction.CONTEXT_BANK,
+        CompanionSuggestedAction.CONTEXT_RECONCILIATION,
+        CompanionSuggestedAction.CONTEXT_INVOICES,
+        CompanionSuggestedAction.CONTEXT_EXPENSES,
+        CompanionSuggestedAction.CONTEXT_DASHBOARD,
+    }
+
+    def post(self, request):
+        workspace = get_current_business(request.user)
+        if workspace is None:
+            return Response({"detail": "Workspace not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        context = (request.data or {}).get("context")
+        if context not in self.valid_contexts:
+            return Response({"detail": "Invalid context."}, status=status.HTTP_400_BAD_REQUEST)
+
+        profile, _ = WorkspaceCompanionProfile.objects.get_or_create(workspace=workspace)
+        field_name = get_last_seen_field_name(context)
+        if not field_name:
+            return Response({"detail": "Invalid context."}, status=status.HTTP_400_BAD_REQUEST)
+
+        setattr(profile, field_name, timezone.now())
+        profile.save(update_fields=[field_name, "updated_at"])
+        return Response({"ok": True})
 
 
 class CompanionInsightDismissView(APIView):

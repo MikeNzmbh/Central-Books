@@ -40,6 +40,7 @@ export interface CompanionNarrative {
   summary: string | null;
   insight_explanations: Record<string, string>;
   action_explanations?: Record<string, string>;
+  context_summary?: string | null;
 }
 
 export type CompanionActionPayload = Record<string, any>;
@@ -64,6 +65,11 @@ export interface CompanionOverview {
   next_refresh_at: string | null;
   llm_narrative: CompanionNarrative | null;
   actions?: CompanionAction[];
+  context?: CompanionContext | null;
+  context_all_clear?: boolean;
+  context_metrics?: Record<string, any>;
+  has_new_actions?: boolean;
+  new_actions_count?: number;
 }
 
 const apiFetch = async <T>(path: string, options: RequestOptions = {}): Promise<T> => {
@@ -99,7 +105,8 @@ const apiFetch = async <T>(path: string, options: RequestOptions = {}): Promise<
   return data as T;
 };
 
-export const fetchCompanionOverview = () => apiFetch<CompanionOverview>("overview/");
+export const fetchCompanionOverview = (context?: CompanionContext) =>
+  apiFetch<CompanionOverview>(`overview/${context ? `?context=${context}` : ""}`);
 
 export const fetchCompanionActions = () => apiFetch<CompanionAction[]>("actions/");
 
@@ -107,3 +114,6 @@ export const applyCompanionAction = (id: number) => apiFetch<CompanionAction>(`a
 
 export const dismissCompanionAction = (id: number) =>
   apiFetch<CompanionAction>(`actions/${id}/dismiss/`, { method: "POST" });
+
+export const markCompanionContextSeen = (context: CompanionContext) =>
+  apiFetch<{ ok: boolean }>("context-seen/", { method: "POST", body: { context } });

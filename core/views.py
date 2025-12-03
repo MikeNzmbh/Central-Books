@@ -77,6 +77,13 @@ from .models import (
 from .ledger_services import compute_ledger_pl
 from .ledger_reports import account_balances_for_business
 from .utils import get_current_business, is_empty_workspace
+from .services.ledger_metrics import (
+    PLPeriod,
+    calculate_ledger_income,
+    calculate_ledger_expense_by_account_name,
+    calculate_ledger_expenses,
+    get_pl_period_dates,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -161,32 +168,46 @@ def _add_months(d: date, months: int) -> date:
 
 def _get_period_dates(period: str) -> tuple[date, date, str, str]:
     """
-    Returns (start_date, end_date, label, normalized_period) for the requested period key.
+    Backwards-compatible wrapper around get_pl_period_dates.
     """
-    today = timezone.localdate()
+    return get_pl_period_dates(period)
 
-    if period == "last_month":
-        first_of_this_month = today.replace(day=1)
-        end_date = first_of_this_month - timedelta(days=1)
-        start_date = end_date.replace(day=1)
-        label = f"Last month · {start_date:%b %d, %Y} – {end_date:%b %d, %Y}"
-        normalized = "last_month"
-    elif period == "this_year":
-        start_date = today.replace(month=1, day=1)
-        end_date = today
-        label = f"This year · {start_date:%b %d, %Y} – {end_date:%b %d, %Y}"
-        normalized = "this_year"
-    else:
-        start_date = today.replace(day=1)
-        if start_date.month == 12:
-            next_month = start_date.replace(year=start_date.year + 1, month=1, day=1)
-        else:
-            next_month = start_date.replace(month=start_date.month + 1, day=1)
-        end_date = min(today, next_month - timedelta(days=1))
-        label = f"This month · {start_date:%b %d, %Y} – {end_date:%b %d, %Y}"
-        normalized = "this_month"
 
-    return start_date, end_date, label, normalized
+def _get_available_pl_months(business) -> list[dict]:
+    """
+    Returns list of available months with ledger activity for P&L month selector.
+    Format: [{"value": "YYYY-MM", "label": "Month YYYY"}, ...]
+    """
+    # Query distinct year-month combinations from journal entries
+    months = (
+        JournalEntry.objects.filter(
+            business=business,
+            is_void=False,
+        )
+        .exclude(date__isnull=True)
+        .values_list("date", flat=True)
+        .distinct()
+    )
+    
+    # Extract unique year-month combinations
+    unique_months = set()
+    for entry_date in months:
+        if entry_date:
+            unique_months.add((entry_date.year, entry_date.month))
+    
+    # Sort descending (most recent first)
+    sorted_months = sorted(unique_months, reverse=True)
+    
+    # Format as options
+    options = []
+    for year, month in sorted_months:
+        month_date = date(year, month, 1)
+        options.append({
+            "value": f"{year}-{month:02d}",
+            "label": month_date.strftime("%B %Y"),
+        })
+    
+    return options
 
 
 def _generate_external_id(bank_account_id: int, date_str: str, description: str, amount_str: str) -> str:
@@ -422,8 +443,18 @@ def _post_income_entry(
         )
 
     income_account = category.account or defaults.get("sales")
+    if income_account and income_account.type != Account.AccountType.INCOME:
+        fallback_income = defaults.get("sales")
+        if fallback_income and fallback_income.type == Account.AccountType.INCOME:
+            income_account = fallback_income
+        else:
+            raise ValueError(
+                "Selected category is not linked to an income account. Please update the category’s underlying account to an income account."
+            )
     if income_account is None:
-        raise ValueError("The selected category is not linked to an income account.")
+        raise ValueError(
+            "Selected category is not linked to an income account. Please update the category’s underlying account to an income account."
+        )
 
     base_value = Decimal(base_amount) if base_amount is not None else Decimal(amount)
     rate_pct = tax_rate.percentage if tax_rate else Decimal("0.00")
@@ -975,27 +1006,92 @@ def dashboard(request):
     start_books_url = reverse("customer_create")
     bank_import_url = reverse("bank_import")
 
-    today = timezone.now().date()
+    today = timezone.localdate()
     thirty_days_ago = today - timedelta(days=30)
 
     invoices_qs = Invoice.objects.filter(business=business)
     expenses_all_qs = Expense.objects.filter(business=business)
     expenses_qs = expenses_all_qs.filter(status=Expense.Status.PAID)
 
-    month_start = _first_day_of_month(today)
-    next_month_start = _add_months(month_start, 1)
-    month_end = next_month_start - timedelta(days=1)
+    # Handle P&L month selection
+    pl_month_param = request.GET.get("pl_month")  # Expected format: YYYY-MM
+    
+    if pl_month_param:
+        # User selected a specific month
+        month_start, month_end, pl_period_label, current_period = get_pl_period_dates(pl_month_param, today=today)
+        # Calculate previous month for comparison
+        try:
+            year, month = pl_month_param.split("-")
+            year_int = int(year)
+            month_int = int(month)
+            if month_int == 1:
+                prev_month_str = f"{year_int - 1}-12"
+            else:
+                prev_month_str = f"{year_int}-{month_int - 1:02d}"
+            prev_start, prev_end, pl_prev_period_label, _prev_period = get_pl_period_dates(prev_month_str, today=today)
+        except (ValueError, TypeError):
+            # Fallback to last month relative to today
+            prev_start, prev_end, pl_prev_period_label, _prev_period = get_pl_period_dates(PLPeriod.LAST_MONTH, today=today)
+    else:
+        # Default to current month
+        month_start, month_end, pl_period_label, current_period = get_pl_period_dates(PLPeriod.THIS_MONTH, today=today)
+        prev_start, prev_end, pl_prev_period_label, _prev_period = get_pl_period_dates(PLPeriod.LAST_MONTH, today=today)
 
-    # Use ledger-based calculation for accurate P&L
-    from core.services import (
-        calculate_ledger_income,
-        calculate_ledger_expenses,
-        calculate_ledger_expense_by_account_name,
+    ledger_pl = compute_ledger_pl(business, month_start, month_end)
+    prev_ledger_pl = compute_ledger_pl(business, prev_start, prev_end)
+
+    total_income_month = ledger_pl["total_income"]
+    total_expenses_month = ledger_pl["total_expense"]
+    net_income_month = ledger_pl["net"]
+
+    prev_income = prev_ledger_pl["total_income"]
+    prev_expenses = prev_ledger_pl["total_expense"]
+    prev_net = prev_ledger_pl["net"]
+
+    income_line_count = JournalLine.objects.filter(
+        journal_entry__business=business,
+        journal_entry__date__gte=month_start,
+        journal_entry__date__lte=month_end,
+        journal_entry__is_void=False,
+        account__type=Account.AccountType.INCOME,
+    ).count()
+    expense_line_count = JournalLine.objects.filter(
+        journal_entry__business=business,
+        journal_entry__date__gte=month_start,
+        journal_entry__date__lte=month_end,
+        journal_entry__is_void=False,
+        account__type=Account.AccountType.EXPENSE,
+    ).count()
+    no_ledger_activity_for_period = income_line_count == 0 and expense_line_count == 0
+
+    last_income_entry_date = (
+        JournalLine.objects.filter(
+            journal_entry__business=business,
+            journal_entry__is_void=False,
+            account__type=Account.AccountType.INCOME,
+        )
+        .order_by("-journal_entry__date")
+        .values_list("journal_entry__date", flat=True)
+        .first()
+    )
+    last_expense_entry_date = (
+        JournalLine.objects.filter(
+            journal_entry__business=business,
+            journal_entry__is_void=False,
+            account__type=Account.AccountType.EXPENSE,
+        )
+        .order_by("-journal_entry__date")
+        .values_list("journal_entry__date", flat=True)
+        .first()
     )
 
-    total_income_month = calculate_ledger_income(business, month_start, month_end)
-    total_expenses_month = calculate_ledger_expenses(business, month_start, month_end)
-    net_income_month = total_income_month - total_expenses_month
+    def _change_pct(current, previous):
+        if previous in (None, Decimal("0.00")):
+            return None
+        try:
+            return ((current - previous) / abs(previous)) * Decimal("100.0")
+        except (InvalidOperation, ZeroDivisionError):
+            return None
 
     # Category-specific expenses for legacy dashboard sections
     subscriptions_month = calculate_ledger_expense_by_account_name(
@@ -1037,17 +1133,17 @@ def dashboard(request):
 
     # Build cashflow from actual BankTransaction cash movement
     for i in range(6):
-        month_start = _add_months(start_month, i)
-        next_month_start = _add_months(month_start, 1)
-        month_end = next_month_start - timedelta(days=1)
+        series_month_start = _add_months(start_month, i)
+        next_month_start = _add_months(series_month_start, 1)
+        series_month_end = next_month_start - timedelta(days=1)
 
-        labels.append(month_start.strftime("%b %Y"))
+        labels.append(series_month_start.strftime("%b %Y"))
 
         # Get all bank transactions for this month
         month_transactions = BankTransaction.objects.filter(
             bank_account__business=business,
-            date__gte=month_start,
-            date__lte=month_end,
+            date__gte=series_month_start,
+            date__lte=series_month_end,
         )
 
         # Sum inflows (positive amounts = deposits)
@@ -1282,6 +1378,27 @@ def dashboard(request):
                 "unpaid_expenses_total": _decimal_to_float(unpaid_expenses_total),
                 "revenue_month": _decimal_to_float(total_income_month),
                 "expenses_month": _decimal_to_float(total_expenses_month),
+                "pl_period_start": month_start.isoformat() if month_start else None,
+                "pl_period_end": month_end.isoformat() if month_end else None,
+                "pl_period_label": pl_period_label,
+                "pl_prev_period_label": pl_prev_period_label,
+                "pl_prev_income": _decimal_to_float(prev_income),
+                "pl_prev_expenses": _decimal_to_float(prev_expenses),
+                "pl_prev_net": _decimal_to_float(prev_net),
+                "pl_change_income_pct": _change_pct(total_income_month, prev_income),
+                "pl_change_expenses_pct": _change_pct(total_expenses_month, prev_expenses),
+                "pl_change_net_pct": _change_pct(net_income_month, prev_net),
+                "pl_selected_month": pl_month_param or today.strftime("%Y-%m"),
+                "pl_month_options": _get_available_pl_months(business),
+                "pl_debug": {
+                    "period_start": month_start.isoformat() if month_start else None,
+                    "period_end": month_end.isoformat() if month_end else None,
+                    "income_line_count": income_line_count,
+                    "expense_line_count": expense_line_count,
+                    "last_income_entry_date": last_income_entry_date.isoformat() if last_income_entry_date else None,
+                    "last_expense_entry_date": last_expense_entry_date.isoformat() if last_expense_entry_date else None,
+                    "no_ledger_activity_for_period": no_ledger_activity_for_period,
+                },
             },
             "tax": {
                 "sales_tax_payable": _decimal_to_float(tax_position["sales_tax_payable"]),
@@ -1333,6 +1450,11 @@ def dashboard(request):
         "has_any_data": has_any_data,
         "has_any_invoices": has_any_invoices,
         "has_any_expenses": has_any_expenses,
+        "total_income_month": total_income_month,
+        "total_expenses_month": total_expenses_month,
+        "net_income_month": net_income_month,
+        "revenue_30": revenue_30,
+        "expenses_30": expenses_30,
         "metrics": {
             "overdue_total": overdue_total,
             "overdue_count": overdue_count,
@@ -1344,6 +1466,22 @@ def dashboard(request):
             "total_income_month": total_income_month,
             "total_expenses_month": total_expenses_month,
             "net_income_month": net_income_month,
+            "pl_period_start": month_start,
+            "pl_period_end": month_end,
+            "pl_period_label": pl_period_label,
+            "pl_prev_period_label": pl_prev_period_label,
+            "pl_prev_income": prev_income,
+            "pl_prev_expenses": prev_expenses,
+            "pl_prev_net": prev_net,
+            "pl_debug": {
+                "period_start": month_start,
+                "period_end": month_end,
+                "income_line_count": income_line_count,
+                "expense_line_count": expense_line_count,
+                "last_income_entry_date": last_income_entry_date,
+                "last_expense_entry_date": last_expense_entry_date,
+                "no_ledger_activity_for_period": no_ledger_activity_for_period,
+            },
         },
         "recent_invoices": recent_invoices,
         "recent_customers": recent_customers,
@@ -4367,6 +4505,33 @@ def api_banking_feed_add_entry(request, tx_id):
             )
 
         defaults = ensure_default_accounts(business)
+        # Validate selected account aligns with direction (income vs expense).
+        selected_account = account
+        if direction == "IN":
+            if selected_account.type != Account.AccountType.INCOME:
+                fallback_income = defaults.get("sales")
+                if fallback_income and fallback_income.type == Account.AccountType.INCOME:
+                    selected_account = fallback_income
+                else:
+                    return JsonResponse(
+                        {
+                            "detail": "Selected category is not linked to an income account. Please update the category’s underlying account to an income account."
+                        },
+                        status=400,
+                    )
+        else:
+            if selected_account.type != Account.AccountType.EXPENSE:
+                fallback_expense = defaults.get("opex")
+                if fallback_expense and fallback_expense.type == Account.AccountType.EXPENSE:
+                    selected_account = fallback_expense
+                else:
+                    return JsonResponse(
+                        {
+                            "detail": "Selected category is not linked to an expense account. Please update the category’s underlying account to an expense account."
+                        },
+                        status=400,
+                    )
+
         bank_account = bank_tx.bank_account.account or defaults.get("cash")
         if bank_account is None:
             return JsonResponse({"detail": "Link this bank account to a ledger account."}, status=400)
@@ -4392,7 +4557,7 @@ def api_banking_feed_add_entry(request, tx_id):
             )
             JournalLine.objects.create(
                 journal_entry=entry,
-                account=account,
+                account=selected_account,
                 debit=Decimal("0.00"),
                 credit=net_amount,
                 description="Category",
@@ -4408,7 +4573,7 @@ def api_banking_feed_add_entry(request, tx_id):
         else:
             JournalLine.objects.create(
                 journal_entry=entry,
-                account=account,
+                account=selected_account,
                 debit=net_amount,
                 credit=Decimal("0.00"),
                 description="Category",

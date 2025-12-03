@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
-from typing import Dict, Tuple, Iterable
+from typing import Dict, Iterable, Optional, Tuple
 
 from django.db import transaction
 from django.db.models import F, Q, Sum
@@ -140,6 +140,35 @@ def gather_workspace_metrics(workspace) -> Dict[str, int]:
 
 def _score_from_penalty(base: int, penalty: float) -> int:
     return max(0, min(100, int(round(base - penalty))))
+
+
+def get_last_seen_field_name(context: str) -> str | None:
+    mapping = {
+        CompanionSuggestedAction.CONTEXT_BANK: "last_seen_bank_at",
+        CompanionSuggestedAction.CONTEXT_RECONCILIATION: "last_seen_reconciliation_at",
+        CompanionSuggestedAction.CONTEXT_INVOICES: "last_seen_invoices_at",
+        CompanionSuggestedAction.CONTEXT_EXPENSES: "last_seen_expenses_at",
+        CompanionSuggestedAction.CONTEXT_DASHBOARD: "last_seen_dashboard_at",
+    }
+    return mapping.get(context)
+
+
+def get_last_seen_value(profile, context: str):
+    field = get_last_seen_field_name(context)
+    if not field or not profile:
+        return None
+    return getattr(profile, field, None)
+
+
+def get_new_actions_count(workspace, context: str, last_seen_at: Optional[datetime]) -> int:
+    qs = CompanionSuggestedAction.objects.filter(
+        workspace=workspace,
+        context=context,
+        status=CompanionSuggestedAction.STATUS_OPEN,
+    )
+    if last_seen_at is not None:
+        qs = qs.filter(created_at__gt=last_seen_at)
+    return qs.count()
 
 
 def compute_health_index(workspace) -> Tuple[int, Dict[str, int], Dict[str, int]]:
