@@ -19,6 +19,23 @@ const friendlyLabels: Record<CompanionContext, string> = {
 
 const combine = (items: string[]) => items.filter(Boolean).slice(0, 3);
 
+// Health score color mapping
+function getHealthBorderColor(score: number | null): string {
+  if (score === null) return "border-slate-200";
+  if (score >= 80) return "border-emerald-300";
+  if (score >= 60) return "border-amber-300";
+  if (score >= 40) return "border-orange-300";
+  return "border-rose-300";
+}
+
+function getHealthRingColor(score: number | null): string {
+  if (score === null) return "ring-slate-100";
+  if (score >= 80) return "ring-emerald-100";
+  if (score >= 60) return "ring-amber-100";
+  if (score >= 40) return "ring-orange-100";
+  return "ring-rose-100";
+}
+
 const CompanionStrip: React.FC<CompanionStripProps> = ({ context, className }) => {
   const {
     isLoading,
@@ -40,6 +57,10 @@ const CompanionStrip: React.FC<CompanionStripProps> = ({ context, className }) =
   const didMarkSeenRef = useRef(false);
   const showNewBadge = hasNewActions && !contextAllClear && hasSignals;
 
+  const healthScore = healthSnippet?.score ?? null;
+  const borderColor = getHealthBorderColor(healthScore);
+  const ringColor = getHealthRingColor(healthScore);
+
   useEffect(() => {
     if (didMarkSeenRef.current) return;
     if (!isLoading && !error) {
@@ -52,7 +73,7 @@ const CompanionStrip: React.FC<CompanionStripProps> = ({ context, className }) =
 
   if (isLoading) {
     return (
-      <div className={`relative overflow-hidden rounded-2xl bg-white/80 p-3 shadow-sm ring-1 ring-slate-100 ${className || ""}`}>
+      <div className={`relative overflow-hidden rounded-2xl bg-white/80 p-3 shadow-sm border ${borderColor} ${className || ""}`}>
         <div className="h-2 w-24 animate-pulse rounded-full bg-slate-100" />
         <div className="mt-2 h-2 w-full animate-pulse rounded-full bg-slate-100" />
       </div>
@@ -61,8 +82,11 @@ const CompanionStrip: React.FC<CompanionStripProps> = ({ context, className }) =
 
   if (error) {
     return (
-      <div className={`rounded-2xl border border-slate-100 bg-white/80 px-3 py-2 text-[12px] text-slate-500 shadow-sm ${className || ""}`}>
-        Companion temporarily unavailable.
+      <div className={`rounded-2xl border ${borderColor} bg-white/80 px-3 py-2 text-[12px] text-slate-600 shadow-sm ${className || ""}`}>
+        <div className="flex items-center gap-2">
+          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-[11px]">⚠</span>
+          <span>Companion temporarily unavailable</span>
+        </div>
       </div>
     );
   }
@@ -70,10 +94,10 @@ const CompanionStrip: React.FC<CompanionStripProps> = ({ context, className }) =
   if (contextAllClear || !hasSignals) {
     return (
       <div
-        className={`flex flex-col gap-1 rounded-2xl border border-slate-100 bg-white/80 px-3 py-2 text-[13px] text-slate-600 shadow-sm ${className || ""}`}
+        className={`flex flex-col gap-1 rounded-2xl border ${borderColor} bg-white/80 px-3 py-2 text-[13px] text-slate-600 shadow-sm ${className || ""}`}
       >
         <div className="flex items-center gap-2">
-          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-[12px] text-slate-500">✓</span>
+          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-[12px] text-emerald-700">✓</span>
           <span className="font-semibold text-slate-700">Everything looks good here.</span>
         </div>
         <span className="text-[12px] text-slate-500">
@@ -85,7 +109,7 @@ const CompanionStrip: React.FC<CompanionStripProps> = ({ context, className }) =
 
   return (
     <div
-      className={`flex flex-col gap-1 rounded-2xl border border-sky-100 bg-sky-50/80 px-3 py-2 shadow-sm ${className || ""}`}
+      className={`flex flex-col gap-1 rounded-2xl border ${borderColor} bg-sky-50/80 px-3 py-2 shadow-sm ${className || ""}`}
     >
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-[12px] font-semibold text-slate-700">
@@ -126,3 +150,4 @@ const CompanionStrip: React.FC<CompanionStripProps> = ({ context, className }) =
 };
 
 export default CompanionStrip;
+
