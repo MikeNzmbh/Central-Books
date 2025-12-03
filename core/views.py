@@ -2837,21 +2837,45 @@ def cashflow_report_view(request):
         return redirect("business_setup")
 
     today = timezone.localdate()
-    qs = (
-        BankTransaction.objects.filter(bank_account__business=business)
-        .select_related("category")
-        .order_by("date")
-    )
-
-    start_date = _add_months(today.replace(day=1), -5)
-    qs = qs.filter(date__gte=start_date)
-
-    periods: OrderedDict[tuple[int, int], dict[str, Decimal]] = OrderedDict()
-    cursor = start_date
-    for _ in range(6):
-        key = (cursor.year, cursor.month)
-        periods[key] = {"inflows": Decimal("0.00"), "outflows": Decimal("0.00")}
-        cursor = _add_months(cursor, 1)
+    
+    # Handle month selection
+    cf_month_param = request.GET.get("cf_month")
+    
+    if cf_month_param:
+        # User selected a specific month - show only that month
+        period_start, period_end, period_label, _ = get_pl_period_dates(cf_month_param, today=today)
+        qs = (
+            BankTransaction.objects.filter(
+                bank_account__business=business,
+                date__gte=period_start,
+                date__lte=period_end,
+            )
+            .select_related("category")
+            .order_by("date")
+        )
+        # Create single period for selected month
+        periods: OrderedDict[tuple[int, int], dict[str, Decimal]] = OrderedDict()
+        periods[(period_start.year, period_start.month)] = {
+            "inflows": Decimal("0.00"),
+            "outflows": Decimal("0.00"),
+        }
+    else:
+        # Default: show last 6 months
+        period_label = "Last 6 months"
+        qs = (
+            BankTransaction.objects.filter(bank_account__business=business)
+            .select_related("category")
+            .order_by("date")
+        )
+        start_date = _add_months(today.replace(day=1), -5)
+        qs = qs.filter(date__gte=start_date)
+        
+        periods: OrderedDict[tuple[int, int], dict[str, Decimal]] = OrderedDict()
+        cursor = start_date
+        for _ in range(6):
+            key = (cursor.year, cursor.month)
+            periods[key] = {"inflows": Decimal("0.00"), "outflows": Decimal("0.00")}
+            cursor = _add_months(cursor, 1)
 
     for tx in qs:
         key = (tx.date.year, tx.date.month)
@@ -2946,6 +2970,9 @@ def cashflow_report_view(request):
 
     context = {
         "cashflow_data_json": json.dumps(payload, cls=DjangoJSONEncoder),
+        "cf_selected_month": cf_month_param or "",
+        "cf_month_options": _get_available_pl_months(business),
+        "cf_period_label": period_label,
     }
     return render(request, "reports/cashflow_report.html", context)
 
@@ -2956,8 +2983,16 @@ def report_pnl(request):
     if business is None:
         return redirect("business_setup")
 
-    period_param = request.GET.get("period", "this_month")
-    start_date, end_date, period_label, current_period = _get_period_dates(period_param)
+    # Handle month selection via query param
+    pl_month_param = request.GET.get("pl_month")
+    today = timezone.localdate()
+    
+    if pl_month_param:
+        start_date, end_date, period_label, current_period = get_pl_period_dates(pl_month_param, today=today)
+    else:
+        # Default to "this_month" behavior from period_param
+        period_param = request.GET.get("period", "this_month")
+        start_date, end_date, period_label, current_period = _get_period_dates(period_param)
 
     ledger_pl = compute_ledger_pl(business, start_date, end_date)
     period_length = (end_date - start_date).days + 1
@@ -3050,6 +3085,12 @@ def report_pnl(request):
         "income_change_pct": _change_pct(total_income, prev_total_income),
         "expenses_change_pct": _change_pct(total_expenses, prev_total_expenses),
         "net_change_pct": _change_pct(net_profit, prev_net_profit),
+        "prev_total_income": prev_total_income,
+        "prev_total_expenses": prev_total_expenses,
+        "prev_net_profit": prev_net_profit,
+        "pl_selected_month": pl_month_param or today.strftime("%Y-%m"),
+        "pl_month_options": _get_available_pl_months(business),
+        "pl_period_label": period_label,
     }
     return render(request, "reports/pl_ledger.html", context)
 
