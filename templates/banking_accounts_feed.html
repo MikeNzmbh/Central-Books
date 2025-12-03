@@ -2,22 +2,34 @@
 {% load static mb_extras %}
 
 {% block content %}
-  <div
-    id="banking-root"
-    data-overview-url="{% url 'api_banking_overview' %}"
-    data-feed-url="{% url 'bank_feeds_overview' %}"
-    data-import-url="{% url 'bank_feed_import' %}"
-  ></div>
+<!-- Companion strip container -->
+<div class="mb-4 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+  <div data-companion-context="bank"></div>
+</div>
 
-  {% vite_asset 'banking-accounts-feed' as js_path %}
-  {% if js_path %}
-    <script type="module" src="{% static js_path %}"></script>
-  {% else %}
-    <!-- Vite JS asset not found for 'banking-accounts-feed' -->
-  {% endif %}
+<div id="banking-root" data-overview-url="{% url 'api_banking_overview' %}"
+  data-feed-url="{% url 'bank_feeds_overview' %}" data-import-url="{% url 'bank_feed_import' %}"></div>
 
-  {% vite_asset 'banking-accounts-feed' 'css' as css_path %}
-  {% if css_path %}
-    <link rel="stylesheet" href="{% static css_path %}">
-  {% endif %}
+{% vite_asset 'banking-accounts-feed' as js_path %}
+{% if js_path %}
+<script type="module" src="{% static js_path %}"></script>
+{% else %}
+<!-- Vite JS asset not found for 'banking-accounts-feed' -->
+{% endif %}
+
+{% vite_asset 'banking-accounts-feed' 'css' as css_path %}
+{% if css_path %}
+<link rel="stylesheet" href="{% static css_path %}">
+{% endif %}
+
+<!-- Companion strip assets -->
+{% vite_asset 'companion-strip' as companion_js %}
+{% if companion_js %}
+<script type="module" src="{% static companion_js %}"></script>
+{% endif %}
+
+{% vite_asset 'companion-strip' 'css' as companion_css %}
+{% if companion_css %}
+<link rel="stylesheet" href="{% static companion_css %}">
+{% endif %}
 {% endblock %}
