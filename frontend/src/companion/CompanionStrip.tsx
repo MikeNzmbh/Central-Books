@@ -73,19 +73,23 @@ const CompanionStrip: React.FC<CompanionStripProps> = ({ context, className }) =
 
   if (isLoading) {
     return (
-      <div className={`relative overflow-hidden rounded-2xl bg-white/80 p-3 shadow-sm border ${borderColor} ${className || ""}`}>
-        <div className="h-2 w-24 animate-pulse rounded-full bg-slate-100" />
-        <div className="mt-2 h-2 w-full animate-pulse rounded-full bg-slate-100" />
+      <div className={`companion-glow ${className || ""}`} data-testid="companion-strip-glow">
+        <div className={`companion-glow-inner relative overflow-hidden p-3 shadow-sm border ${borderColor}`}>
+          <div className="h-2 w-24 animate-pulse rounded-full bg-slate-100" />
+          <div className="mt-2 h-2 w-full animate-pulse rounded-full bg-slate-100" />
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className={`rounded-2xl border ${borderColor} bg-white/80 px-3 py-2 text-[12px] text-slate-600 shadow-sm ${className || ""}`}>
-        <div className="flex items-center gap-2">
-          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-[11px]">⚠</span>
-          <span>Companion temporarily unavailable</span>
+      <div className={`companion-glow ${className || ""}`} data-testid="companion-strip-glow">
+        <div className={`companion-glow-inner border ${borderColor} bg-white/90 px-3 py-2 text-[12px] text-slate-600 shadow-sm`}>
+          <div className="flex items-center gap-2">
+            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-[11px]">⚠</span>
+            <span>Companion temporarily unavailable</span>
+          </div>
         </div>
       </div>
     );
@@ -93,61 +97,64 @@ const CompanionStrip: React.FC<CompanionStripProps> = ({ context, className }) =
 
   if (contextAllClear || !hasSignals) {
     return (
-      <div
-        className={`flex flex-col gap-1 rounded-2xl border ${borderColor} bg-white/80 px-3 py-2 text-[13px] text-slate-600 shadow-sm ${className || ""}`}
-      >
-        <div className="flex items-center gap-2">
-          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-[12px] text-emerald-700">✓</span>
-          <span className="font-semibold text-slate-700">Everything looks good here.</span>
+      <div className={`companion-glow ${className || ""}`} data-testid="companion-strip-glow">
+        <div
+          className={`companion-glow-inner flex flex-col gap-1 border ${borderColor} bg-white/90 px-3 py-2 text-[13px] text-slate-600 shadow-sm`}
+        >
+          <div className="flex items-center gap-2">
+            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-[12px] text-emerald-700">✓</span>
+            <span className="font-semibold text-slate-700">Everything looks good here.</span>
+          </div>
+          <span className="text-[12px] text-slate-500">
+            Companion checked this {label} area and found nothing urgent.
+          </span>
         </div>
-        <span className="text-[12px] text-slate-500">
-          Companion checked this {label} area and found nothing urgent.
-        </span>
       </div>
     );
   }
 
   return (
-    <div
-      className={`flex flex-col gap-1 rounded-2xl border ${borderColor} bg-sky-50/80 px-3 py-2 shadow-sm ${className || ""}`}
-    >
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 text-[12px] font-semibold text-slate-700">
-          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-sky-600 text-[11px] font-bold text-white">
-            AI
-          </span>
-          <span className="flex items-center gap-2">
-            <span>Companion suggests…</span>
-            {showNewBadge ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-[2px] text-[10px] font-semibold text-sky-700 ring-1 ring-sky-200">
-                New
-              </span>
-            ) : null}
-          </span>
-          {healthSnippet && (
-            <span className="text-[11px] font-medium text-slate-500">
-              {healthSnippet.statusText}
+    <div className={`companion-glow ${className || ""}`} data-testid="companion-strip-glow">
+      <div
+        className={`companion-glow-inner flex flex-col gap-1 border ${borderColor} bg-sky-50/90 px-3 py-2 shadow-sm`}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-[12px] font-semibold text-slate-700">
+            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-sky-600 text-[11px] font-bold text-white">
+              AI
             </span>
-          )}
+            <span className="flex items-center gap-2">
+              <span>Companion suggests…</span>
+              {showNewBadge ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-[2px] text-[10px] font-semibold text-sky-700 ring-1 ring-sky-200">
+                  New
+                </span>
+              ) : null}
+            </span>
+            {healthSnippet && (
+              <span className="text-[11px] font-medium text-slate-500">
+                {healthSnippet.statusText}
+              </span>
+            )}
+          </div>
+          <a
+            className="text-[11px] font-semibold text-sky-700 underline decoration-sky-300 decoration-dotted hover:text-sky-800"
+            href="/dashboard/"
+          >
+            View more
+          </a>
         </div>
-        <a
-          className="text-[11px] font-semibold text-sky-700 underline decoration-sky-300 decoration-dotted hover:text-sky-800"
-          href="/dashboard/"
-        >
-          View more
-        </a>
+        <ul className="ml-1 list-disc space-y-1 pl-4 text-[13px] text-slate-700">
+          {items.slice(0, 2).map((text, idx) => (
+            <li key={idx}>{text}</li>
+          ))}
+        </ul>
+        {contextNarrative ? (
+          <p className="text-[12px] text-slate-600">{contextNarrative}</p>
+        ) : null}
       </div>
-      <ul className="ml-1 list-disc space-y-1 pl-4 text-[13px] text-slate-700">
-        {items.slice(0, 2).map((text, idx) => (
-          <li key={idx}>{text}</li>
-        ))}
-      </ul>
-      {contextNarrative ? (
-        <p className="text-[12px] text-slate-600">{contextNarrative}</p>
-      ) : null}
     </div>
   );
 };
 
 export default CompanionStrip;
-

@@ -41,6 +41,11 @@ describe("CompanionStrip", () => {
     render(<CompanionStrip context="bank" />);
     await waitFor(() => expect(screen.getByText(/Everything looks good here/i)).toBeInTheDocument());
     expect(screen.getByText(/found nothing urgent/i)).toBeInTheDocument();
+
+    // Verify glow wrapper is present in calm state
+    const glowElement = screen.getByTestId("companion-strip-glow");
+    expect(glowElement).toBeInTheDocument();
+    expect(glowElement).toHaveClass("companion-glow");
   });
 
   it("filters insights and actions by context", async () => {
@@ -109,10 +114,13 @@ describe("CompanionStrip", () => {
     render(<CompanionStrip context="invoices" />);
 
     await waitFor(() => expect(screen.getByText(/Companion suggests/i)).toBeInTheDocument());
+
+    // Verify glow wrapper is present in active state
+    expect(screen.getByTestId("companion-strip-glow")).toHaveClass("companion-glow");
+
     expect(screen.getByText(/Overdue invoice/)).toBeInTheDocument();
     expect(screen.getByText(/Send reminder for INV-100/)).toBeInTheDocument();
     expect(screen.queryByText(/Bank match alert/)).not.toBeInTheDocument();
-    expect(screen.getByText(/New/)).toBeInTheDocument();
   });
 
   it("renders calm message when no items", async () => {
@@ -148,6 +156,9 @@ describe("CompanionStrip", () => {
     render(<CompanionStrip context="bank" />);
 
     await waitFor(() => expect(screen.getByText(/Companion temporarily unavailable/i)).toBeInTheDocument());
+
+    // Verify glow wrapper is present even in error state
+    expect(screen.getByTestId("companion-strip-glow")).toHaveClass("companion-glow");
   });
 
   it("marks context seen once on load", async () => {

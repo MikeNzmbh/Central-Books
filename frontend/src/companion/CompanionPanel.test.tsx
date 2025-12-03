@@ -76,6 +76,12 @@ describe("CompanionPanel", () => {
     render(<CompanionPanel />);
 
     await waitFor(() => expect(screen.getByText(/Health 82\/100/)).toBeInTheDocument());
+
+    // Verify glow wrapper is always present with correct class
+    const glowElement = screen.getByTestId("companion-glow");
+    expect(glowElement).toBeInTheDocument();
+    expect(glowElement).toHaveClass("companion-glow");
+
     expect(screen.getByText("Tighten reconciliation")).toBeInTheDocument();
     expect(screen.getByText(/Books look steady/i)).toBeInTheDocument();
     expect(screen.getByText(/aging past 60 days/i)).toBeInTheDocument();
@@ -106,6 +112,10 @@ describe("CompanionPanel", () => {
     render(<CompanionPanel />);
 
     await waitFor(() => expect(screen.getByText(/everything looks fine/i)).toBeInTheDocument());
+
+    // Verify glow wrapper is present even in calm state
+    expect(screen.getByTestId("companion-glow")).toBeInTheDocument();
+    expect(screen.getByTestId("companion-glow")).toHaveClass("companion-glow");
   });
 
   it("shows suggested actions and allows apply/dismiss", async () => {
@@ -150,5 +160,17 @@ describe("CompanionPanel", () => {
 
     fireEvent.click(screen.getByText("Dismiss"));
     await waitFor(() => expect(dismissCompanionAction).toHaveBeenCalledWith(5));
+  });
+
+  it("keeps glow wrapper visible in error state", async () => {
+    const mockedFetch = fetchCompanionOverview as unknown as Mock;
+    mockedFetch.mockRejectedValue(new Error("Request failed"));
+
+    render(<CompanionPanel />);
+
+    await waitFor(() => expect(screen.getByText(/Companion temporarily unavailable/i)).toBeInTheDocument());
+    const glowElement = screen.getByTestId("companion-glow");
+    expect(glowElement).toBeInTheDocument();
+    expect(glowElement).toHaveClass("companion-glow");
   });
 });

@@ -110,6 +110,32 @@ class CompanionApiTests(TestCase):
 
     @override_settings(
         COMPANION_LLM_ENABLED=True,
+        COMPANION_LLM_API_BASE="",
+        COMPANION_LLM_API_KEY="",
+    )
+    def test_llm_enabled_but_missing_config_returns_calm_payload(self):
+        response = self.client.get(reverse("companion:overview"))
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertIn("llm_narrative", payload)
+        self.assertIsNone(payload["llm_narrative"].get("summary"))
+
+    @override_settings(
+        COMPANION_LLM_ENABLED=True,
+        COMPANION_LLM_API_BASE="https://api.example.com",
+        COMPANION_LLM_API_KEY="test-key",
+        COMPANION_LLM_MODEL="stub-model",
+    )
+    @mock.patch("companion.llm.call_companion_llm", side_effect=Exception("boom"))
+    def test_llm_exception_is_swallowed(self, _mock_llm):
+        response = self.client.get(reverse("companion:overview"))
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertIn("llm_narrative", payload)
+        self.assertIsNone(payload["llm_narrative"].get("summary"))
+
+    @override_settings(
+        COMPANION_LLM_ENABLED=True,
         COMPANION_LLM_API_BASE="https://api.example.com",
         COMPANION_LLM_API_KEY="test-key",
         COMPANION_LLM_MODEL="stub-model",

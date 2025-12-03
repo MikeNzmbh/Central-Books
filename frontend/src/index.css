@@ -47,6 +47,57 @@ body {
   margin: 0 auto;
 }
 
+/*
+ * Companion Glow Effect
+ * Creates an animated halo around Companion cards using a pseudo-element.
+ * Manual verification checklist (glow halo visible + animated):
+ * - /dashboard/ - Companion panel with health index
+ * - /invoices/ - Companion strip above the cards
+ * - /expenses/ - Companion strip above the cards
+ * - /banking/ - Bank feed Companion strip
+ * - /reconciliation/ - Companion strip above the ledger
+ */
+.companion-glow {
+  position: relative;
+  border-radius: 24px;
+  isolation: isolate;
+}
+
+.companion-glow::before {
+  content: "";
+  position: absolute;
+  inset: -10px;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #3AD97B, #28C7A2, #37B3FF, #0A1A34);
+  background-size: 350% 350%;
+  animation: companionPulse 8s ease-in-out infinite;
+  filter: blur(14px);
+  opacity: 0.95;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.companion-glow-inner {
+  position: relative;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.98);
+  z-index: 1;
+}
+
+@keyframes companionPulse {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
 @media print {
   body {
     background: #fff !important;
@@ -86,6 +137,7 @@ body {
 
 /* Print-specific styles for PDF export */
 @media print {
+
   /* Page setup */
   @page {
     margin: 0.5in;
@@ -100,7 +152,7 @@ body {
   }
 
   /* Hide non-report elements */
-  body > *:not([id$="-root"]) {
+  body>*:not([id$="-root"]) {
     display: none !important;
   }
 
@@ -139,7 +191,12 @@ body {
   }
 
   /* Ensure headings stay with content */
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     page-break-after: avoid;
     break-after: avoid;
   }
@@ -159,7 +216,8 @@ body {
   }
 
   /* Prevent orphans/widows */
-  p, li {
+  p,
+  li {
     orphans: 3;
     widows: 3;
   }

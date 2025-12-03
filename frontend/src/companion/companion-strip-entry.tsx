@@ -1,9 +1,9 @@
+import "../index.css";
 import React from "react";
 import { createRoot } from "react-dom/client";
 
 import CompanionStrip from "./CompanionStrip";
 import type { CompanionContext } from "./api";
-import "../index.css";
 
 function mountStrip(node: HTMLElement) {
   const ctx = (node.dataset.companionContext as CompanionContext) || "dashboard";

@@ -1,9 +1,9 @@
+import "../index.css";
 import React from "react";
 import { createRoot } from "react-dom/client";
 import CentralBooksDashboard, { type CentralBooksDashboardProps } from "./CentralBooksDashboard";
 import CentralBooksWelcomeOnboarding from "./CentralBooksWelcomeOnboarding";
 import { AuthProvider } from "../contexts/AuthContext";
-import "../index.css";
 
 const router = {
   push: (href: string) => {

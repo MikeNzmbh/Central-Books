@@ -189,7 +189,11 @@ def generate_companion_narrative(
         }
     )
 
-    raw_reply = call_companion_llm(f"{system_prompt}\n\nDATA:\n{prompt}")
+    try:
+        raw_reply = call_companion_llm(f"{system_prompt}\n\nDATA:\n{prompt}")
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning("Companion LLM call raised: %s", exc)
+        return default
     if not raw_reply:
         return default
 

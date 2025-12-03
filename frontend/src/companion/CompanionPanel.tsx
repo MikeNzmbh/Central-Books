@@ -50,7 +50,8 @@ const CompanionPanel: React.FC = () => {
       })
       .catch((err) => {
         if (!mounted) return;
-        setError(err?.message || "Unable to load Companion data.");
+        const msg = err?.message || "Companion temporarily unavailable.";
+        setError(msg === "Request failed" ? "Companion temporarily unavailable." : msg);
       })
       .finally(() => {
         if (mounted) setLoading(false);
@@ -106,7 +107,8 @@ const CompanionPanel: React.FC = () => {
   };
 
   return (
-    <div className="rounded-3xl border border-slate-100 bg-white/95 p-4 sm:p-5 shadow-sm flex flex-col gap-4">
+    <div className="companion-glow" data-testid="companion-glow">
+      <div className="companion-glow-inner border border-white/60 p-4 sm:p-5 shadow-sm flex flex-col gap-4">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Companion</p>
@@ -265,6 +267,7 @@ const CompanionPanel: React.FC = () => {
           )}
         </>
       )}
+    </div>
     </div>
   );
 };

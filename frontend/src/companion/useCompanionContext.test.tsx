@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { vi, describe, it, expect, afterEach } from "vitest";
 
 import { fetchCompanionOverview, markCompanionContextSeen } from "./api";
@@ -99,9 +99,11 @@ describe("useCompanionContext", () => {
     expect(result.current.hasNewActions).toBe(true);
     expect(result.current.newActionsCount).toBe(3);
 
-    await result.current.markContextSeen();
+    await act(async () => {
+      await result.current.markContextSeen();
+    });
     expect(markCompanionContextSeen).toHaveBeenCalledWith("bank");
-    expect(result.current.hasNewActions).toBe(false);
+    await waitFor(() => expect(result.current.hasNewActions).toBe(false));
     expect(result.current.newActionsCount).toBe(0);
   });
 });
