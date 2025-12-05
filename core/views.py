@@ -84,6 +84,8 @@ from .services.ledger_metrics import (
     calculate_ledger_expenses,
     get_pl_period_dates,
 )
+from .services.periods import resolve_comparison, resolve_period
+from .views_reports import build_cashflow_payload
 
 logger = logging.getLogger(__name__)
 
@@ -145,6 +147,7 @@ def _serialize_form(form, form_name: str | None = None):
     }
 from .accounting_posting_expenses import post_expense_paid
 from .accounting_defaults import ensure_default_accounts
+from .services.ledger_metrics import build_pl_diagnostics
 from .reconciliation import (
     Allocation,
     AllocationKind,
@@ -1013,40 +1016,46 @@ def dashboard(request):
     expenses_all_qs = Expense.objects.filter(business=business)
     expenses_qs = expenses_all_qs.filter(status=Expense.Status.PAID)
 
-    # Handle P&L month selection
-    pl_month_param = request.GET.get("pl_month")  # Expected format: YYYY-MM
-    
-    if pl_month_param:
-        # User selected a specific month
-        month_start, month_end, pl_period_label, current_period = get_pl_period_dates(pl_month_param, today=today)
-        # Calculate previous month for comparison
-        try:
-            year, month = pl_month_param.split("-")
-            year_int = int(year)
-            month_int = int(month)
-            if month_int == 1:
-                prev_month_str = f"{year_int - 1}-12"
-            else:
-                prev_month_str = f"{year_int}-{month_int - 1:02d}"
-            prev_start, prev_end, pl_prev_period_label, _prev_period = get_pl_period_dates(prev_month_str, today=today)
-        except (ValueError, TypeError):
-            # Fallback to last month relative to today
-            prev_start, prev_end, pl_prev_period_label, _prev_period = get_pl_period_dates(PLPeriod.LAST_MONTH, today=today)
-    else:
-        # Default to current month
-        month_start, month_end, pl_period_label, current_period = get_pl_period_dates(PLPeriod.THIS_MONTH, today=today)
-        prev_start, prev_end, pl_prev_period_label, _prev_period = get_pl_period_dates(PLPeriod.LAST_MONTH, today=today)
+    # Handle P&L period selection using unified resolver
+    pl_period_preset = request.GET.get("pl_period_preset") or request.GET.get("pl_month") or "this_month"
+    pl_start_date = request.GET.get("pl_start_date")
+    pl_end_date = request.GET.get("pl_end_date")
+    pl_compare_to = request.GET.get("pl_compare_to") or "previous_period"
+
+    period_info = resolve_period(
+        pl_period_preset,
+        pl_start_date,
+        pl_end_date,
+        business.fiscal_year_start if business else None,
+        today=today,
+    )
+    month_start = period_info["start"]
+    month_end = period_info["end"]
+    pl_period_label = period_info["label"]
+    pl_period_preset_normalized = period_info["preset"]
+
+    comparison_info = resolve_comparison(month_start, month_end, pl_compare_to)
+    prev_start = comparison_info.get("compare_start")
+    prev_end = comparison_info.get("compare_end")
+    pl_prev_period_label = comparison_info.get("compare_label") or ""
+    pl_compare_to_normalized = comparison_info.get("compare_to") or "none"
 
     ledger_pl = compute_ledger_pl(business, month_start, month_end)
-    prev_ledger_pl = compute_ledger_pl(business, prev_start, prev_end)
+    # Only compute previous period P&L if comparison is enabled
+    if prev_start and prev_end:
+        prev_ledger_pl = compute_ledger_pl(business, prev_start, prev_end)
+        prev_income = prev_ledger_pl["total_income"]
+        prev_expenses = prev_ledger_pl["total_expense"]
+        prev_net = prev_ledger_pl["net"]
+    else:
+        prev_income = None
+        prev_expenses = None
+        prev_net = None
+    pl_diagnostics = build_pl_diagnostics(business, month_start, month_end)
 
     total_income_month = ledger_pl["total_income"]
     total_expenses_month = ledger_pl["total_expense"]
     net_income_month = ledger_pl["net"]
-
-    prev_income = prev_ledger_pl["total_income"]
-    prev_expenses = prev_ledger_pl["total_expense"]
-    prev_net = prev_ledger_pl["net"]
 
     income_line_count = JournalLine.objects.filter(
         journal_entry__business=business,
@@ -1380,16 +1389,22 @@ def dashboard(request):
                 "expenses_month": _decimal_to_float(total_expenses_month),
                 "pl_period_start": month_start.isoformat() if month_start else None,
                 "pl_period_end": month_end.isoformat() if month_end else None,
+                "pl_period_preset": pl_period_preset_normalized,
                 "pl_period_label": pl_period_label,
+                "pl_compare_to": pl_compare_to_normalized,
+                "pl_compare_label": pl_prev_period_label,
+                "pl_compare_start": prev_start.isoformat() if prev_start else None,
+                "pl_compare_end": prev_end.isoformat() if prev_end else None,
                 "pl_prev_period_label": pl_prev_period_label,
-                "pl_prev_income": _decimal_to_float(prev_income),
-                "pl_prev_expenses": _decimal_to_float(prev_expenses),
-                "pl_prev_net": _decimal_to_float(prev_net),
-                "pl_change_income_pct": _change_pct(total_income_month, prev_income),
-                "pl_change_expenses_pct": _change_pct(total_expenses_month, prev_expenses),
-                "pl_change_net_pct": _change_pct(net_income_month, prev_net),
-                "pl_selected_month": pl_month_param or today.strftime("%Y-%m"),
+                "pl_prev_income": _decimal_to_float(prev_income) if prev_income is not None else None,
+                "pl_prev_expenses": _decimal_to_float(prev_expenses) if prev_expenses is not None else None,
+                "pl_prev_net": _decimal_to_float(prev_net) if prev_net is not None else None,
+                "pl_change_income_pct": _change_pct(total_income_month, prev_income) if prev_income is not None else None,
+                "pl_change_expenses_pct": _change_pct(total_expenses_month, prev_expenses) if prev_expenses is not None else None,
+                "pl_change_net_pct": _change_pct(net_income_month, prev_net) if prev_net is not None else None,
+                "pl_selected_month": pl_period_preset_normalized,
                 "pl_month_options": _get_available_pl_months(business),
+                "pl_diagnostics": pl_diagnostics,
                 "pl_debug": {
                     "period_start": month_start.isoformat() if month_start else None,
                     "period_end": month_end.isoformat() if month_end else None,
@@ -2836,143 +2851,35 @@ def cashflow_report_view(request):
     if business is None:
         return redirect("business_setup")
 
-    today = timezone.localdate()
-    
-    # Handle month selection
     cf_month_param = request.GET.get("cf_month")
-    
+    period_preset = (
+        request.GET.get("period_preset")
+        or request.GET.get("period")
+        or "last_6_months"
+    )
+    start_param = request.GET.get("start_date")
+    end_param = request.GET.get("end_date")
+    compare_to = request.GET.get("compare_to") or "previous_period"
     if cf_month_param:
-        # User selected a specific month - show only that month
-        period_start, period_end, period_label, _ = get_pl_period_dates(cf_month_param, today=today)
-        qs = (
-            BankTransaction.objects.filter(
-                bank_account__business=business,
-                date__gte=period_start,
-                date__lte=period_end,
-            )
-            .select_related("category")
-            .order_by("date")
-        )
-        # Create single period for selected month
-        periods: OrderedDict[tuple[int, int], dict[str, Decimal]] = OrderedDict()
-        periods[(period_start.year, period_start.month)] = {
-            "inflows": Decimal("0.00"),
-            "outflows": Decimal("0.00"),
-        }
-    else:
-        # Default: show last 6 months
-        period_label = "Last 6 months"
-        qs = (
-            BankTransaction.objects.filter(bank_account__business=business)
-            .select_related("category")
-            .order_by("date")
-        )
-        start_date = _add_months(today.replace(day=1), -5)
-        qs = qs.filter(date__gte=start_date)
-        
-        periods: OrderedDict[tuple[int, int], dict[str, Decimal]] = OrderedDict()
-        cursor = start_date
-        for _ in range(6):
-            key = (cursor.year, cursor.month)
-            periods[key] = {"inflows": Decimal("0.00"), "outflows": Decimal("0.00")}
-            cursor = _add_months(cursor, 1)
+        period_preset = cf_month_param
 
-    for tx in qs:
-        key = (tx.date.year, tx.date.month)
-        if key not in periods:
-            continue
-        amount = tx.amount or Decimal("0.00")
-        if amount >= 0:
-            periods[key]["inflows"] += amount
-        else:
-            periods[key]["outflows"] += abs(amount)
+    period_info = resolve_period(period_preset, start_param, end_param, business.fiscal_year_start)
+    comparison_info = resolve_comparison(period_info["start"], period_info["end"], compare_to)
+    payload = build_cashflow_payload(business, period_info, comparison_info)
+    payload["username"] = request.user.first_name or request.user.username
 
-    total_inflows = Decimal("0.00")
-    total_outflows = Decimal("0.00")
-    trend: list[dict[str, object]] = []
-    for (year, month), aggregates in periods.items():
-        inflows = aggregates["inflows"]
-        outflows = aggregates["outflows"]
-        net = inflows - outflows
-        total_inflows += inflows
-        total_outflows += outflows
-        label = date(year, month, 1).strftime("%b %Y")
-        trend.append(
-            {
-                "periodLabel": label,
-                "inflows": float(inflows),
-                "outflows": float(outflows),
-                "net": float(net),
-            }
-        )
-
-    net_change = total_inflows - total_outflows
-
-    activities = {
-        "operating": float(net_change),
-        "investing": 0.0,
-        "financing": 0.0,
-    }
-
-    driver_rows = (
-        qs.values("category__name")
-        .annotate(net=Sum("amount"))
-        .order_by("-net")[:5]
-    )
-    drivers: list[dict[str, object]] = []
-    for row in driver_rows:
-        label = row["category__name"] or "Uncategorized"
-        amount = row["net"] or Decimal("0.00")
-        driver_id = slugify(label) or f"driver-{len(drivers) + 1}"
-        drivers.append(
-            {
-                "id": driver_id,
-                "label": label,
-                "amount": float(amount),
-                "type": "inflow" if amount >= 0 else "outflow",
-            }
-        )
-
-    current_cash = (
-        BankTransaction.objects.filter(bank_account__business=business).aggregate(total=Sum("amount"))[
-            "total"
-        ]
-        or Decimal("0.00")
-    )
-
-    avg_monthly_burn = (
-        (total_outflows - total_inflows) / Decimal(len(periods))
-        if total_outflows > total_inflows
-        else Decimal("0.00")
-    )
-    runway_label = None
-    if avg_monthly_burn > 0 and current_cash > 0:
-        months = current_cash / avg_monthly_burn
-        runway_label = f"{months.quantize(Decimal('0.1'))} months"
-
-    payload = {
-        "username": request.user.first_name or request.user.username,
-        "asOfLabel": today.strftime("As of %b %d, %Y"),
-        "baseCurrency": business.currency or "USD",
-        "summary": {
-            "netChange": float(net_change),
-            "totalInflows": float(total_inflows),
-            "totalOutflows": float(total_outflows),
-            "runwayLabel": runway_label,
-        },
-        "trend": trend,
-        "activities": activities,
-        "topDrivers": drivers,
-        "bankingUrl": reverse("banking_accounts_feed"),
-        "invoicesUrl": reverse("invoice_list"),
-        "expensesUrl": reverse("expense_list"),
-    }
+    selected_month_value = ""
+    if period_info.get("month_span") == 1:
+        selected_month_value = period_info["start"].strftime("%Y-%m")
+    elif cf_month_param:
+        selected_month_value = cf_month_param
 
     context = {
         "cashflow_data_json": json.dumps(payload, cls=DjangoJSONEncoder),
-        "cf_selected_month": cf_month_param or "",
+        "cf_selected_month": selected_month_value,
         "cf_month_options": _get_available_pl_months(business),
-        "cf_period_label": period_label,
+        "cf_period_label": period_info["label"],
+        "period_compare_to": comparison_info.get("compare_to", "previous_period"),
     }
     return render(request, "reports/cashflow_report.html", context)
 
@@ -2983,22 +2890,40 @@ def report_pnl(request):
     if business is None:
         return redirect("business_setup")
 
-    # Handle month selection via query param
+    # Accept new date filters (preset + custom range) with backwards-compatible pl_month/period.
     pl_month_param = request.GET.get("pl_month")
-    today = timezone.localdate()
-    
+    period_preset = (
+        request.GET.get("period_preset")
+        or request.GET.get("period")
+        or "this_month"
+    )
+    start_param = request.GET.get("start_date")
+    end_param = request.GET.get("end_date")
+    compare_to = request.GET.get("compare_to") or "previous_period"
     if pl_month_param:
-        start_date, end_date, period_label, current_period = get_pl_period_dates(pl_month_param, today=today)
-    else:
-        # Default to "this_month" behavior from period_param
-        period_param = request.GET.get("period", "this_month")
-        start_date, end_date, period_label, current_period = _get_period_dates(period_param)
+        period_preset = pl_month_param
+
+    period_info = resolve_period(period_preset, start_param, end_param, business.fiscal_year_start)
+    comparison_info = resolve_comparison(period_info["start"], period_info["end"], compare_to)
+
+    start_date = period_info["start"]
+    end_date = period_info["end"]
+    period_label = period_info["label"]
+    current_period = period_info["preset"]
 
     ledger_pl = compute_ledger_pl(business, start_date, end_date)
-    period_length = (end_date - start_date).days + 1
-    prev_end = start_date - timedelta(days=1)
-    prev_start = prev_end - timedelta(days=period_length - 1)
-    previous_pl = compute_ledger_pl(business, prev_start, prev_end)
+    comparison_pl = {
+        "income_accounts": [],
+        "expense_accounts": [],
+        "total_income": Decimal("0.00"),
+        "total_expense": Decimal("0.00"),
+        "net": Decimal("0.00"),
+        "total_tax": Decimal("0.00"),
+    }
+    if comparison_info["compare_start"] and comparison_info["compare_end"]:
+        comparison_pl = compute_ledger_pl(
+            business, comparison_info["compare_start"], comparison_info["compare_end"]
+        )
 
     def _change_pct(current, previous):
         if previous in (None, Decimal("0.00")):
@@ -3007,11 +2932,11 @@ def report_pnl(request):
 
     prev_income_map = {
         row["account__id"]: row.get("total") or Decimal("0.00")
-        for row in previous_pl["income_accounts"]
+        for row in comparison_pl.get("income_accounts", [])
     }
     prev_expense_map = {
         row["account__id"]: row.get("total") or Decimal("0.00")
-        for row in previous_pl["expense_accounts"]
+        for row in comparison_pl.get("expense_accounts", [])
     }
 
     def _rows_with_drilldown(rows, prev_map, drilldown_kind):
@@ -3047,9 +2972,9 @@ def report_pnl(request):
     total_expenses = ledger_pl["total_expense"]
     net_profit = ledger_pl["net"]
     total_tax = ledger_pl.get("total_tax", Decimal("0.00"))
-    prev_total_income = previous_pl["total_income"]
-    prev_total_expenses = previous_pl["total_expense"]
-    prev_net_profit = previous_pl["net"]
+    prev_total_income = comparison_pl.get("total_income") or Decimal("0.00")
+    prev_total_expenses = comparison_pl.get("total_expense") or Decimal("0.00")
+    prev_net_profit = comparison_pl.get("net") or Decimal("0.00")
 
     period_short_map = {
         "this_month": "month",
@@ -3059,9 +2984,19 @@ def report_pnl(request):
         "ytd": "year",
         "last_year": "year",
         "custom": "period",
+        "last_3_months": "period",
+        "last_6_months": "period",
+        "last_30_days": "period",
+        "last_90_days": "period",
     }
     period_short_label = period_short_map.get(current_period, "period")
     net_label = "profit" if net_profit >= 0 else "loss"
+
+    selected_month_value = ""
+    if period_info.get("month_span") == 1:
+        selected_month_value = start_date.strftime("%Y-%m")
+    elif pl_month_param:
+        selected_month_value = pl_month_param
 
     context = {
         "business": business,
@@ -3079,18 +3014,20 @@ def report_pnl(request):
         "net_profit": net_profit,
         "total_tax": total_tax,
         "net_label": net_label,
-        "show_comparison": True,
-        "comparison_label": "last period",
-        "comparison_short_label": "last period",
+        "show_comparison": comparison_info["compare_start"] is not None,
+        "comparison_label": comparison_info.get("compare_label"),
+        "comparison_short_label": comparison_info.get("compare_label"),
         "income_change_pct": _change_pct(total_income, prev_total_income),
         "expenses_change_pct": _change_pct(total_expenses, prev_total_expenses),
         "net_change_pct": _change_pct(net_profit, prev_net_profit),
         "prev_total_income": prev_total_income,
         "prev_total_expenses": prev_total_expenses,
         "prev_net_profit": prev_net_profit,
-        "pl_selected_month": pl_month_param or today.strftime("%Y-%m"),
+        "pl_selected_month": selected_month_value,
         "pl_month_options": _get_available_pl_months(business),
         "pl_period_label": period_label,
+        "pl_diagnostics": build_pl_diagnostics(business, start_date, end_date),
+        "period_compare_to": comparison_info.get("compare_to", "previous_period"),
     }
     return render(request, "reports/pl_ledger.html", context)
 

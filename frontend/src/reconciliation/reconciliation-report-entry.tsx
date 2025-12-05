@@ -10,11 +10,21 @@ if (!rootEl) {
 }
 
 const sessionId = rootEl.dataset.sessionId || "";
+const periodStart = rootEl.dataset.periodStart;
+const periodEnd = rootEl.dataset.periodEnd;
+const periodPreset = rootEl.dataset.periodPreset;
+const compareTo = rootEl.dataset.compareTo;
 
 const root = ReactDOM.createRoot(rootEl);
 root.render(
     <React.StrictMode>
-        <ReconciliationReportPage sessionId={sessionId} />
+        <ReconciliationReportPage
+            sessionId={sessionId}
+            periodStart={periodStart}
+            periodEnd={periodEnd}
+            periodPreset={periodPreset}
+            compareTo={compareTo}
+        />
     </React.StrictMode>
 );
 

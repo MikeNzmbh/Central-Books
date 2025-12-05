@@ -6,6 +6,7 @@ import json
 import logging
 import random
 import time
+import hashlib
 from typing import Iterable, Sequence
 
 import requests
@@ -72,12 +73,12 @@ def call_companion_llm(prompt: str, *, temperature: float = 0.1) -> str | None:
 
 # --- Narrative reasoning ---
 
-_LLM_CACHE: dict[tuple[int, int], tuple[float, dict]] = {}
+_LLM_CACHE: dict[tuple[int, int, str], tuple[float, dict]] = {}
 _LLM_CACHE_TTL_SECONDS = 10 * 60
 _LLM_CACHE_MAX_ENTRIES = 500
 
 
-def _cache_get(key: tuple[int, int]) -> dict | None:
+def _cache_get(key: tuple[int, int, str]) -> dict | None:
     entry = _LLM_CACHE.get(key)
     if not entry:
         return None
@@ -88,7 +89,7 @@ def _cache_get(key: tuple[int, int]) -> dict | None:
     return payload
 
 
-def _cache_set(key: tuple[int, int], value: dict) -> None:
+def _cache_set(key: tuple[int, int, str], value: dict) -> None:
     # Prune expired
     now = time.time()
     expired = [k for k, (exp, _) in _LLM_CACHE.items() if exp < now]
@@ -101,12 +102,26 @@ def _cache_set(key: tuple[int, int], value: dict) -> None:
     _LLM_CACHE[key] = (now + _LLM_CACHE_TTL_SECONDS, value)
 
 
+def _severity_rank(value: str | None) -> int:
+    order = {
+        CompanionSuggestedAction.SEVERITY_CRITICAL: 0,
+        CompanionSuggestedAction.SEVERITY_HIGH: 1,
+        CompanionSuggestedAction.SEVERITY_MEDIUM: 2,
+        CompanionSuggestedAction.SEVERITY_LOW: 3,
+        CompanionSuggestedAction.SEVERITY_INFO: 4,
+    }
+    return order.get(value or CompanionSuggestedAction.SEVERITY_INFO, len(order))
+
+
 def generate_companion_narrative(
     snapshot: HealthIndexSnapshot | None,
     insights: Sequence[CompanionInsight],
     raw_metrics: dict,
     actions: Sequence | None = None,
     context: str | None = None,
+    context_reasons: Sequence[str] | None = None,
+    metrics_summary: dict | None = None,
+    context_severity: str | None = None,
 ) -> dict:
     """
     Returns {"summary": str|None, "insight_explanations": {id: str}}
@@ -115,7 +130,22 @@ def generate_companion_narrative(
     if snapshot is None:
         return default
 
-    cache_key = (snapshot.workspace_id, snapshot.id)
+    fingerprint = hashlib.sha256(
+        json.dumps(
+            {
+                "metrics": metrics_summary or raw_metrics,
+                "actions": [
+                    {"id": a.id, "severity": getattr(a, "severity", None), "short_title": getattr(a, "short_title", None)}
+                    for a in actions or []
+                ],
+                "reasons": list(context_reasons or []),
+                "context": context,
+            },
+            sort_keys=True,
+            default=str,
+        ).encode("utf-8")
+    ).hexdigest()
+    cache_key = (snapshot.workspace_id, snapshot.id, fingerprint)
     cached = _cache_get(cache_key)
     if cached:
         return cached
@@ -141,35 +171,36 @@ def generate_companion_narrative(
     ]
 
     system_prompt = (
-        "You are an accounting companion. Explain only what is provided. "
-        "Do not invent or guess new numbers, dates, or facts. "
-        "If you mention numbers, they must match exactly the input. "
-        "If nothing looks problematic, say everything looks fine. "
-        "Insights and actions include a context tag (banking, invoices, reconciliation, expenses, reports, tax_fx); use it only to orient the user. "
-        "Keep responses short and in JSON."
+        "You are a senior bookkeeper. Only use the metrics, context reasons, and actions provided. "
+        "Never invent numbers, dates, accounts, or entities. "
+        "Produce a concise JSON response with: "
+        "summary (2-3 sentences, lead with the highest severity issues; if all clear, say so), "
+        "context_summary (1-3 short lines for the current context), "
+        "focus_items (up to 3 directive bullets), "
+        "insight_explanations (map insight_id -> short sentence), "
+        "action_explanations (map action_id -> short sentence). "
+        "Tone: calm, professional, direct; prioritize higher severities."
     )
 
+    sorted_actions = sorted(actions or [], key=lambda a: (_severity_rank(getattr(a, "severity", None)), -(a.created_at.timestamp() if getattr(a, "created_at", None) else 0)))
+    top_actions = sorted_actions[:3]
     action_payload = []
-    for action in actions or []:
+    for action in top_actions:
         payload = action.payload or {}
+        severity = getattr(action, "severity", None) or payload.get("severity") or CompanionSuggestedAction.SEVERITY_INFO
         action_payload.append(
             {
                 "id": action.id,
+                "short_title": getattr(action, "short_title", None) or action.summary,
                 "action_type": action.action_type,
                 "context": getattr(action, "context", CompanionSuggestedAction.CONTEXT_DASHBOARD),
                 "confidence": float(action.confidence or 0),
-                "payload": {
-                    "bank_transaction_id": payload.get("bank_transaction_id"),
-                    "journal_entry_id": payload.get("journal_entry_id"),
-                    "amount": payload.get("amount"),
-                    "date": payload.get("date"),
-                    "currency": payload.get("currency"),
-                    "invoice_id": payload.get("invoice_id"),
-                    "invoice_number": payload.get("invoice_number"),
-                    "customer_name": payload.get("customer_name"),
-                    "days_overdue": payload.get("days_overdue"),
-                    "expense_ids": payload.get("expense_ids"),
-                    "expenses": payload.get("expenses"),
+                "severity": severity,
+                "impact": payload.get("impact"),
+                "metrics": {
+                    "count": payload.get("old_unreconciled") or payload.get("unreconciled_remaining") or payload.get("expense_ids") and len(payload.get("expense_ids")),
+                    "amount": payload.get("total_amount") or payload.get("balance") or payload.get("amount"),
+                    "days": payload.get("days_overdue"),
                 },
             }
         )
@@ -180,11 +211,15 @@ def generate_companion_narrative(
             "insights": insight_payload,
             "actions": action_payload,
             "context": context,
+            "context_reasons": list(context_reasons or []),
+            "metrics_summary": metrics_summary or {},
+            "context_severity": context_severity,
             "expected_output": {
                 "summary": "short paragraph",
                 "insight_explanations": {"<insight_id>": "explanation"},
                 "action_explanations": {"<action_id>": "explanation"},
                 "context_summary": "1-2 line optional summary for the provided context",
+                "focus_items": ["item 1", "item 2"],
             },
         }
     )
@@ -207,6 +242,7 @@ def generate_companion_narrative(
     explanations = parsed.get("insight_explanations") or {}
     action_explanations = parsed.get("action_explanations") or {}
     context_summary = parsed.get("context_summary")
+    focus_items = parsed.get("focus_items") if isinstance(parsed.get("focus_items"), list) else []
     if not isinstance(explanations, dict):
         explanations = {}
     if not isinstance(action_explanations, dict):
@@ -223,6 +259,7 @@ def generate_companion_narrative(
         "insight_explanations": filtered_explanations,
         "action_explanations": filtered_action_explanations,
         "context_summary": context_summary if isinstance(context_summary, str) else None,
+        "focus_items": focus_items if isinstance(focus_items, list) else [],
     }
     _cache_set(cache_key, result)
     return result

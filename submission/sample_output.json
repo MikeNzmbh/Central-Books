@@ -1,0 +1,182 @@
+{
+    "workflow_name": "receipts_to_journal_entries",
+    "status": "success",
+    "duration_ms": 1.47,
+    "steps": [
+        {
+            "name": "ingest",
+            "status": "success",
+            "duration_ms": 0.02,
+            "error": null
+        },
+        {
+            "name": "extract",
+            "status": "success",
+            "duration_ms": 0.03,
+            "error": null
+        },
+        {
+            "name": "normalize",
+            "status": "success",
+            "duration_ms": 0.01,
+            "error": null
+        },
+        {
+            "name": "generate_entries",
+            "status": "success",
+            "duration_ms": 0.08,
+            "error": null
+        },
+        {
+            "name": "compliance",
+            "status": "success",
+            "duration_ms": 0.04,
+            "error": null
+        },
+        {
+            "name": "audit",
+            "status": "success",
+            "duration_ms": 0.05,
+            "error": null
+        }
+    ],
+    "extracted_documents": [
+        {
+            "id": "ext-1",
+            "raw_document_id": "doc-1",
+            "vendor_name": "Office Depot",
+            "total_amount": "89.99",
+            "currency": "USD",
+            "txn_date": "2024-12-05",
+            "category_code": "6100",
+            "line_items": []
+        },
+        {
+            "id": "ext-2",
+            "raw_document_id": "doc-2",
+            "vendor_name": "Starbucks",
+            "total_amount": "15.50",
+            "currency": "USD",
+            "txn_date": "2024-12-05",
+            "category_code": "6200",
+            "line_items": []
+        },
+        {
+            "id": "ext-3",
+            "raw_document_id": "doc-3",
+            "vendor_name": "GitHub",
+            "total_amount": "49.00",
+            "currency": "USD",
+            "txn_date": "2024-12-05",
+            "category_code": "6300",
+            "line_items": []
+        }
+    ],
+    "transactions": [
+        {
+            "id": "txn-ext-1",
+            "description": "Receipt from Office Depot",
+            "amount": "89.99",
+            "currency": "USD",
+            "date": "2024-12-05",
+            "category_code": "6100",
+            "source_document_id": "doc-1"
+        },
+        {
+            "id": "txn-ext-2",
+            "description": "Receipt from Starbucks",
+            "amount": "15.50",
+            "currency": "USD",
+            "date": "2024-12-05",
+            "category_code": "6200",
+            "source_document_id": "doc-2"
+        },
+        {
+            "id": "txn-ext-3",
+            "description": "Receipt from GitHub",
+            "amount": "49.00",
+            "currency": "USD",
+            "date": "2024-12-05",
+            "category_code": "6300",
+            "source_document_id": "doc-3"
+        }
+    ],
+    "journal_entries": [
+        {
+            "entry_id": "je-txn-ext-1",
+            "date": "2024-12-05",
+            "description": "Receipt from Office Depot",
+            "lines": [
+                {
+                    "account_code": "6100",
+                    "account_name": "Office Supplies",
+                    "side": "debit",
+                    "amount": "89.99"
+                },
+                {
+                    "account_code": "1000",
+                    "account_name": "Cash/Bank",
+                    "side": "credit",
+                    "amount": "89.99"
+                }
+            ],
+            "is_balanced": true,
+            "total_debits": "89.99",
+            "total_credits": "89.99"
+        },
+        {
+            "entry_id": "je-txn-ext-2",
+            "date": "2024-12-05",
+            "description": "Receipt from Starbucks",
+            "lines": [
+                {
+                    "account_code": "6200",
+                    "account_name": "Travel & Entertainment",
+                    "side": "debit",
+                    "amount": "15.50"
+                },
+                {
+                    "account_code": "1000",
+                    "account_name": "Cash/Bank",
+                    "side": "credit",
+                    "amount": "15.50"
+                }
+            ],
+            "is_balanced": true,
+            "total_debits": "15.50",
+            "total_credits": "15.50"
+        },
+        {
+            "entry_id": "je-txn-ext-3",
+            "date": "2024-12-05",
+            "description": "Receipt from GitHub",
+            "lines": [
+                {
+                    "account_code": "6300",
+                    "account_name": "Software & Subscriptions",
+                    "side": "debit",
+                    "amount": "49.00"
+                },
+                {
+                    "account_code": "1000",
+                    "account_name": "Cash/Bank",
+                    "side": "credit",
+                    "amount": "49.00"
+                }
+            ],
+            "is_balanced": true,
+            "total_debits": "49.00",
+            "total_credits": "49.00"
+        }
+    ],
+    "compliance": {
+        "issues": [],
+        "is_compliant": true
+    },
+    "audit": {
+        "findings": [],
+        "risk_level": "low"
+    },
+    "summary": "Processed 3 document(s), produced 3 journal entries.",
+    "notes": null
+}

@@ -1,3 +1,4 @@
+import calendar
 import json
 from datetime import date, timedelta
 from decimal import Decimal
@@ -17,6 +18,7 @@ from core.models import (
     JournalLine,
     ReconciliationSession,
 )
+from core.services.bank_reconciliation import set_reconciled_state
 
 
 class ReconciliationV1APITests(TestCase):
@@ -72,6 +74,18 @@ class ReconciliationV1APITests(TestCase):
                 description="Offset",
             )
         return je
+
+    def _get_session_id(self, start: date, end: date) -> int:
+        resp = self.client.get(
+            reverse("api_reconciliation_session"),
+            {"account": self.bank_account.id, "start": start.isoformat(), "end": end.isoformat()},
+        )
+        self.assertEqual(resp.status_code, 200)
+        return resp.json()["session"]["id"]
+
+    def _make_session(self, start: date, end: date) -> ReconciliationSession:
+        session_id = self._get_session_id(start, end)
+        return ReconciliationSession.objects.get(pk=session_id)
 
     def test_accounts_endpoint_handles_empty(self):
         BankAccount.objects.all().delete()
@@ -206,7 +220,7 @@ class ReconciliationV1APITests(TestCase):
         self.assertEqual(match_resp.status_code, 200)
         tx.refresh_from_db()
         self.assertTrue(tx.is_reconciled)
-        self.assertEqual(tx.status, BankTransaction.TransactionStatus.MATCHED)
+        self.assertEqual(tx.status, BankTransaction.TransactionStatus.MATCHED_SINGLE)
         self.assertEqual(tx.reconciliation_status, BankTransaction.RECO_STATUS_RECONCILED)
         self.assertTrue(BankReconciliationMatch.objects.filter(bank_transaction=tx, journal_entry=je).exists())
 
@@ -320,3 +334,342 @@ class ReconciliationV1APITests(TestCase):
         complete_resp = self.client.post(reverse("reconciliation-complete-session", args=[session_id]))
         self.assertEqual(complete_resp.status_code, 400)
         self.assertEqual(complete_resp.json().get("code"), "unreconciled_transactions_remaining")
+
+    def test_exclude_include_keep_canonical_flags(self):
+        start = timezone.localdate().replace(day=1)
+        end = start + timedelta(days=27)
+        tx = self._make_bank_tx(Decimal("15.00"), tx_date=start)
+        session_id = self._get_session_id(start, end)
+
+        exclude_resp = self.client.post(
+            reverse("api_reco_exclude_v1", args=[session_id]),
+            data=json.dumps({"transaction_id": tx.id, "excluded": True}),
+            content_type="application/json",
+        )
+        self.assertEqual(exclude_resp.status_code, 200)
+        tx.refresh_from_db()
+        self.assertEqual(tx.reconciliation_session_id, session_id)
+        self.assertEqual(tx.status, BankTransaction.TransactionStatus.EXCLUDED)
+        self.assertTrue(tx.is_reconciled)
+        self.assertEqual(tx.reconciliation_status, BankTransaction.RECO_STATUS_RECONCILED)
+
+        include_resp = self.client.post(
+            reverse("api_reco_exclude_v1", args=[session_id]),
+            data=json.dumps({"transaction_id": tx.id, "excluded": False}),
+            content_type="application/json",
+        )
+        self.assertEqual(include_resp.status_code, 200)
+        tx.refresh_from_db()
+        self.assertEqual(tx.reconciliation_session_id, session_id)
+        self.assertFalse(tx.is_reconciled)
+        self.assertEqual(tx.reconciliation_status, BankTransaction.RECO_STATUS_UNRECONCILED)
+        self.assertEqual(tx.status, BankTransaction.TransactionStatus.NEW)
+
+    def test_out_of_period_transactions_rejected(self):
+        today = timezone.localdate()
+        start = today.replace(day=1)
+        _, last_day = calendar.monthrange(start.year, start.month)
+        end = date(start.year, start.month, last_day)
+        tx = self._make_bank_tx(Decimal("30.00"), tx_date=end + timedelta(days=15))
+        je = self._post_bank_entry(Decimal("30.00"), entry_date=end + timedelta(days=15))
+        session_id = self._get_session_id(start, end)
+
+        resp = self.client.post(
+            reverse("api_reco_match_v1", args=[session_id]),
+            data=json.dumps({"transaction_id": tx.id, "journal_entry_id": je.id}),
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("outside of the session period", resp.json()["detail"])
+
+        resp = self.client.post(
+            reverse("api_reco_exclude_v1", args=[session_id]),
+            data=json.dumps({"transaction_id": tx.id, "excluded": True}),
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("out of period", str(resp.json()))
+
+    def test_cannot_move_transaction_between_sessions_without_unmatch(self):
+        start = date(2024, 1, 1)
+        end = date(2024, 1, 31)
+        tx = self._make_bank_tx(Decimal("10.00"), tx_date=start)
+        primary_session_id = self._get_session_id(start, end)
+        primary_session = ReconciliationSession.objects.get(pk=primary_session_id)
+        # Attach tx to primary session via helper to ensure flags are set
+        set_reconciled_state(
+            tx,
+            reconciled=False,
+            session=primary_session,
+            status=BankTransaction.TransactionStatus.NEW,
+        )
+
+        # Overlapping session with different period bounds
+        alt_session = ReconciliationSession.objects.create(
+            business=self.business,
+            bank_account=self.bank_account,
+            statement_start_date=start,
+            statement_end_date=date(2024, 1, 15),
+            opening_balance=Decimal("0.00"),
+            closing_balance=Decimal("0.00"),
+        )
+        je = self._post_bank_entry(Decimal("10.00"), entry_date=start)
+
+        resp = self.client.post(
+            reverse("api_reco_match_v1", args=[alt_session.id]),
+            data=json.dumps({"transaction_id": tx.id, "journal_entry_id": je.id}),
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("another reconciliation session", resp.json()["error"])
+
+    def test_completed_session_is_locked(self):
+        start = timezone.localdate().replace(day=1)
+        _, last_day = calendar.monthrange(start.year, start.month)
+        end = date(start.year, start.month, last_day)
+        tx = self._make_bank_tx(Decimal("40.00"), tx_date=start)
+        je = self._post_bank_entry(Decimal("40.00"), entry_date=start)
+        session_id = self._get_session_id(start, end)
+
+        match_resp = self.client.post(
+            reverse("api_reco_match_v1", args=[session_id]),
+            data=json.dumps({"transaction_id": tx.id, "journal_entry_id": je.id}),
+            content_type="application/json",
+        )
+        self.assertEqual(match_resp.status_code, 200)
+
+        payload = self.client.get(
+            reverse("api_reconciliation_session"),
+            {"account": self.bank_account.id, "start": start.isoformat(), "end": end.isoformat()},
+        ).json()["session"]
+        close_resp = self.client.post(
+            reverse("api_reco_set_statement_balance_v1", args=[session_id]),
+            data=json.dumps({"statement_ending_balance": payload["cleared_balance"]}),
+            content_type="application/json",
+        )
+        self.assertEqual(close_resp.status_code, 200)
+
+        complete_resp = self.client.post(reverse("reconciliation-complete-session", args=[session_id]))
+        self.assertEqual(complete_resp.status_code, 200)
+
+        # Attempts to mutate should fail
+        urls_and_bodies = [
+            (reverse("api_reco_match_v1", args=[session_id]), {"transaction_id": tx.id, "journal_entry_id": je.id}),
+            (reverse("api_reco_unmatch_v1", args=[session_id]), {"transaction_id": tx.id}),
+            (reverse("api_reco_exclude_v1", args=[session_id]), {"transaction_id": tx.id, "excluded": True}),
+            (reverse("api_reco_set_statement_balance_v1", args=[session_id]), {"statement_ending_balance": "0.00"}),
+        ]
+        for url, body in urls_and_bodies:
+            resp = self.client.post(url, data=json.dumps(body), content_type="application/json")
+            self.assertEqual(resp.status_code, 400)
+            self.assertEqual(resp.json().get("code"), "session_completed")
+
+    def test_session_payload_uses_session_transactions_only(self):
+        start = date(2024, 1, 1)
+        _, last_day = calendar.monthrange(start.year, start.month)
+        end = date(2024, 1, last_day)
+
+        session = ReconciliationSession.objects.create(
+            business=self.business,
+            bank_account=self.bank_account,
+            statement_start_date=start,
+            statement_end_date=end,
+            opening_balance=Decimal("100.00"),
+            closing_balance=Decimal("300.00"),
+        )
+
+        tx_matched = BankTransaction.objects.create(
+            bank_account=self.bank_account,
+            date=start,
+            description="Matched",
+            amount=Decimal("100.00"),
+            reconciliation_session=session,
+            allocated_amount=Decimal("100.00"),
+            status=BankTransaction.TransactionStatus.MATCHED_SINGLE,
+        )
+        set_reconciled_state(tx_matched, reconciled=True, session=session, status=BankTransaction.TransactionStatus.MATCHED_SINGLE)
+
+        tx_partial = BankTransaction.objects.create(
+            bank_account=self.bank_account,
+            date=start,
+            description="Partial",
+            amount=Decimal("-80.00"),
+            allocated_amount=Decimal("50.00"),
+            reconciliation_session=session,
+            status=BankTransaction.TransactionStatus.PARTIAL,
+        )
+        set_reconciled_state(tx_partial, reconciled=True, session=session, status=BankTransaction.TransactionStatus.PARTIAL)
+
+        tx_excluded = BankTransaction.objects.create(
+            bank_account=self.bank_account,
+            date=start,
+            description="Excluded",
+            amount=Decimal("20.00"),
+            reconciliation_session=session,
+            status=BankTransaction.TransactionStatus.EXCLUDED,
+        )
+        set_reconciled_state(tx_excluded, reconciled=True, session=session, status=BankTransaction.TransactionStatus.EXCLUDED)
+
+        tx_new = BankTransaction.objects.create(
+            bank_account=self.bank_account,
+            date=start,
+            description="New",
+            amount=Decimal("15.00"),
+            reconciliation_session=session,
+            status=BankTransaction.TransactionStatus.NEW,
+        )
+        set_reconciled_state(tx_new, reconciled=False, session=session, status=BankTransaction.TransactionStatus.NEW)
+
+        # Out-of-session reconciled transaction (same bank, overlapping period)
+        alt_session = ReconciliationSession.objects.create(
+            business=self.business,
+            bank_account=self.bank_account,
+            statement_start_date=start,
+            statement_end_date=date(2024, 1, 15),
+            opening_balance=Decimal("0.00"),
+            closing_balance=Decimal("0.00"),
+        )
+        other_tx = BankTransaction.objects.create(
+            bank_account=self.bank_account,
+            date=start,
+            description="Other session",
+            amount=Decimal("500.00"),
+            reconciliation_session=alt_session,
+            status=BankTransaction.TransactionStatus.MATCHED_SINGLE,
+        )
+        set_reconciled_state(other_tx, reconciled=True, session=alt_session, status=BankTransaction.TransactionStatus.MATCHED_SINGLE)
+
+        resp = self.client.get(
+            reverse("api_reconciliation_session"),
+            {"account": self.bank_account.id, "start": start.isoformat(), "end": end.isoformat()},
+        )
+        self.assertEqual(resp.status_code, 200)
+        session_payload = resp.json()["session"]
+
+        self.assertEqual(session_payload["total_transactions"], 4)
+        self.assertEqual(session_payload["reconciled_count"], 3)
+        self.assertEqual(session_payload["unreconciled_count"], 1)
+        self.assertEqual(session_payload["difference"], "150.00")
+        self.assertEqual(session_payload["cleared_balance"], "150.00")
+
+    def test_ui_status_and_is_cleared_flags(self):
+        start = date(2024, 1, 1)
+        _, last_day = calendar.monthrange(start.year, start.month)
+        end = date(2024, 1, last_day)
+        session = self._make_session(start, end)
+
+        tx_matched = BankTransaction.objects.create(
+            bank_account=self.bank_account,
+            date=start,
+            amount=Decimal("100.00"),
+            reconciliation_session=session,
+            status=BankTransaction.TransactionStatus.MATCHED_SINGLE,
+        )
+        set_reconciled_state(tx_matched, reconciled=True, session=session, status=BankTransaction.TransactionStatus.MATCHED_SINGLE)
+
+        tx_partial = BankTransaction.objects.create(
+            bank_account=self.bank_account,
+            date=start,
+            amount=Decimal("-80.00"),
+            allocated_amount=Decimal("50.00"),
+            reconciliation_session=session,
+            status=BankTransaction.TransactionStatus.PARTIAL,
+        )
+        set_reconciled_state(tx_partial, reconciled=True, session=session, status=BankTransaction.TransactionStatus.PARTIAL)
+
+        tx_excluded = BankTransaction.objects.create(
+            bank_account=self.bank_account,
+            date=start,
+            amount=Decimal("20.00"),
+            reconciliation_session=session,
+            status=BankTransaction.TransactionStatus.EXCLUDED,
+        )
+        set_reconciled_state(tx_excluded, reconciled=True, session=session, status=BankTransaction.TransactionStatus.EXCLUDED)
+
+        tx_new = BankTransaction.objects.create(
+            bank_account=self.bank_account,
+            date=start,
+            amount=Decimal("15.00"),
+            reconciliation_session=session,
+            status=BankTransaction.TransactionStatus.NEW,
+        )
+        set_reconciled_state(tx_new, reconciled=False, session=session, status=BankTransaction.TransactionStatus.NEW)
+
+        resp = self.client.get(
+            reverse("api_reconciliation_session"),
+            {"account": self.bank_account.id, "start": start.isoformat(), "end": end.isoformat()},
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        session_payload = data["session"]
+        self.assertEqual(session_payload["reconciled_count"], 3)
+        self.assertEqual(session_payload["excluded_count"], 1)
+        self.assertEqual(session_payload["unreconciled_count"], 1)
+
+        feed = data["feed"]
+        matched_row = feed["matched"][0]
+        self.assertEqual(matched_row["ui_status"], "MATCHED")
+        self.assertTrue(matched_row["is_cleared"])
+        partial_row = feed["partial"][0]
+        self.assertEqual(partial_row["ui_status"], "PARTIAL")
+        self.assertTrue(partial_row["is_cleared"])
+        excluded_row = feed["excluded"][0]
+        self.assertEqual(excluded_row["ui_status"], "EXCLUDED")
+        self.assertFalse(excluded_row["is_cleared"])
+        new_row = feed["new"][0]
+        self.assertEqual(new_row["ui_status"], "NEW")
+        self.assertFalse(new_row["is_cleared"])
+
+    def test_reopen_completed_session_changes_status_and_allows_mutations(self):
+        start = timezone.localdate().replace(day=1)
+        end = start + timedelta(days=27)
+        tx = self._make_bank_tx(Decimal("25.00"), tx_date=start)
+        je = self._post_bank_entry(Decimal("25.00"), entry_date=start)
+        session = self._make_session(start, end)
+        # Match and complete
+        self.client.post(
+            reverse("api_reco_match_v1", args=[session.id]),
+            data=json.dumps({"transaction_id": tx.id, "journal_entry_id": je.id}),
+            content_type="application/json",
+        )
+        self.client.post(
+            reverse("api_reco_set_statement_balance_v1", args=[session.id]),
+            data=json.dumps({"statement_ending_balance": "25.00", "opening_balance": "0.00"}),
+            content_type="application/json",
+        )
+        complete_resp = self.client.post(reverse("reconciliation-complete-session", args=[session.id]))
+        self.assertEqual(complete_resp.status_code, 200)
+        # Reopen as staff
+        self.user.is_staff = True
+        self.user.save(update_fields=["is_staff"])
+        reopen_resp = self.client.post(reverse("reconciliation-reopen-session", args=[session.id]))
+        self.assertEqual(reopen_resp.status_code, 200)
+        reopened = reopen_resp.json()["session"]
+        self.assertEqual(reopened["status"], ReconciliationSession.Status.IN_PROGRESS)
+        # Now unmatch should work (no session_completed error)
+        unmatch_resp = self.client.post(
+            reverse("api_reco_unmatch_v1", args=[session.id]),
+            data=json.dumps({"transaction_id": tx.id}),
+            content_type="application/json",
+        )
+        self.assertEqual(unmatch_resp.status_code, 200)
+
+    def test_reopen_in_progress_session_not_allowed(self):
+        start = timezone.localdate().replace(day=1)
+        end = start + timedelta(days=27)
+        session = self._make_session(start, end)
+        self.user.is_staff = True
+        self.user.save(update_fields=["is_staff"])
+        resp = self.client.post(reverse("reconciliation-reopen-session", args=[session.id]))
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("Only completed sessions", resp.json().get("error", ""))
+
+    def test_reopen_requires_staff(self):
+        start = timezone.localdate().replace(day=1)
+        end = start + timedelta(days=27)
+        session = self._make_session(start, end)
+        session.status = ReconciliationSession.Status.COMPLETED
+        session.save(update_fields=["status"])
+        resp = self.client.post(reverse("reconciliation-reopen-session", args=[session.id]))
+        self.assertEqual(resp.status_code, 403)
+        self.assertIn("permission", resp.json().get("error", "").lower())

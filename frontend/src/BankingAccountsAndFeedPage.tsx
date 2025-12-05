@@ -3,10 +3,10 @@ import CompanionStrip from "./companion/CompanionStrip";
 
 const BANK_GRADIENTS: Record<string, string> = {
   rbc: "from-indigo-500 to-indigo-700",
-  td: "from-green-500 to-green-700",
+  td: "from-teal-500 to-teal-700",
   bmo: "from-sky-500 to-sky-700",
-  scotia: "from-red-500 to-red-700",
-  wise: "from-emerald-500 to-emerald-700",
+  scotia: "from-emerald-500 to-emerald-700",
+  wise: "from-lime-500 to-lime-700",
   default: "from-slate-600 to-slate-800",
 };
 
@@ -20,11 +20,27 @@ function getBankGradient(name: string) {
   return BANK_GRADIENTS.default;
 }
 
-function formatMoney(value: number | string) {
+function formatMoney(value: number | string, currency?: string) {
   const num = typeof value === "number" ? value : Number(value || 0);
   const sign = num < 0 ? "-" : "";
-  const abs = Math.abs(num).toFixed(2);
+  const abs = Math.abs(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return `${sign}$${abs}`;
+}
+
+function formatTimeSince(dateStr: string | null): string {
+  if (!dateStr) return "Never synced";
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins} min${diffMins === 1 ? "" : "s"} ago`;
+  if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? "" : "s"} ago`;
+  if (diffDays < 7) return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
+  return date.toLocaleDateString();
 }
 
 type FeedStatus = "OK" | "ACTION_NEEDED" | "DISCONNECTED";
@@ -53,198 +69,273 @@ interface OverviewSummary {
   reconciled_percent: number;
 }
 
-function statusBadge(status: FeedStatus) {
-  switch (status) {
-    case "OK":
-      return (
-        <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700 ring-1 ring-emerald-100">
-          <span className="mr-1 h-1.5 w-1.5 rounded-full bg-emerald-500" />
-          Feed healthy
-        </span>
-      );
-    case "ACTION_NEEDED":
-      return (
-        <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-medium text-amber-800 ring-1 ring-amber-100 whitespace-nowrap">
-          <span className="mr-1 h-1.5 w-1.5 rounded-full bg-amber-500" />
-          <span>Review&nbsp;</span>
-          <span className="underline decoration-dotted">new items</span>
-        </span>
-      );
-    case "DISCONNECTED":
-      return (
-        <span className="inline-flex items-center rounded-full bg-rose-50 px-2.5 py-0.5 text-[11px] font-medium text-rose-700 ring-1 ring-rose-100">
-          <span className="mr-1 h-1.5 w-1.5 rounded-full bg-rose-500" />
-          Connection paused
-        </span>
-      );
-    default:
-      return null;
-  }
-}
-
 interface BankingAccountsAndFeedPageProps {
   overviewUrl: string;
   feedUrl: string;
   importUrl: string;
 }
 
-const AccountRow: React.FC<{ account: BankAccount }> = ({ account }) => {
-  const lastImportText = account.lastImportAt
-    ? new Date(account.lastImportAt).toLocaleString()
-    : "No imports yet";
-  const gradient = getBankGradient(account.bank || account.name);
-  const initial = (account.name || "?").trim().charAt(0).toUpperCase();
-  return (
-    <div className="flex gap-3 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm transition hover:border-sky-100 hover:shadow-md">
-      <div
-        className={`relative flex h-24 w-40 flex-col justify-between rounded-3xl bg-gradient-to-br ${gradient} px-3 py-2 text-[11px] text-slate-50`}
-      >
-        <div className="flex items-center justify-between">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15 text-xs font-semibold">
-            {initial}
-          </div>
-          <span className="rounded-full bg-black/20 px-2.5 py-0.5 text-[10px] font-semibold">
-            {account.currency || "USD"}
-          </span>
-        </div>
-        <div className="space-y-0.5 mt-1">
-          <div className="text-[10px] tracking-[0.28em] uppercase text-slate-100/80">
-            {(account.bank || "Scotia").toUpperCase()}
-          </div>
-          <div className="text-[11px] font-semibold leading-tight max-w-[150px] truncate">{account.name}</div>
-          <div className="text-[10px] tracking-[0.16em] text-slate-100/85">•••• {account.last4 || "0000"}</div>
-        </div>
-      </div>
-      <div className="flex min-w-0 flex-1 flex-col justify-between">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="truncate text-sm font-semibold text-slate-900">{account.name}</p>
-            {statusBadge(account.feedStatus)}
-          </div>
-          <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-slate-500">
-            <span>
-              <span className="font-medium text-slate-600">Last import:</span> {lastImportText}
-            </span>
-            <span className="hidden sm:inline" aria-hidden="true">
-              •
-            </span>
-            <span>
-              <span className="font-medium text-slate-600">Feed items:</span> {account.newCount} New ·{" "}
-              {account.createdCount} Created · {account.matchedCount} Matched
-            </span>
-          </div>
-        </div>
+/* ──────────────────────────────────────────────────
+   Circular Progress Ring Component
+   ────────────────────────────────────────────────── */
+const CircularProgress: React.FC<{ percent: number; size?: number }> = ({ percent, size = 120 }) => {
+  const strokeWidth = 8;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (percent / 100) * circumference;
 
-        <div className="mt-3 flex flex-wrap gap-2">
-          <a
-            href={account.importUrl}
-            className="inline-flex items-center rounded-full bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 ring-1 ring-slate-200 shadow-sm hover:bg-slate-50"
-          >
-            Import CSV
-          </a>
-          <a
-            href={account.reviewUrl}
-            className="inline-flex items-center rounded-full bg-sky-600 px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-sky-700"
-          >
-            Review transactions
-          </a>
-        </div>
-      </div>
-      <div className="flex flex-col items-end justify-between text-right">
-        <div className="text-[10px] uppercase tracking-[0.18em] text-slate-400">Ledger balance</div>
-        <div className="text-sm font-semibold text-slate-900">
-          {formatMoney(account.ledgerBalance)} {account.currency}
-        </div>
+  return (
+    <div className="relative" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        {/* Background circle */}
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke="#e2e8f0"
+          strokeWidth={strokeWidth}
+        />
+        {/* Progress circle */}
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke="#10b981"
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          className="transition-all duration-500 ease-out"
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-2xl font-bold text-slate-900">{percent}%</span>
+        <span className="text-[10px] text-slate-500 uppercase tracking-wide">reconciled</span>
       </div>
     </div>
   );
 };
 
-const SnapshotCard: React.FC<{ summary: OverviewSummary | null }> = ({ summary }) => {
-  const newToReview = summary?.new_to_review ?? 0;
-  const createdFromFeed = summary?.created_from_feed ?? 0;
-  const matchedToInvoices = summary?.matched_to_invoices ?? 0;
-  const reconciledPercent = summary?.reconciled_percent ?? 0;
+/* ──────────────────────────────────────────────────
+   Account Card Component (Redesigned)
+   ────────────────────────────────────────────────── */
+const AccountCard: React.FC<{ account: BankAccount }> = ({ account }) => {
+  const gradient = getBankGradient(account.bank || account.name);
+  const initial = (account.bank || account.name || "?").trim().charAt(0).toUpperCase();
+  const isHealthy = account.feedStatus === "OK";
+  const hasAction = account.feedStatus === "ACTION_NEEDED";
 
   return (
-    <section className="rounded-3xl bg-white px-6 py-5 text-sm text-slate-700 shadow-[0_18px_45px_rgba(15,23,42,0.06)] ring-1 ring-slate-100">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-            Bank feed snapshot
-          </h2>
-          <p className="text-xs leading-relaxed text-slate-600">
-            All connected bank accounts are kept in sync with your ledger. Once you import statements and review transactions, CERN Books keeps your cash, Profit &amp; Loss, and tax summaries aligned automatically.
-          </p>
+    <div
+      className={`relative rounded-2xl border bg-white/80 backdrop-blur-sm p-4 shadow-lg transition-all duration-200 hover:shadow-xl ${isHealthy
+          ? "border-emerald-100 ring-2 ring-emerald-50"
+          : hasAction
+            ? "border-amber-100 ring-2 ring-amber-50"
+            : "border-slate-100"
+        }`}
+    >
+      <div className="flex gap-4">
+        {/* Bank Logo */}
+        <div
+          className={`flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${gradient} text-lg font-bold text-white shadow-md`}
+        >
+          {initial}
         </div>
-        <div className="flex items-center">
-          <div className="flex h-24 w-24 flex-col items-center justify-center rounded-2xl bg-emerald-50 text-[11px] font-medium text-emerald-700 ring-1 ring-emerald-100 text-center leading-snug">
-            <div className="text-sm font-semibold">{reconciledPercent}%</div>
-            <div>of items</div>
-            <div>reconciled</div>
+
+        {/* Account Info */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <h3 className="text-sm font-semibold text-slate-900 truncate">{account.name}</h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                ••••{account.last4 || "0000"}
+              </p>
+            </div>
+            <div className="text-right flex-shrink-0">
+              <p className="text-lg font-bold text-slate-900">
+                {formatMoney(account.ledgerBalance)}
+              </p>
+              <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">
+                {account.currency || "CAD"}
+              </p>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="mt-3 flex items-center justify-between">
+            <p className="text-[11px] text-slate-400">
+              Last sync: {formatTimeSince(account.lastImportAt)}
+            </p>
+            <div className="flex gap-1.5">
+              {account.newCount > 0 && (
+                <span className="inline-flex items-center rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-700 ring-1 ring-sky-100">
+                  {account.newCount} New
+                </span>
+              )}
+              {(account.createdCount + account.matchedCount) > 0 && (
+                <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 ring-1 ring-emerald-100">
+                  {account.createdCount + account.matchedCount} Posted
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </div>
-      <div className="mt-4 grid gap-3 text-[11px] sm:grid-cols-3">
-        <div className="rounded-2xl bg-slate-50 px-3 py-2">
-          <div className="text-[10px] uppercase tracking-[0.16em] text-slate-400 whitespace-nowrap">New to review</div>
-          <div className="mt-1 text-lg font-semibold text-slate-900">{newToReview}</div>
-          <p className="mt-0.5 text-[11px] text-slate-500">Spread across your connected accounts.</p>
-        </div>
-        <div className="rounded-2xl bg-slate-50 px-3 py-2">
-          <div className="text-[10px] uppercase tracking-[0.16em] text-slate-400 whitespace-nowrap">Created from feed</div>
-          <div className="mt-1 text-lg font-semibold text-slate-900">{createdFromFeed}</div>
-          <p className="mt-0.5 text-[11px] text-slate-500">Expenses &amp; income posted this week.</p>
-        </div>
-        <div className="rounded-2xl bg-slate-50 px-3 py-2">
-          <div className="text-[10px] uppercase tracking-[0.16em] text-slate-400 whitespace-nowrap">Matched to invoices</div>
-          <div className="mt-1 text-lg font-semibold text-slate-900">{matchedToInvoices}</div>
-          <p className="mt-0.5 text-[11px] text-slate-500">Payments matched to open invoices.</p>
-        </div>
+
+      {/* Quick Actions */}
+      <div className="mt-3 pt-3 border-t border-slate-100 flex gap-2">
+        <a
+          href={account.importUrl}
+          className="flex-1 inline-flex items-center justify-center rounded-lg bg-slate-50 px-3 py-1.5 text-[11px] font-semibold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-100 transition-colors"
+        >
+          Import CSV
+        </a>
+        <a
+          href={account.reviewUrl}
+          className="flex-1 inline-flex items-center justify-center rounded-lg bg-emerald-600 px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-emerald-700 transition-colors"
+        >
+          Review
+        </a>
       </div>
-    </section>
+    </div>
   );
 };
 
-const ComingSoonCard: React.FC = () => {
+/* ──────────────────────────────────────────────────
+   Feed Overview Panel (Redesigned)
+   ────────────────────────────────────────────────── */
+const FeedOverviewPanel: React.FC<{ summary: OverviewSummary | null }> = ({ summary }) => {
+  const reconciledPercent = summary?.reconciled_percent ?? 0;
+  const newToReview = summary?.new_to_review ?? 0;
+  const createdFromFeed = summary?.created_from_feed ?? 0;
+  const matchedToInvoices = summary?.matched_to_invoices ?? 0;
+
   return (
-    <section className="rounded-3xl bg-white px-6 py-5 text-sm text-slate-700 shadow-[0_18px_45px_rgba(15,23,42,0.06)] ring-1 ring-slate-100">
-      <h2 className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Coming soon</h2>
-      <p className="text-xs leading-relaxed text-slate-600">
-        Future updates will add live bank connections, reconciliation checklists, and smart alerts for unmatched items so you can keep every dollar in sync without manual uploads.
+    <section className="rounded-2xl bg-white/90 backdrop-blur-sm p-5 shadow-lg ring-1 ring-slate-100">
+      <div className="flex items-center gap-2 mb-4">
+        <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Feed Overview
+        </h2>
+      </div>
+
+      {/* Progress Ring */}
+      <div className="flex justify-center mb-4">
+        <CircularProgress percent={reconciledPercent} />
+      </div>
+
+      <p className="text-center text-sm text-slate-600 mb-5">
+        <span className="font-semibold text-slate-900">{newToReview}</span> items to review
       </p>
-      <div className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
-        You get the same bank feed engine as the big tools, but with a calmer, CERN Books-first workflow.
+
+      {/* Stats */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-3 rounded-xl bg-slate-50 px-3 py-2.5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-100 text-sky-600">
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </div>
+          <div className="flex-1">
+            <p className="text-[11px] text-slate-500">Created from feed</p>
+            <p className="text-sm font-semibold text-slate-900">{createdFromFeed}</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 rounded-xl bg-slate-50 px-3 py-2.5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600">
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+            </svg>
+          </div>
+          <div className="flex-1">
+            <p className="text-[11px] text-slate-500">Matched to invoices</p>
+            <p className="text-sm font-semibold text-slate-900">{matchedToInvoices}</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 rounded-xl bg-slate-50 px-3 py-2.5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 text-amber-600">
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div className="flex-1">
+            <p className="text-[11px] text-slate-500">Pending action</p>
+            <p className="text-sm font-semibold text-slate-900">{newToReview}</p>
+          </div>
+        </div>
       </div>
     </section>
   );
 };
 
-const QuickActionsCard: React.FC = () => {
+/* ──────────────────────────────────────────────────
+   Quick Actions Section (Redesigned)
+   ────────────────────────────────────────────────── */
+const QuickActionsSection: React.FC = () => {
+  const steps = [
+    {
+      number: 1,
+      title: "Import",
+      description: "Drop CSV or connect bank",
+      icon: (
+        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+        </svg>
+      ),
+    },
+    {
+      number: 2,
+      title: "Review",
+      description: "Match deposits & categorize",
+      icon: (
+        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+        </svg>
+      ),
+    },
+    {
+      number: 3,
+      title: "Done",
+      description: "P&L updates in real-time",
+      icon: (
+        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+        </svg>
+      ),
+    },
+  ];
+
   return (
-    <section className="rounded-3xl bg-white px-6 py-5 text-sm text-slate-700 shadow-[0_18px_45px_rgba(15,23,42,0.06)] ring-1 ring-slate-100">
-      <h2 className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Quick actions</h2>
-      <p className="mb-3 text-xs text-slate-600">
-        Clear your feed in a couple of focused passes. CERN Books keeps it fun and lightweight.
-      </p>
-      <div className="grid gap-3 text-[11px] sm:grid-cols-3">
-        <button className="rounded-2xl bg-slate-50 px-3 py-2 text-left font-medium text-slate-800 hover:bg-slate-100">
-          <div className="mb-1 text-[11px] uppercase tracking-[0.14em] text-slate-400">1. Import</div>
-          <div>Drop in your latest CSV statements.</div>
-        </button>
-        <button className="rounded-2xl bg-slate-50 px-3 py-2 text-left font-medium text-slate-800 hover:bg-slate-100">
-          <div className="mb-1 text-[11px] uppercase tracking-[0.14em] text-slate-400">2. Review</div>
-          <div>Match deposits &amp; withdrawals in one place.</div>
-        </button>
-        <button className="rounded-2xl bg-slate-50 px-3 py-2 text-left font-medium text-slate-800 hover:bg-slate-100">
-          <div className="mb-1 text-[11px] uppercase tracking-[0.14em] text-slate-400">3. Done</div>
-          <div>See Profit &amp; Loss update instantly.</div>
-        </button>
-      </div>
-    </section>
+    <div className="grid grid-cols-3 gap-3">
+      {steps.map((step) => (
+        <div
+          key={step.number}
+          className="rounded-2xl bg-white/90 backdrop-blur-sm p-4 shadow-sm ring-1 ring-slate-100 hover:ring-emerald-100 hover:shadow-md transition-all cursor-pointer group"
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-[10px] font-bold text-slate-600 group-hover:bg-emerald-100 group-hover:text-emerald-700 transition-colors">
+              {step.number}
+            </div>
+            <span className="text-slate-500 group-hover:text-emerald-600 transition-colors">
+              {step.icon}
+            </span>
+          </div>
+          <h3 className="text-sm font-semibold text-slate-900">{step.title}</h3>
+          <p className="text-[11px] text-slate-500 mt-0.5">{step.description}</p>
+        </div>
+      ))}
+    </div>
   );
 };
 
+/* ──────────────────────────────────────────────────
+   Main Page Component
+   ────────────────────────────────────────────────── */
 const BankingAccountsAndFeedPage: React.FC<BankingAccountsAndFeedPageProps> = ({
   overviewUrl,
   feedUrl,
@@ -301,9 +392,11 @@ const BankingAccountsAndFeedPage: React.FC<BankingAccountsAndFeedPageProps> = ({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 text-slate-900 font-sans">
         <div className="mx-auto max-w-6xl px-6 py-8">
-          <p className="text-sm text-slate-500">Loading banking overview…</p>
+          <div className="flex items-center justify-center py-20">
+            <div className="animate-spin h-8 w-8 border-2 border-emerald-600 border-t-transparent rounded-full" />
+          </div>
         </div>
       </div>
     );
@@ -311,75 +404,104 @@ const BankingAccountsAndFeedPage: React.FC<BankingAccountsAndFeedPageProps> = ({
 
   if (error) {
     return (
-      <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 text-slate-900 font-sans">
         <div className="mx-auto max-w-6xl px-6 py-8">
-          <p className="text-sm text-rose-600">{error}</p>
+          <div className="rounded-2xl bg-rose-50 border border-rose-100 px-4 py-6 text-center">
+            <p className="text-sm text-rose-600">{error}</p>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/80 text-slate-900 font-sans">
       <div className="mx-auto max-w-6xl px-6 py-8">
+        {/* Header */}
         <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-              BANKING
-            </div>
-            <h1 className="mb-1 text-2xl font-semibold tracking-tight text-slate-900">
-              Bank accounts &amp; feed
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+              Banking
             </h1>
-            <p className="max-w-xl text-sm text-slate-500">
-              Connect accounts, import statements, and keep your bank feed tidy. Once reconciled, your ledger, Profit &amp; Loss, and tax reports stay perfectly in sync.
+            <p className="text-sm text-slate-500 mt-1">
+              Connect, sync & reconcile your accounts
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <a
               href="/bank-accounts/new/"
-              className="inline-flex items-center rounded-full bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-black"
+              className="inline-flex items-center rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-black transition-colors"
             >
-              + Add bank account
+              + Add account
             </a>
             <a
               href={accounts[0]?.importUrl || importUrl}
-              className="inline-flex items-center rounded-full bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 shadow-sm hover:bg-slate-50"
+              className="inline-flex items-center rounded-full bg-white px-4 py-2 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 shadow-sm hover:bg-slate-50 transition-colors"
             >
               Import CSV
             </a>
             <a
               href={accounts[0]?.reviewUrl || feedUrl}
-              className="inline-flex items-center rounded-full bg-sky-600 px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-sky-700"
+              className="inline-flex items-center rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 transition-colors"
             >
-              Review transactions
+              Review feed
             </a>
           </div>
         </header>
 
-        <CompanionStrip context="bank" className="mb-4" />
+        {/* Companion Strip */}
+        <CompanionStrip context="bank" className="mb-6" />
 
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,2.3fr)_minmax(0,2fr)]">
-          <section className="space-y-3">
-            <div className="flex items-center justify-between text-[11px] text-slate-500">
-              <span className="font-semibold uppercase tracking-[0.16em] text-slate-400">
-                Connected accounts
-              </span>
-              <span>{accounts.length} active</span>
+        {/* Main Content Grid */}
+        <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
+          {/* Left Column - Accounts */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Connected Accounts
+              </h2>
+              <span className="text-xs text-slate-400">{accounts.length} active</span>
             </div>
+
             {accounts.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-500">
-                No bank accounts yet. Add your first account to start reconciling.
+              <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-white/50 px-6 py-12 text-center">
+                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
+                  <svg className="h-6 w-6 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75z" />
+                  </svg>
+                </div>
+                <h3 className="text-sm font-semibold text-slate-700">No bank accounts yet</h3>
+                <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto">
+                  Add your first account to start importing statements and reconciling transactions.
+                </p>
+                <a
+                  href="/bank-accounts/new/"
+                  className="mt-4 inline-flex items-center rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700"
+                >
+                  + Add your first account
+                </a>
               </div>
             ) : (
-              accounts.map((account) => <AccountRow key={account.id} account={account} />)
+              <div className="grid gap-4 sm:grid-cols-2">
+                {accounts.map((account) => (
+                  <AccountCard key={account.id} account={account} />
+                ))}
+              </div>
             )}
-          </section>
 
-          <section className="space-y-4">
-            <SnapshotCard summary={summary} />
-            <QuickActionsCard />
-            <ComingSoonCard />
-          </section>
+            {/* Quick Actions */}
+            <div className="mt-6">
+              <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">
+                How it works
+              </h2>
+              <QuickActionsSection />
+            </div>
+          </div>
+
+          {/* Right Column - Feed Overview */}
+          <div className="space-y-4">
+            <FeedOverviewPanel summary={summary} />
+          </div>
         </div>
       </div>
     </div>

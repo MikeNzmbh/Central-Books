@@ -1,10 +1,15 @@
 // frontend/src/reconciliation/ReconciliationReportPage.tsx
 import React, { useEffect, useState } from "react";
 import { ReconciliationReportPreview } from "./ReconciliationReportPreview";
+import { ReportPeriodPicker, PeriodSelection } from "../components/reports/ReportPeriodPicker";
 
 interface ReconciliationReportPageProps {
     /** Session ID to load reconciliation data for */
     sessionId?: string;
+    periodStart?: string;
+    periodEnd?: string;
+    periodPreset?: string;
+    compareTo?: string;
 }
 
 interface ReconciliationSession {
@@ -14,6 +19,15 @@ interface ReconciliationSession {
     };
     period: {
         label: string;
+        start?: string;
+        end?: string;
+        preset?: string;
+    };
+    comparison?: {
+        label?: string | null;
+        start?: string | null;
+        end?: string | null;
+        compare_to?: string | null;
     };
     opening_balance: number;
     statement_ending_balance: number;
@@ -39,6 +53,10 @@ interface ReconciliationSession {
  */
 export const ReconciliationReportPage: React.FC<ReconciliationReportPageProps> = ({
     sessionId,
+    periodStart,
+    periodEnd,
+    periodPreset,
+    compareTo,
 }) => {
     const [session, setSession] = useState<ReconciliationSession | null>(null);
     const [loading, setLoading] = useState(true);
@@ -53,7 +71,13 @@ export const ReconciliationReportPage: React.FC<ReconciliationReportPageProps> =
 
         const fetchSession = async () => {
             try {
-                const response = await fetch(`/api/reconciliation/session/${sessionId}/`);
+                const params = new URLSearchParams();
+                if (periodStart) params.set("start_date", periodStart);
+                if (periodEnd) params.set("end_date", periodEnd);
+                if (periodPreset) params.set("period_preset", periodPreset);
+                if (compareTo) params.set("compare_to", compareTo);
+                const query = params.toString();
+                const response = await fetch(`/api/reconciliation/session/${sessionId}/${query ? `?${query}` : ""}`);
                 if (!response.ok) {
                     throw new Error("Failed to load reconciliation session");
                 }
@@ -67,10 +91,24 @@ export const ReconciliationReportPage: React.FC<ReconciliationReportPageProps> =
         };
 
         fetchSession();
-    }, [sessionId]);
+    }, [compareTo, periodEnd, periodPreset, periodStart, sessionId]);
 
     const handlePrint = () => {
         window.print();
+    };
+
+    const handlePeriodChange = (selection: PeriodSelection) => {
+        const params = new URLSearchParams(window.location.search);
+        params.set("period_preset", selection.preset || "custom");
+        if (selection.preset === "custom") {
+            if (selection.startDate) params.set("start_date", selection.startDate);
+            if (selection.endDate) params.set("end_date", selection.endDate);
+        } else {
+            params.delete("start_date");
+            params.delete("end_date");
+        }
+        params.set("compare_to", selection.compareTo || "none");
+        window.location.search = params.toString();
     };
 
     if (loading) {
@@ -113,6 +151,28 @@ export const ReconciliationReportPage: React.FC<ReconciliationReportPageProps> =
                 >
                     Print Report
                 </button>
+            </div>
+
+            <div className="max-w-5xl mx-auto px-4 pt-6 print:hidden">
+                <div className="grid grid-cols-1 md:grid-cols-[1.2fr_minmax(0,1fr)] gap-4">
+                    <div>
+                        <p className="text-sm text-slate-600">Showing {session.period.label}</p>
+                        {session.comparison?.label && (
+                            <p className="text-[12px] text-slate-500">Compared to {session.comparison.label}</p>
+                        )}
+                    </div>
+                    <ReportPeriodPicker
+                        preset={(session.period.preset as PeriodSelection["preset"]) || "custom"}
+                        startDate={session.period.start}
+                        endDate={session.period.end}
+                        compareTo={(session.comparison?.compare_to as PeriodSelection["compareTo"]) || "none"}
+                        onApply={handlePeriodChange}
+                        onChange={(sel) => {
+                            if (sel.preset !== "custom") handlePeriodChange(sel);
+                        }}
+                        className="justify-self-end"
+                    />
+                </div>
             </div>
 
             <ReconciliationReportPreview

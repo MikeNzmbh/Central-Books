@@ -1,0 +1,875 @@
+{
+  "id": "scenario-123",
+  "name": "Monthly Bookkeeping November 2025",
+  "description": "Synthetic bookkeeping scenario for November 2025",
+  "created_at": "2025-12-05 16:07:30.278028",
+  "seed": 123,
+  "documents": [
+    {
+      "id": "rcpt-77b60770",
+      "filename": "receipt_staples_1.pdf",
+      "category": "receipt",
+      "content": "Staples - $26.77 - office",
+      "metadata": {},
+      "expected_vendor": "Staples",
+      "expected_amount": "26.77",
+      "expected_currency": "USD",
+      "expected_date": "2025-11-14",
+      "expected_category_code": "6100"
+    },
+    {
+      "id": "rcpt-e7f176d9",
+      "filename": "receipt_github_2.pdf",
+      "category": "receipt",
+      "content": "GitHub - $43.38 - software",
+      "metadata": {},
+      "expected_vendor": "GitHub",
+      "expected_amount": "43.38",
+      "expected_currency": "USD",
+      "expected_date": "2025-11-28",
+      "expected_category_code": "6300"
+    },
+    {
+      "id": "rcpt-148612bc",
+      "filename": "receipt_staples_3.pdf",
+      "category": "receipt",
+      "content": "Staples - $87.39 - office",
+      "metadata": {},
+      "expected_vendor": "Staples",
+      "expected_amount": "87.39",
+      "expected_currency": "USD",
+      "expected_date": "2025-11-11",
+      "expected_category_code": "6100"
+    },
+    {
+      "id": "rcpt-c3f65dec",
+      "filename": "receipt_github_4.pdf",
+      "category": "receipt",
+      "content": "GitHub - $15.55 - software",
+      "metadata": {},
+      "expected_vendor": "GitHub",
+      "expected_amount": "15.55",
+      "expected_currency": "USD",
+      "expected_date": "2025-11-11",
+      "expected_category_code": "6300"
+    },
+    {
+      "id": "rcpt-839c9607",
+      "filename": "receipt_industrial_supply_co_5.pdf",
+      "category": "receipt",
+      "content": "Industrial Supply Co - $1463.04 - supplies",
+      "metadata": {},
+      "expected_vendor": "Industrial Supply Co",
+      "expected_amount": "1463.04",
+      "expected_currency": "USD",
+      "expected_date": "2025-11-06",
+      "expected_category_code": "5100"
+    },
+    {
+      "id": "inv-78f38139",
+      "filename": "invoice_google_cloud_INV-20251130-001.pdf",
+      "category": "invoice",
+      "content": "\nINVOICE INV-20251130-001\nFrom: Google Cloud\nDate: 2025-11-30\nDue: Net 30\n\nSubtotal: $603.34\nTax (8%): $48.27\nTotal: $651.61\n\nPayment Terms: Net 30\n",
+      "metadata": {
+        "invoice_number": "INV-20251130-001",
+        "subtotal": "603.34",
+        "tax_amount": "48.27"
+      },
+      "expected_vendor": "Google Cloud",
+      "expected_amount": "651.61",
+      "expected_currency": "USD",
+      "expected_date": "2025-11-30",
+      "expected_category_code": "6300"
+    },
+    {
+      "id": "inv-5fed0053",
+      "filename": "invoice_acme_corp_INV-20251110-002.pdf",
+      "category": "invoice",
+      "content": "\nINVOICE INV-20251110-002\nFrom: ACME Corp\nDate: 2025-11-10\nDue: Net 30\n\nSubtotal: $5167.04\nTax (8%): $413.36\nTotal: $5580.40\n\nPayment Terms: Net 30\n",
+      "metadata": {
+        "invoice_number": "INV-20251110-002",
+        "subtotal": "5167.04",
+        "tax_amount": "413.36"
+      },
+      "expected_vendor": "ACME Corp",
+      "expected_amount": "5580.40",
+      "expected_currency": "USD",
+      "expected_date": "2025-11-10",
+      "expected_category_code": "5100"
+    },
+    {
+      "id": "inv-0729a078",
+      "filename": "invoice_acme_corp_INV-20251101-003.pdf",
+      "category": "invoice",
+      "content": "\nINVOICE INV-20251101-003\nFrom: ACME Corp\nDate: 2025-11-01\nDue: Net 30\n\nSubtotal: $2443.00\nTax (8%): $195.44\nTotal: $2638.44\n\nPayment Terms: Net 30\n",
+      "metadata": {
+        "invoice_number": "INV-20251101-003",
+        "subtotal": "2443.00",
+        "tax_amount": "195.44"
+      },
+      "expected_vendor": "ACME Corp",
+      "expected_amount": "2638.44",
+      "expected_currency": "USD",
+      "expected_date": "2025-11-01",
+      "expected_category_code": "5100"
+    },
+    {
+      "id": "stmt-95069fb1",
+      "filename": "bank_statement_202511.csv",
+      "category": "bank_statement",
+      "content": "BANK STATEMENT\nAccount: Business Checking ****1234\nPeriod: 2025-11-01 to 2025-12-01\nOpening Balance: $10,000.00\n\nDATE        DESCRIPTION                    AMOUNT      BALANCE\n----------------------------------------------------------------------\n2025-11-02  GITHUB PAYMENT                  -$     11.82  $   9761.30\n2025-11-06  GITHUB PAYMENT                  -$     37.02  $   9515.63\n2025-11-10  AWS PAYMENT                     -$    341.99  $  11078.60\n2025-11-16  GITHUB PAYMENT                  -$     25.13  $   9490.50\n2025-11-19  PACIFIC GAS & ELECTRIC PAYMENT  -$    226.88  $   9773.12\n2025-11-21  GITHUB PAYMENT                  -$     12.42  $   9552.65\n2025-11-23  COMCAST BUSINESS PAYMENT        -$    128.59  $   9632.71\n2025-11-28  USPS PAYMENT                    -$     22.21  $   9610.50\n2025-11-30  ACH CREDIT                      +$   1930.09  $  11420.59\n2025-12-01  ZOOM PAYMENT                    -$     45.43  $   9565.07\n----------------------------------------------------------------------\nClosing Balance: $11078.60",
+      "metadata": {
+        "opening_balance": "10000.00",
+        "closing_balance": "11078.60",
+        "transaction_count": 10,
+        "transactions": [
+          {
+            "date": "2025-11-02",
+            "description": "GITHUB PAYMENT",
+            "amount": "11.82",
+            "type": "debit",
+            "balance": "9761.30",
+            "category": "6300"
+          },
+          {
+            "date": "2025-11-06",
+            "description": "GITHUB PAYMENT",
+            "amount": "37.02",
+            "type": "debit",
+            "balance": "9515.63",
+            "category": "6300"
+          },
+          {
+            "date": "2025-11-10",
+            "description": "AWS PAYMENT",
+            "amount": "341.99",
+            "type": "debit",
+            "balance": "11078.60",
+            "category": "6300"
+          },
+          {
+            "date": "2025-11-16",
+            "description": "GITHUB PAYMENT",
+            "amount": "25.13",
+            "type": "debit",
+            "balance": "9490.50",
+            "category": "6300"
+          },
+          {
+            "date": "2025-11-19",
+            "description": "PACIFIC GAS & ELECTRIC PAYMENT",
+            "amount": "226.88",
+            "type": "debit",
+            "balance": "9773.12",
+            "category": "6500"
+          },
+          {
+            "date": "2025-11-21",
+            "description": "GITHUB PAYMENT",
+            "amount": "12.42",
+            "type": "debit",
+            "balance": "9552.65",
+            "category": "6300"
+          },
+          {
+            "date": "2025-11-23",
+            "description": "COMCAST BUSINESS PAYMENT",
+            "amount": "128.59",
+            "type": "debit",
+            "balance": "9632.71",
+            "category": "6500"
+          },
+          {
+            "date": "2025-11-28",
+            "description": "USPS PAYMENT",
+            "amount": "22.21",
+            "type": "debit",
+            "balance": "9610.50",
+            "category": "5200"
+          },
+          {
+            "date": "2025-11-30",
+            "description": "ACH CREDIT",
+            "amount": "1930.09",
+            "type": "credit",
+            "balance": "11420.59",
+            "category": "1200"
+          },
+          {
+            "date": "2025-12-01",
+            "description": "ZOOM PAYMENT",
+            "amount": "45.43",
+            "type": "debit",
+            "balance": "9565.07",
+            "category": "6300"
+          }
+        ]
+      },
+      "expected_vendor": "Demo Bank",
+      "expected_amount": "1078.60",
+      "expected_currency": "USD",
+      "expected_date": "2025-12-01",
+      "expected_category_code": ""
+    }
+  ],
+  "transactions": [
+    {
+      "id": "txn-rcpt-77b60770",
+      "source_document_id": "rcpt-77b60770",
+      "description": "Transaction from Staples",
+      "amount": "26.77",
+      "currency": "USD",
+      "date": "2025-11-14",
+      "category_code": "6100",
+      "vendor_name": "Staples",
+      "transaction_type": "debit",
+      "is_recurring": false
+    },
+    {
+      "id": "txn-rcpt-e7f176d9",
+      "source_document_id": "rcpt-e7f176d9",
+      "description": "Transaction from GitHub",
+      "amount": "43.38",
+      "currency": "USD",
+      "date": "2025-11-28",
+      "category_code": "6300",
+      "vendor_name": "GitHub",
+      "transaction_type": "debit",
+      "is_recurring": false
+    },
+    {
+      "id": "txn-rcpt-148612bc",
+      "source_document_id": "rcpt-148612bc",
+      "description": "Transaction from Staples",
+      "amount": "87.39",
+      "currency": "USD",
+      "date": "2025-11-11",
+      "category_code": "6100",
+      "vendor_name": "Staples",
+      "transaction_type": "debit",
+      "is_recurring": false
+    },
+    {
+      "id": "txn-rcpt-c3f65dec",
+      "source_document_id": "rcpt-c3f65dec",
+      "description": "Transaction from GitHub",
+      "amount": "15.55",
+      "currency": "USD",
+      "date": "2025-11-11",
+      "category_code": "6300",
+      "vendor_name": "GitHub",
+      "transaction_type": "debit",
+      "is_recurring": false
+    },
+    {
+      "id": "txn-rcpt-839c9607",
+      "source_document_id": "rcpt-839c9607",
+      "description": "Transaction from Industrial Supply Co",
+      "amount": "1463.04",
+      "currency": "USD",
+      "date": "2025-11-06",
+      "category_code": "5100",
+      "vendor_name": "Industrial Supply Co",
+      "transaction_type": "debit",
+      "is_recurring": false
+    },
+    {
+      "id": "txn-inv-78f38139",
+      "source_document_id": "inv-78f38139",
+      "description": "Transaction from Google Cloud",
+      "amount": "651.61",
+      "currency": "USD",
+      "date": "2025-11-30",
+      "category_code": "6300",
+      "vendor_name": "Google Cloud",
+      "transaction_type": "debit",
+      "is_recurring": false
+    },
+    {
+      "id": "txn-inv-5fed0053",
+      "source_document_id": "inv-5fed0053",
+      "description": "Transaction from ACME Corp",
+      "amount": "5580.40",
+      "currency": "USD",
+      "date": "2025-11-10",
+      "category_code": "5100",
+      "vendor_name": "ACME Corp",
+      "transaction_type": "debit",
+      "is_recurring": false
+    },
+    {
+      "id": "txn-inv-0729a078",
+      "source_document_id": "inv-0729a078",
+      "description": "Transaction from ACME Corp",
+      "amount": "2638.44",
+      "currency": "USD",
+      "date": "2025-11-01",
+      "category_code": "5100",
+      "vendor_name": "ACME Corp",
+      "transaction_type": "debit",
+      "is_recurring": false
+    },
+    {
+      "id": "txn-stmt-95069fb1-0",
+      "source_document_id": "stmt-95069fb1",
+      "description": "GITHUB PAYMENT",
+      "amount": "11.82",
+      "currency": "USD",
+      "date": "2025-11-02",
+      "category_code": "6300",
+      "vendor_name": "Demo Bank",
+      "transaction_type": "debit",
+      "is_recurring": false
+    },
+    {
+      "id": "txn-stmt-95069fb1-1",
+      "source_document_id": "stmt-95069fb1",
+      "description": "GITHUB PAYMENT",
+      "amount": "37.02",
+      "currency": "USD",
+      "date": "2025-11-06",
+      "category_code": "6300",
+      "vendor_name": "Demo Bank",
+      "transaction_type": "debit",
+      "is_recurring": false
+    },
+    {
+      "id": "txn-stmt-95069fb1-2",
+      "source_document_id": "stmt-95069fb1",
+      "description": "AWS PAYMENT",
+      "amount": "341.99",
+      "currency": "USD",
+      "date": "2025-11-10",
+      "category_code": "6300",
+      "vendor_name": "Demo Bank",
+      "transaction_type": "debit",
+      "is_recurring": false
+    },
+    {
+      "id": "txn-stmt-95069fb1-3",
+      "source_document_id": "stmt-95069fb1",
+      "description": "GITHUB PAYMENT",
+      "amount": "25.13",
+      "currency": "USD",
+      "date": "2025-11-16",
+      "category_code": "6300",
+      "vendor_name": "Demo Bank",
+      "transaction_type": "debit",
+      "is_recurring": false
+    },
+    {
+      "id": "txn-stmt-95069fb1-4",
+      "source_document_id": "stmt-95069fb1",
+      "description": "PACIFIC GAS & ELECTRIC PAYMENT",
+      "amount": "226.88",
+      "currency": "USD",
+      "date": "2025-11-19",
+      "category_code": "6500",
+      "vendor_name": "Demo Bank",
+      "transaction_type": "debit",
+      "is_recurring": false
+    },
+    {
+      "id": "txn-stmt-95069fb1-5",
+      "source_document_id": "stmt-95069fb1",
+      "description": "GITHUB PAYMENT",
+      "amount": "12.42",
+      "currency": "USD",
+      "date": "2025-11-21",
+      "category_code": "6300",
+      "vendor_name": "Demo Bank",
+      "transaction_type": "debit",
+      "is_recurring": false
+    },
+    {
+      "id": "txn-stmt-95069fb1-6",
+      "source_document_id": "stmt-95069fb1",
+      "description": "COMCAST BUSINESS PAYMENT",
+      "amount": "128.59",
+      "currency": "USD",
+      "date": "2025-11-23",
+      "category_code": "6500",
+      "vendor_name": "Demo Bank",
+      "transaction_type": "debit",
+      "is_recurring": false
+    },
+    {
+      "id": "txn-stmt-95069fb1-7",
+      "source_document_id": "stmt-95069fb1",
+      "description": "USPS PAYMENT",
+      "amount": "22.21",
+      "currency": "USD",
+      "date": "2025-11-28",
+      "category_code": "5200",
+      "vendor_name": "Demo Bank",
+      "transaction_type": "debit",
+      "is_recurring": false
+    },
+    {
+      "id": "txn-stmt-95069fb1-8",
+      "source_document_id": "stmt-95069fb1",
+      "description": "ACH CREDIT",
+      "amount": "1930.09",
+      "currency": "USD",
+      "date": "2025-11-30",
+      "category_code": "1200",
+      "vendor_name": "Demo Bank",
+      "transaction_type": "credit",
+      "is_recurring": false
+    },
+    {
+      "id": "txn-stmt-95069fb1-9",
+      "source_document_id": "stmt-95069fb1",
+      "description": "ZOOM PAYMENT",
+      "amount": "45.43",
+      "currency": "USD",
+      "date": "2025-12-01",
+      "category_code": "6300",
+      "vendor_name": "Demo Bank",
+      "transaction_type": "debit",
+      "is_recurring": false
+    }
+  ],
+  "journal_entries": [
+    {
+      "entry_id": "je-txn-rcpt-77b60770",
+      "source_transaction_id": "txn-rcpt-77b60770",
+      "date": "2025-11-14",
+      "description": "Transaction from Staples",
+      "lines": [
+        {
+          "account_code": "6100",
+          "account_name": "Office Supplies",
+          "side": "debit",
+          "amount": "26.77"
+        },
+        {
+          "account_code": "1000",
+          "account_name": "Cash/Bank",
+          "side": "credit",
+          "amount": "26.77"
+        }
+      ],
+      "is_balanced": true,
+      "total_debits": "26.77",
+      "total_credits": "26.77"
+    },
+    {
+      "entry_id": "je-txn-rcpt-e7f176d9",
+      "source_transaction_id": "txn-rcpt-e7f176d9",
+      "date": "2025-11-28",
+      "description": "Transaction from GitHub",
+      "lines": [
+        {
+          "account_code": "6300",
+          "account_name": "Software & Subscriptions",
+          "side": "debit",
+          "amount": "43.38"
+        },
+        {
+          "account_code": "1000",
+          "account_name": "Cash/Bank",
+          "side": "credit",
+          "amount": "43.38"
+        }
+      ],
+      "is_balanced": true,
+      "total_debits": "43.38",
+      "total_credits": "43.38"
+    },
+    {
+      "entry_id": "je-txn-rcpt-148612bc",
+      "source_transaction_id": "txn-rcpt-148612bc",
+      "date": "2025-11-11",
+      "description": "Transaction from Staples",
+      "lines": [
+        {
+          "account_code": "6100",
+          "account_name": "Office Supplies",
+          "side": "debit",
+          "amount": "87.39"
+        },
+        {
+          "account_code": "1000",
+          "account_name": "Cash/Bank",
+          "side": "credit",
+          "amount": "87.39"
+        }
+      ],
+      "is_balanced": true,
+      "total_debits": "87.39",
+      "total_credits": "87.39"
+    },
+    {
+      "entry_id": "je-txn-rcpt-c3f65dec",
+      "source_transaction_id": "txn-rcpt-c3f65dec",
+      "date": "2025-11-11",
+      "description": "Transaction from GitHub",
+      "lines": [
+        {
+          "account_code": "6300",
+          "account_name": "Software & Subscriptions",
+          "side": "debit",
+          "amount": "15.55"
+        },
+        {
+          "account_code": "1000",
+          "account_name": "Cash/Bank",
+          "side": "credit",
+          "amount": "15.55"
+        }
+      ],
+      "is_balanced": true,
+      "total_debits": "15.55",
+      "total_credits": "15.55"
+    },
+    {
+      "entry_id": "je-txn-rcpt-839c9607",
+      "source_transaction_id": "txn-rcpt-839c9607",
+      "date": "2025-11-06",
+      "description": "Transaction from Industrial Supply Co",
+      "lines": [
+        {
+          "account_code": "5100",
+          "account_name": "Raw Materials",
+          "side": "debit",
+          "amount": "1463.04"
+        },
+        {
+          "account_code": "1000",
+          "account_name": "Cash/Bank",
+          "side": "credit",
+          "amount": "1463.04"
+        }
+      ],
+      "is_balanced": true,
+      "total_debits": "1463.04",
+      "total_credits": "1463.04"
+    },
+    {
+      "entry_id": "je-txn-inv-78f38139",
+      "source_transaction_id": "txn-inv-78f38139",
+      "date": "2025-11-30",
+      "description": "Transaction from Google Cloud",
+      "lines": [
+        {
+          "account_code": "6300",
+          "account_name": "Software & Subscriptions",
+          "side": "debit",
+          "amount": "651.61"
+        },
+        {
+          "account_code": "1000",
+          "account_name": "Cash/Bank",
+          "side": "credit",
+          "amount": "651.61"
+        }
+      ],
+      "is_balanced": true,
+      "total_debits": "651.61",
+      "total_credits": "651.61"
+    },
+    {
+      "entry_id": "je-txn-inv-5fed0053",
+      "source_transaction_id": "txn-inv-5fed0053",
+      "date": "2025-11-10",
+      "description": "Transaction from ACME Corp",
+      "lines": [
+        {
+          "account_code": "5100",
+          "account_name": "Raw Materials",
+          "side": "debit",
+          "amount": "5580.40"
+        },
+        {
+          "account_code": "1000",
+          "account_name": "Cash/Bank",
+          "side": "credit",
+          "amount": "5580.40"
+        }
+      ],
+      "is_balanced": true,
+      "total_debits": "5580.40",
+      "total_credits": "5580.40"
+    },
+    {
+      "entry_id": "je-txn-inv-0729a078",
+      "source_transaction_id": "txn-inv-0729a078",
+      "date": "2025-11-01",
+      "description": "Transaction from ACME Corp",
+      "lines": [
+        {
+          "account_code": "5100",
+          "account_name": "Raw Materials",
+          "side": "debit",
+          "amount": "2638.44"
+        },
+        {
+          "account_code": "1000",
+          "account_name": "Cash/Bank",
+          "side": "credit",
+          "amount": "2638.44"
+        }
+      ],
+      "is_balanced": true,
+      "total_debits": "2638.44",
+      "total_credits": "2638.44"
+    },
+    {
+      "entry_id": "je-txn-stmt-95069fb1-0",
+      "source_transaction_id": "txn-stmt-95069fb1-0",
+      "date": "2025-11-02",
+      "description": "GITHUB PAYMENT",
+      "lines": [
+        {
+          "account_code": "6300",
+          "account_name": "Software & Subscriptions",
+          "side": "debit",
+          "amount": "11.82"
+        },
+        {
+          "account_code": "1000",
+          "account_name": "Cash/Bank",
+          "side": "credit",
+          "amount": "11.82"
+        }
+      ],
+      "is_balanced": true,
+      "total_debits": "11.82",
+      "total_credits": "11.82"
+    },
+    {
+      "entry_id": "je-txn-stmt-95069fb1-1",
+      "source_transaction_id": "txn-stmt-95069fb1-1",
+      "date": "2025-11-06",
+      "description": "GITHUB PAYMENT",
+      "lines": [
+        {
+          "account_code": "6300",
+          "account_name": "Software & Subscriptions",
+          "side": "debit",
+          "amount": "37.02"
+        },
+        {
+          "account_code": "1000",
+          "account_name": "Cash/Bank",
+          "side": "credit",
+          "amount": "37.02"
+        }
+      ],
+      "is_balanced": true,
+      "total_debits": "37.02",
+      "total_credits": "37.02"
+    },
+    {
+      "entry_id": "je-txn-stmt-95069fb1-2",
+      "source_transaction_id": "txn-stmt-95069fb1-2",
+      "date": "2025-11-10",
+      "description": "AWS PAYMENT",
+      "lines": [
+        {
+          "account_code": "6300",
+          "account_name": "Software & Subscriptions",
+          "side": "debit",
+          "amount": "341.99"
+        },
+        {
+          "account_code": "1000",
+          "account_name": "Cash/Bank",
+          "side": "credit",
+          "amount": "341.99"
+        }
+      ],
+      "is_balanced": true,
+      "total_debits": "341.99",
+      "total_credits": "341.99"
+    },
+    {
+      "entry_id": "je-txn-stmt-95069fb1-3",
+      "source_transaction_id": "txn-stmt-95069fb1-3",
+      "date": "2025-11-16",
+      "description": "GITHUB PAYMENT",
+      "lines": [
+        {
+          "account_code": "6300",
+          "account_name": "Software & Subscriptions",
+          "side": "debit",
+          "amount": "25.13"
+        },
+        {
+          "account_code": "1000",
+          "account_name": "Cash/Bank",
+          "side": "credit",
+          "amount": "25.13"
+        }
+      ],
+      "is_balanced": true,
+      "total_debits": "25.13",
+      "total_credits": "25.13"
+    },
+    {
+      "entry_id": "je-txn-stmt-95069fb1-4",
+      "source_transaction_id": "txn-stmt-95069fb1-4",
+      "date": "2025-11-19",
+      "description": "PACIFIC GAS & ELECTRIC PAYMENT",
+      "lines": [
+        {
+          "account_code": "6500",
+          "account_name": "Utilities",
+          "side": "debit",
+          "amount": "226.88"
+        },
+        {
+          "account_code": "1000",
+          "account_name": "Cash/Bank",
+          "side": "credit",
+          "amount": "226.88"
+        }
+      ],
+      "is_balanced": true,
+      "total_debits": "226.88",
+      "total_credits": "226.88"
+    },
+    {
+      "entry_id": "je-txn-stmt-95069fb1-5",
+      "source_transaction_id": "txn-stmt-95069fb1-5",
+      "date": "2025-11-21",
+      "description": "GITHUB PAYMENT",
+      "lines": [
+        {
+          "account_code": "6300",
+          "account_name": "Software & Subscriptions",
+          "side": "debit",
+          "amount": "12.42"
+        },
+        {
+          "account_code": "1000",
+          "account_name": "Cash/Bank",
+          "side": "credit",
+          "amount": "12.42"
+        }
+      ],
+      "is_balanced": true,
+      "total_debits": "12.42",
+      "total_credits": "12.42"
+    },
+    {
+      "entry_id": "je-txn-stmt-95069fb1-6",
+      "source_transaction_id": "txn-stmt-95069fb1-6",
+      "date": "2025-11-23",
+      "description": "COMCAST BUSINESS PAYMENT",
+      "lines": [
+        {
+          "account_code": "6500",
+          "account_name": "Utilities",
+          "side": "debit",
+          "amount": "128.59"
+        },
+        {
+          "account_code": "1000",
+          "account_name": "Cash/Bank",
+          "side": "credit",
+          "amount": "128.59"
+        }
+      ],
+      "is_balanced": true,
+      "total_debits": "128.59",
+      "total_credits": "128.59"
+    },
+    {
+      "entry_id": "je-txn-stmt-95069fb1-7",
+      "source_transaction_id": "txn-stmt-95069fb1-7",
+      "date": "2025-11-28",
+      "description": "USPS PAYMENT",
+      "lines": [
+        {
+          "account_code": "5200",
+          "account_name": "Shipping & Freight",
+          "side": "debit",
+          "amount": "22.21"
+        },
+        {
+          "account_code": "1000",
+          "account_name": "Cash/Bank",
+          "side": "credit",
+          "amount": "22.21"
+        }
+      ],
+      "is_balanced": true,
+      "total_debits": "22.21",
+      "total_credits": "22.21"
+    },
+    {
+      "entry_id": "je-txn-stmt-95069fb1-8",
+      "source_transaction_id": "txn-stmt-95069fb1-8",
+      "date": "2025-11-30",
+      "description": "ACH CREDIT",
+      "lines": [
+        {
+          "account_code": "1000",
+          "account_name": "Cash/Bank",
+          "side": "debit",
+          "amount": "1930.09"
+        },
+        {
+          "account_code": "1200",
+          "account_name": "Accounts Receivable",
+          "side": "credit",
+          "amount": "1930.09"
+        }
+      ],
+      "is_balanced": true,
+      "total_debits": "1930.09",
+      "total_credits": "1930.09"
+    },
+    {
+      "entry_id": "je-txn-stmt-95069fb1-9",
+      "source_transaction_id": "txn-stmt-95069fb1-9",
+      "date": "2025-12-01",
+      "description": "ZOOM PAYMENT",
+      "lines": [
+        {
+          "account_code": "6300",
+          "account_name": "Software & Subscriptions",
+          "side": "debit",
+          "amount": "45.43"
+        },
+        {
+          "account_code": "1000",
+          "account_name": "Cash/Bank",
+          "side": "credit",
+          "amount": "45.43"
+        }
+      ],
+      "is_balanced": true,
+      "total_debits": "45.43",
+      "total_credits": "45.43"
+    }
+  ],
+  "compliance": {
+    "is_compliant": true,
+    "issues": []
+  },
+  "audit": {
+    "risk_level": "low",
+    "findings": [
+      {
+        "code": "UNUSUAL_SCALE",
+        "severity": "medium",
+        "message": "Transaction 3x above average",
+        "transaction_id": "txn-inv-5fed0053",
+        "journal_entry_id": null
+      },
+      {
+        "code": "UNUSUAL_SCALE",
+        "severity": "medium",
+        "message": "Transaction 3x above average",
+        "transaction_id": "txn-inv-0729a078",
+        "journal_entry_id": null
+      }
+    ]
+  },
+  "total_revenue": "1930.09",
+  "total_expenses": "11358.07",
+  "net_income": "-9427.98"
+}

@@ -1,0 +1,107 @@
+%% Agentic Accounting OS V2 Architecture
+%% Mermaid diagram showing the full system flow
+
+flowchart TB
+    subgraph User["👤 User Layer"]
+        UI[Web UI]
+        CLI[CLI Demo]
+        API[REST API]
+    end
+
+    subgraph Gateway["🚪 API Gateway"]
+        DRF[Django REST Framework]
+        AUTH[Authentication]
+    end
+
+    subgraph Workflows["📋 Workflow Engine"]
+        WG[WorkflowGraph]
+        
+        subgraph Pipelines["Pipelines"]
+            RCPT[Receipts\n6 steps]
+            INV[Invoices\n10 steps]
+            BANK[Bank Statements\n10 steps]
+            MULTI[Multi-Document\n9 steps]
+        end
+    end
+
+    subgraph Agents["🤖 Agent Layer"]
+        subgraph Specialized["Specialized Agents"]
+            OPS[Operations]
+            COMP[Compliance]
+            AUDIT[Audit]
+            DATA[Data Integrity]
+        end
+        
+        MSG[Message Bus]
+        SUP[Supervisor Agent]
+    end
+
+    subgraph Memory["🧠 Memory System"]
+        VEC[Vector Store]
+        EMB[Embeddings]
+        RET[Retrieval API]
+    end
+
+    subgraph Engine["⚙️ Processing Engine"]
+        ING[Ingestion]
+        NORM[Normalization]
+        ENTRY[Entry Generation]
+        COMPL[Compliance Checks]
+        AUD[Audit Checks]
+    end
+
+    subgraph Evaluation["📊 Evaluation"]
+        SCORE[Scorer]
+        EXP[Experiments]
+    end
+
+    subgraph Safety["🔒 Safety & Governance"]
+        POL[Policies]
+        GUARD[Guards]
+    end
+
+    subgraph Storage["💾 Data Layer"]
+        DB[(PostgreSQL)]
+        CACHE[(Redis)]
+    end
+
+    %% Connections
+    UI --> DRF
+    CLI --> DRF
+    API --> DRF
+    
+    DRF --> AUTH
+    AUTH --> WG
+    
+    WG --> RCPT
+    WG --> INV
+    WG --> BANK
+    WG --> MULTI
+    
+    RCPT --> ING
+    INV --> ING
+    BANK --> ING
+    
+    ING --> NORM
+    NORM --> ENTRY
+    ENTRY --> COMPL
+    COMPL --> AUD
+    
+    OPS --> MSG
+    COMP --> MSG
+    AUDIT --> MSG
+    DATA --> MSG
+    MSG --> SUP
+    
+    SUP --> POL
+    SUP --> GUARD
+    
+    VEC --> EMB
+    EMB --> RET
+    RET --> OPS
+    
+    AUD --> SCORE
+    SCORE --> EXP
+    
+    ENTRY --> DB
+    WG --> CACHE

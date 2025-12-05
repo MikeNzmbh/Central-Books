@@ -4,7 +4,12 @@
 {% block title %}Reconciliation Report · CERN Books{% endblock %}
 
 {% block content %}
-<div id="reconciliation-report-root" data-session-id="{{ session_id }}"></div>
+<div id="reconciliation-report-root"
+  data-session-id="{{ session_id }}"
+  data-period-start="{{ period_start }}"
+  data-period-end="{{ period_end }}"
+  data-period-preset="{{ period_preset }}"
+  data-compare-to="{{ compare_to }}"></div>
 {% endblock %}
 
 {% block extra_js %}

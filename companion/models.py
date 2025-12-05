@@ -134,10 +134,27 @@ class CompanionSuggestedAction(models.Model):
     ACTION_BANK_MATCH_REVIEW = "bank_match_review"
     ACTION_INVOICE_REMINDER = "send_invoice_reminder"
     ACTION_CATEGORIZE_EXPENSES_BATCH = "categorize_expenses_batch"
+    ACTION_OVERDUE_INVOICE_REMINDERS = "overdue_invoice_reminders"
+    ACTION_UNCATEGORIZED_EXPENSE_REVIEW = "uncategorized_expense_review"
+    ACTION_UNCATEGORIZED_TRANSACTIONS_CLEANUP = "uncategorized_transactions_cleanup"
+    ACTION_RECONCILIATION_PERIOD_TO_CLOSE = "reconciliation_period_to_close"
+    ACTION_INACTIVE_CUSTOMERS_FOLLOWUP = "inactive_customers_followup"
+    ACTION_SPIKE_EXPENSE_CATEGORY_REVIEW = "spike_expense_category_review"
+    ACTION_OLD_UNRECONCILED_INVESTIGATE = "old_unreconciled_investigate"
+    ACTION_SUSPENSE_BALANCE_REVIEW = "suspense_balance_review"
+
     ACTION_CHOICES = [
         (ACTION_BANK_MATCH_REVIEW, "Bank match review"),
         (ACTION_INVOICE_REMINDER, "Send invoice reminder"),
         (ACTION_CATEGORIZE_EXPENSES_BATCH, "Categorize expenses batch"),
+        (ACTION_OVERDUE_INVOICE_REMINDERS, "Overdue invoice reminders"),
+        (ACTION_UNCATEGORIZED_EXPENSE_REVIEW, "Uncategorized expense review"),
+        (ACTION_UNCATEGORIZED_TRANSACTIONS_CLEANUP, "Uncategorized transactions cleanup"),
+        (ACTION_RECONCILIATION_PERIOD_TO_CLOSE, "Reconciliation period to close"),
+        (ACTION_INACTIVE_CUSTOMERS_FOLLOWUP, "Inactive customers follow-up"),
+        (ACTION_SPIKE_EXPENSE_CATEGORY_REVIEW, "Expense category spike review"),
+        (ACTION_OLD_UNRECONCILED_INVESTIGATE, "Investigate old unreconciled"),
+        (ACTION_SUSPENSE_BALANCE_REVIEW, "Suspense balance review"),
     ]
     STATUS_OPEN = "open"
     STATUS_APPLIED = "applied"
@@ -146,6 +163,18 @@ class CompanionSuggestedAction(models.Model):
         (STATUS_OPEN, "Open"),
         (STATUS_APPLIED, "Applied"),
         (STATUS_DISMISSED, "Dismissed"),
+    ]
+    SEVERITY_INFO = "INFO"
+    SEVERITY_LOW = "LOW"
+    SEVERITY_MEDIUM = "MEDIUM"
+    SEVERITY_HIGH = "HIGH"
+    SEVERITY_CRITICAL = "CRITICAL"
+    SEVERITY_CHOICES = [
+        (SEVERITY_INFO, "Info"),
+        (SEVERITY_LOW, "Low"),
+        (SEVERITY_MEDIUM, "Medium"),
+        (SEVERITY_HIGH, "High"),
+        (SEVERITY_CRITICAL, "Critical"),
     ]
 
     workspace = models.ForeignKey(
@@ -158,6 +187,8 @@ class CompanionSuggestedAction(models.Model):
     payload = models.JSONField(default=dict)
     confidence = models.DecimalField(max_digits=8, decimal_places=4, default=0)
     summary = models.CharField(max_length=255)
+    short_title = models.CharField(max_length=64, blank=True, default="")
+    severity = models.CharField(max_length=12, choices=SEVERITY_CHOICES, default=SEVERITY_INFO)
     source_snapshot = models.ForeignKey(
         HealthIndexSnapshot,
         on_delete=models.SET_NULL,
@@ -175,3 +206,8 @@ class CompanionSuggestedAction(models.Model):
 
     def __str__(self) -> str:
         return f"{self.action_type} ({self.status}) for workspace {self.workspace_id}"
+
+    def save(self, *args, **kwargs):
+        if not self.short_title:
+            self.short_title = (self.summary or self.action_type)[:64]
+        super().save(*args, **kwargs)

@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 from django.core.management import call_command
@@ -8,14 +8,19 @@ from core.accounting_defaults import ensure_default_accounts
 from core.models import (
     Account,
     BankAccount,
+    BankTransaction,
     Business,
     Category,
+    Customer,
     Expense,
+    Invoice,
+    JournalLine,
     Supplier,
 )
 from core.views import _post_income_entry
 from core.accounting_posting_expenses import post_expense_paid
 from core.services.ledger_metrics import calculate_ledger_income, calculate_ledger_expenses
+from core.reconciliation import Allocation, allocate_bank_transaction
 from django.contrib.auth import get_user_model
 
 
@@ -95,6 +100,96 @@ class BankFeedPnlIntegrationTests(TestCase):
         total_expense = calculate_ledger_expenses(self.business, date.today(), date.today())
         self.assertEqual(total_expense, Decimal("75.00"))
 
+    def test_direct_income_allocation_falls_back_to_income_account(self):
+        wrong_account = Account.objects.create(
+            business=self.business,
+            name="Asset Holding",
+            code="1600",
+            type=Account.AccountType.ASSET,
+        )
+        bank_tx = BankTransaction.objects.create(
+            bank_account=self.bank_account,
+            date=date.today(),
+            description="Client deposit",
+            amount=Decimal("200.00"),
+        )
+
+        entry = allocate_bank_transaction(
+            bank_tx=bank_tx,
+            allocations=[
+                Allocation(kind="DIRECT_INCOME", amount=Decimal("200.00"), account_id=wrong_account.id)
+            ],
+            user=None,
+        )
+
+        income_lines = JournalLine.objects.filter(
+            journal_entry=entry, account__type=Account.AccountType.INCOME
+        )
+        self.assertEqual(income_lines.count(), 1)
+        self.assertEqual(income_lines.first().account, self.defaults["sales"])
+
+    def test_direct_expense_allocation_falls_back_to_expense_account(self):
+        wrong_account = Account.objects.create(
+            business=self.business,
+            name="Random Liability",
+            code="2601",
+            type=Account.AccountType.LIABILITY,
+        )
+        bank_tx = BankTransaction.objects.create(
+            bank_account=self.bank_account,
+            date=date.today(),
+            description="Vendor payment",
+            amount=Decimal("-150.00"),
+        )
+
+        entry = allocate_bank_transaction(
+            bank_tx=bank_tx,
+            allocations=[
+                Allocation(kind="DIRECT_EXPENSE", amount=Decimal("150.00"), account_id=wrong_account.id)
+            ],
+            user=None,
+        )
+
+        expense_lines = JournalLine.objects.filter(
+            journal_entry=entry, account__type=Account.AccountType.EXPENSE
+        )
+        self.assertEqual(expense_lines.count(), 1)
+        self.assertEqual(expense_lines.first().account, self.defaults["opex"])
+
+    def test_invoice_allocation_does_not_create_income_line(self):
+        customer = Customer.objects.create(business=self.business, name="Alice")
+        invoice = Invoice.objects.create(
+            business=self.business,
+            customer=customer,
+            invoice_number="INV-001",
+            issue_date=date.today(),
+            due_date=date.today(),
+            status=Invoice.Status.SENT,
+            total_amount=Decimal("100.00"),
+            net_total=Decimal("100.00"),
+            tax_total=Decimal("0.00"),
+            grand_total=Decimal("100.00"),
+        )
+        bank_tx = BankTransaction.objects.create(
+            bank_account=self.bank_account,
+            date=date.today(),
+            description="Invoice payment",
+            amount=Decimal("100.00"),
+        )
+
+        entry = allocate_bank_transaction(
+            bank_tx=bank_tx,
+            allocations=[Allocation(kind="INVOICE", amount=Decimal("100.00"), id=invoice.id)],
+            user=None,
+        )
+
+        income_lines = JournalLine.objects.filter(
+            journal_entry=entry, account__type=Account.AccountType.INCOME
+        )
+        self.assertEqual(income_lines.count(), 0)
+        ar_lines = JournalLine.objects.filter(journal_entry=entry, account=self.defaults["ar"])
+        self.assertEqual(ar_lines.count(), 1)
+
 
 class FixCategoryAccountAlignmentCommandTests(TestCase):
     def setUp(self):
@@ -146,3 +241,117 @@ class FixCategoryAccountAlignmentCommandTests(TestCase):
         bad_expense.refresh_from_db()
         self.assertEqual(bad_expense.account, self.expense_default)
         self.assertEqual(bad_expense.account.type, Account.AccountType.EXPENSE)
+
+
+class BankOnlyPLFlowTests(TestCase):
+    """
+    Tests that a bank-only workflow produces correct P&L numbers.
+    Simulates a workspace where user allocates bank transactions without creating
+    invoices/expenses first.
+    """
+
+    def setUp(self):
+        user = get_user_model().objects.create_user(
+            username="bankonly", email="bank@example.com", password="pass"
+        )
+        self.business = Business.objects.create(name="BankOnlyCo", currency="USD", owner_user=user)
+        self.defaults = ensure_default_accounts(self.business)
+        self.bank_account = BankAccount.objects.create(
+            business=self.business,
+            name="Main Account",
+            account_number_mask="0001",
+            bank_name="TestBank",
+        )
+        self.bank_account.account = self.defaults["cash"]
+        self.bank_account.save()
+        self.today = date.today()
+        self.month_start = self.today.replace(day=1)
+
+    def test_full_bank_only_workflow_produces_correct_pl(self):
+        """
+        Scenario:
+        - Deposit $1000 categorized as direct income
+        - Withdrawal $300 categorized as direct expense
+        - Invoice paid (issued prior month, paid this month) - should NOT add to P&L
+
+        Expected:
+        - Income = $1000
+        - Expenses = $300
+        - Net = $700
+        - Invoice payment does not create extra income
+        """
+        # 1. Direct income via bank allocation
+        deposit_tx = BankTransaction.objects.create(
+            bank_account=self.bank_account,
+            date=self.today,
+            description="Client payment",
+            amount=Decimal("1000.00"),
+        )
+        income_entry = allocate_bank_transaction(
+            bank_tx=deposit_tx,
+            allocations=[
+                Allocation(kind="DIRECT_INCOME", amount=Decimal("1000.00"), account_id=self.defaults["sales"].id)
+            ],
+            user=None,
+        )
+
+        # 2. Direct expense via bank allocation
+        expense_tx = BankTransaction.objects.create(
+            bank_account=self.bank_account,
+            date=self.today,
+            description="Vendor payment",
+            amount=Decimal("-300.00"),
+        )
+        expense_entry = allocate_bank_transaction(
+            bank_tx=expense_tx,
+            allocations=[
+                Allocation(kind="DIRECT_EXPENSE", amount=Decimal("300.00"), account_id=self.defaults["opex"].id)
+            ],
+            user=None,
+        )
+
+        # 3. Invoice from prior month, paid this month
+        customer = Customer.objects.create(business=self.business, name="OldClient")
+        prior_month = self.month_start - timedelta(days=15)
+        invoice = Invoice.objects.create(
+            business=self.business,
+            customer=customer,
+            invoice_number="INV-OLD-001",
+            issue_date=prior_month,
+            due_date=self.today,
+            status=Invoice.Status.SENT,
+            total_amount=Decimal("500.00"),
+            net_total=Decimal("500.00"),
+            tax_total=Decimal("0.00"),
+            grand_total=Decimal("500.00"),
+        )
+        payment_tx = BankTransaction.objects.create(
+            bank_account=self.bank_account,
+            date=self.today,
+            description="Invoice INV-OLD-001 payment",
+            amount=Decimal("500.00"),
+        )
+        payment_entry = allocate_bank_transaction(
+            bank_tx=payment_tx,
+            allocations=[Allocation(kind="INVOICE", amount=Decimal("500.00"), id=invoice.id)],
+            user=None,
+        )
+
+        # Verify P&L for this month using the existing functions
+        total_income = calculate_ledger_income(self.business, self.month_start, self.today)
+        total_expense = calculate_ledger_expenses(self.business, self.month_start, self.today)
+        net = total_income - total_expense
+
+        # Income should be $1000 (from direct income), NOT $1500 (no invoice income)
+        self.assertEqual(total_income, Decimal("1000.00"))
+        # Expenses should be $300
+        self.assertEqual(total_expense, Decimal("300.00"))
+        # Net should be $700
+        self.assertEqual(net, Decimal("700.00"))
+
+        # The invoice payment should NOT have created any income lines for this month
+        income_lines_this_month = JournalLine.objects.filter(
+            journal_entry=payment_entry,
+            account__type=Account.AccountType.INCOME,
+        )
+        self.assertEqual(income_lines_this_month.count(), 0)

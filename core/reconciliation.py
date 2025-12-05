@@ -125,6 +125,37 @@ def _require_account(business, account_id: int | None) -> Account:
         raise ValidationError("Account does not belong to this business.") from exc
 
 
+def _resolve_pl_account(
+    *,
+    business,
+    provided: Account | None,
+    desired_type: Account.AccountType,
+    defaults: dict,
+    default_key: str,
+    error_message: str,
+) -> Account:
+    """
+    Ensure we always land on an account of the desired type (INCOME/EXPENSE).
+    Falls back to defaults, then to the first available account of that type.
+    """
+    if provided and provided.type == desired_type:
+        return provided
+
+    default_account = defaults.get(default_key)
+    if default_account and default_account.type == desired_type:
+        return default_account
+
+    fallback = (
+        Account.objects.filter(business=business, type=desired_type)
+        .order_by("code", "id")
+        .first()
+    )
+    if fallback:
+        return fallback
+
+    raise ValidationError(error_message)
+
+
 @db_transaction.atomic
 def allocate_bank_transaction(
     *,
@@ -236,6 +267,14 @@ def allocate_bank_transaction(
             if not is_deposit:
                 raise ValidationError("Direct income requires a deposit transaction.")
             account = _require_account(business, alloc.account_id)
+            account = _resolve_pl_account(
+                business=business,
+                provided=account,
+                desired_type=Account.AccountType.INCOME,
+                defaults=defaults,
+                default_key="sales",
+                error_message="Configure an income account to post this deposit.",
+            )
             credit_lines.append((account, amount))
             direct_income_allocations.append((account, amount))
             match_targets.append(("direct_income", None, amount))
@@ -244,6 +283,14 @@ def allocate_bank_transaction(
             if is_deposit:
                 raise ValidationError("Direct expense allocations require a withdrawal.")
             account = _require_account(business, alloc.account_id)
+            account = _resolve_pl_account(
+                business=business,
+                provided=account,
+                desired_type=Account.AccountType.EXPENSE,
+                defaults=defaults,
+                default_key="opex",
+                error_message="Configure an expense account to post this withdrawal.",
+            )
             debit_lines.append((account, amount))
             direct_expense_allocations.append((account, amount))
             match_targets.append(("direct_expense", None, amount))

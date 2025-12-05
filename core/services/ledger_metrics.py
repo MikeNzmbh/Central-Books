@@ -13,7 +13,7 @@ from django.db.models import Sum, Q
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 
-from core.models import Account, JournalEntry, JournalLine
+from core.models import Account, JournalEntry, JournalLine, BankTransaction
 
 
 class PLPeriod(str, Enum):
@@ -206,3 +206,90 @@ def calculate_ledger_expense_by_account_name(
         .aggregate(total=Coalesce(Sum("debit"), Decimal("0")))["total"]
     )
     return total or Decimal("0")
+
+
+def build_pl_diagnostics(business, start_date: date, end_date: date) -> dict:
+    """
+    Provide a small explanation when P&L is empty while other signals exist.
+    """
+    pl_lines = JournalLine.objects.filter(
+        journal_entry__business=business,
+        journal_entry__date__gte=start_date,
+        journal_entry__date__lte=end_date,
+        journal_entry__is_void=False,
+        account__type__in=[Account.AccountType.INCOME, Account.AccountType.EXPENSE],
+    )
+    pl_count = pl_lines.count()
+
+    other_lines = JournalLine.objects.filter(
+        journal_entry__business=business,
+        journal_entry__date__gte=start_date,
+        journal_entry__date__lte=end_date,
+        journal_entry__is_void=False,
+    ).exclude(account__type__in=[Account.AccountType.INCOME, Account.AccountType.EXPENSE])
+    other_count = other_lines.count()
+
+    bank_activity = BankTransaction.objects.filter(
+        bank_account__business=business,
+        date__gte=start_date,
+        date__lte=end_date,
+    ).exists()
+
+    if pl_count > 0:
+        return {
+            "has_ledger_activity": True,
+            "has_bank_activity": bank_activity,
+            "reason_code": "",
+            "reason_message": "",
+        }
+
+    # No PL lines
+    latest_pl_date = (
+        JournalLine.objects.filter(
+            journal_entry__business=business,
+            journal_entry__is_void=False,
+            account__type__in=[Account.AccountType.INCOME, Account.AccountType.EXPENSE],
+        )
+        .order_by("-journal_entry__date")
+        .values_list("journal_entry__date", flat=True)
+        .first()
+    )
+
+    if not bank_activity and pl_count == 0 and other_count == 0:
+        return {
+            "has_ledger_activity": False,
+            "has_bank_activity": False,
+            "reason_code": "no_activity",
+            "reason_message": "No income or expense activity was posted for this period.",
+        }
+
+    if bank_activity and pl_count == 0 and other_count == 0:
+        return {
+            "has_ledger_activity": False,
+            "has_bank_activity": True,
+            "reason_code": "bank_only",
+            "reason_message": "We see bank activity for this period, but no income or expense entries were posted to the ledger.",
+        }
+
+    if other_count > 0:
+        return {
+            "has_ledger_activity": False,
+            "has_bank_activity": bank_activity,
+            "reason_code": "non_pl_accounts",
+            "reason_message": "Transactions are posted to asset or liability accounts only. Use income and expense accounts to populate the P&L.",
+        }
+
+    if latest_pl_date and not (start_date <= latest_pl_date <= end_date):
+        return {
+            "has_ledger_activity": False,
+            "has_bank_activity": bank_activity,
+            "reason_code": "outside_period",
+            "reason_message": "Income and expenses were recorded outside this period. Change the date range to include them.",
+        }
+
+    return {
+        "has_ledger_activity": False,
+        "has_bank_activity": bank_activity,
+        "reason_code": "no_income_expense_lines",
+        "reason_message": "No income or expense transactions were posted to your ledger for this period.",
+    }

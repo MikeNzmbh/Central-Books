@@ -1,7 +1,9 @@
 import logging
 from typing import Callable
 
+from django.conf import settings
 from django.http import HttpRequest, HttpResponse
+from django.http import HttpResponseForbidden
 
 
 oauth_logger = logging.getLogger("oauth.google")
@@ -39,3 +41,19 @@ class GoogleOAuthLoggingMiddleware:
             )
 
         return response
+
+
+class AdminSuperuserGuardMiddleware:
+    """
+    Restrict Django admin access to authenticated superusers while still allowing the login page.
+    """
+
+    def __init__(self, get_response: Callable[[HttpRequest], HttpResponse]) -> None:
+        self.get_response = get_response
+
+    def __call__(self, request: HttpRequest) -> HttpResponse:
+        if getattr(settings, "ENABLE_DJANGO_ADMIN", True) and request.path.startswith("/admin/"):
+            if request.user.is_authenticated and not request.user.is_superuser:
+                return HttpResponseForbidden("Admin access is restricted to superusers.")
+
+        return self.get_response(request)

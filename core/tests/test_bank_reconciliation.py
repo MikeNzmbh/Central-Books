@@ -2,8 +2,10 @@
 Tests for Bank Reconciliation Service
 """
 
+import calendar
 from decimal import Decimal
 from datetime import date
+from django.core.exceptions import ValidationError
 
 from django.test import TestCase
 from django.contrib.auth import get_user_model
@@ -19,8 +21,9 @@ from core.models import (
     Account,
     BankReconciliationMatch,
     Customer,
+    ReconciliationSession,
 )
-from core.services.bank_reconciliation import BankReconciliationService
+from core.services.bank_reconciliation import BankReconciliationService, set_reconciled_state
 
 User = get_user_model()
 
@@ -72,6 +75,20 @@ class BankReconciliationServiceTest(TestCase):
             type=Account.AccountType.EXPENSE,
         )
 
+    def _session_for_tx(self, tx_date=None) -> ReconciliationSession:
+        tx_date = tx_date or timezone.localdate()
+        start = tx_date.replace(day=1)
+        _, last_day = calendar.monthrange(tx_date.year, tx_date.month)
+        end = date(tx_date.year, tx_date.month, last_day)
+        session, _ = ReconciliationSession.objects.get_or_create(
+            business=self.business,
+            bank_account=self.bank_account,
+            statement_start_date=start,
+            statement_end_date=end,
+            defaults={"opening_balance": Decimal("0.00"), "closing_balance": Decimal("0.00")},
+        )
+        return session
+
     def test_confirm_match(self):
         """Test confirming a match"""
         # Create bank transaction
@@ -107,6 +124,7 @@ class BankReconciliationServiceTest(TestCase):
             journal_entry=journal_entry,
             match_confidence=Decimal("0.95"),
             user=self.user,
+            session=self._session_for_tx(bank_tx.date),
         )
 
         # Assert
@@ -200,6 +218,27 @@ class BankReconciliationServiceTest(TestCase):
                 user=self.user,
             )
 
+    def test_set_reconciled_state_cross_session_blocked(self):
+        bank_tx = BankTransaction.objects.create(
+            bank_account=self.bank_account,
+            date=date.today(),
+            description="Cross session",
+            amount=Decimal("10.00"),
+        )
+        session_a = self._session_for_tx(bank_tx.date)
+        session_b = self._session_for_tx(bank_tx.date.replace(month=bank_tx.date.month % 12 + 1, day=1))
+
+        BankReconciliationService.confirm_match(
+            bank_transaction=bank_tx,
+            journal_entry=JournalEntry.objects.create(business=self.business, date=date.today(), description="JE"),
+            match_confidence=Decimal("1.00"),
+            user=self.user,
+            session=session_a,
+        )
+
+        with self.assertRaisesMessage(ValidationError, "Cannot move a reconciled transaction"):
+            set_reconciled_state(bank_tx, reconciled=True, session=session_b, status=BankTransaction.TransactionStatus.MATCHED_SINGLE)
+
     def test_unmatch(self):
         """Test unmatching a transaction"""
         # Setup: Create match first
@@ -219,6 +258,7 @@ class BankReconciliationServiceTest(TestCase):
             journal_entry=journal_entry,
             match_confidence=Decimal("1.00"),
             user=self.user,
+            session=self._session_for_tx(bank_tx.date),
         )
 
         # Verify matched state

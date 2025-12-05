@@ -18,6 +18,11 @@ from companion.services import (
     generate_bank_match_suggestions_for_workspace,
     generate_overdue_invoice_suggestions_for_workspace,
     generate_uncategorized_expense_suggestions_for_workspace,
+    generate_uncategorized_transactions_cleanup_actions,
+    generate_reconciliation_period_close_actions,
+    generate_inactive_customers_followup,
+    generate_expense_spike_category_review,
+    gather_workspace_metrics,
     get_latest_health_snapshot,
 )
 from core.models import Account, BankAccount, BankTransaction, Business, Category, Customer, Expense, Invoice, JournalEntry, JournalLine, Supplier
@@ -150,13 +155,18 @@ class CompanionApiTests(TestCase):
             severity="warning",
         )
         mock_llm.return_value = json.dumps(
-            {"summary": "Books look stable. Reconcile soon.", "insight_explanations": {str(insight.id): "Clear 3 items."}}
+            {
+                "summary": "Books look stable. Reconcile soon.",
+                "context_summary": "Banking looks steady.",
+                "insight_explanations": {str(insight.id): "Clear 3 items."},
+            }
         )
         response = self.client.get(reverse("companion:overview"))
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertEqual(payload["llm_narrative"]["summary"], "Books look stable. Reconcile soon.")
         self.assertEqual(payload["llm_narrative"]["insight_explanations"].get(str(insight.id)), "Clear 3 items.")
+        self.assertEqual(payload["llm_narrative"]["context_summary"], "Banking looks steady.")
 
     def test_expense_save_records_memory(self):
         Expense.objects.create(
@@ -179,6 +189,8 @@ class CompanionApiTests(TestCase):
             confidence=Decimal("0.5"),
             summary="Review bank matches",
             context=CompanionSuggestedAction.CONTEXT_BANK,
+            severity=CompanionSuggestedAction.SEVERITY_MEDIUM,
+            short_title="Bank match",
         )
 
         response = self.client.get(reverse("companion:overview") + "?context=bank")
@@ -200,6 +212,8 @@ class CompanionApiTests(TestCase):
             confidence=Decimal("0.7"),
             summary="New bank match",
             context=CompanionSuggestedAction.CONTEXT_BANK,
+            severity=CompanionSuggestedAction.SEVERITY_LOW,
+            short_title="Bank match",
         )
         action.created_at = timezone.now() - timedelta(hours=1)
         action.save(update_fields=["created_at"])
@@ -226,6 +240,83 @@ class CompanionApiTests(TestCase):
             content_type="application/json",
         )
         self.assertEqual(res.status_code, 400)
+
+    def test_context_reasons_all_clear_invoices(self):
+        response = self.client.get(reverse("companion:overview") + "?context=invoices")
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload.get("context_all_clear"))
+        self.assertIn("context_reasons", payload)
+        self.assertTrue(payload.get("context_reasons"))
+
+    def test_context_reasons_flagged_for_overdue(self):
+        today = timezone.now().date()
+        customer = Customer.objects.create(business=self.workspace, name="Ctx Customer")
+        Invoice.objects.create(
+            business=self.workspace,
+            customer=customer,
+            invoice_number="CTX-1",
+            status=Invoice.Status.SENT,
+            issue_date=today - timedelta(days=40),
+            due_date=today - timedelta(days=10),
+            total_amount=Decimal("50.00"),
+            grand_total=Decimal("50.00"),
+        )
+        response = self.client.get(reverse("companion:overview") + "?context=invoices")
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertFalse(payload.get("context_all_clear"))
+        reasons = payload.get("context_reasons") or []
+        self.assertTrue(any("overdue" in reason.lower() for reason in reasons))
+
+    def test_actions_sorted_by_severity(self):
+        low = CompanionSuggestedAction.objects.create(
+            workspace=self.workspace,
+            action_type=CompanionSuggestedAction.ACTION_INACTIVE_CUSTOMERS_FOLLOWUP,
+            status=CompanionSuggestedAction.STATUS_OPEN,
+            payload={},
+            confidence=Decimal("0.1"),
+            summary="Low",
+            severity=CompanionSuggestedAction.SEVERITY_LOW,
+            short_title="Low",
+        )
+        high = CompanionSuggestedAction.objects.create(
+            workspace=self.workspace,
+            action_type=CompanionSuggestedAction.ACTION_SUSPENSE_BALANCE_REVIEW,
+            status=CompanionSuggestedAction.STATUS_OPEN,
+            payload={},
+            confidence=Decimal("0.2"),
+            summary="High",
+            severity=CompanionSuggestedAction.SEVERITY_HIGH,
+            short_title="High",
+        )
+        low.created_at = timezone.now() - timedelta(days=1)
+        low.save(update_fields=["created_at"])
+        response = self.client.get(reverse("companion:overview"))
+        self.assertEqual(response.status_code, 200)
+        actions = response.json().get("actions") or []
+        self.assertGreaterEqual(len(actions), 2)
+        self.assertEqual(actions[0]["summary"], "High")
+        self.assertEqual(actions[0]["severity"], CompanionSuggestedAction.SEVERITY_HIGH)
+
+    def test_overdue_invoice_severity_set(self):
+        today = timezone.now().date()
+        customer = Customer.objects.create(business=self.workspace, name="Client")
+        Invoice.objects.create(
+            business=self.workspace,
+            customer=customer,
+            invoice_number="INV-1",
+            status=Invoice.Status.SENT,
+            issue_date=today - timedelta(days=40),
+            due_date=today - timedelta(days=20),
+            total_amount=Decimal("600.00"),
+            grand_total=Decimal("600.00"),
+        )
+        actions = generate_overdue_invoice_suggestions_for_workspace(self.workspace)
+        self.assertTrue(actions)
+        action = actions[0]
+        self.assertEqual(action.severity, CompanionSuggestedAction.SEVERITY_MEDIUM)
+        self.assertEqual(action.short_title, "Overdue invoices")
 
 
 class CompanionInsightLifecycleTests(TestCase):
@@ -532,20 +623,20 @@ class CompanionDeterministicSuggestionTests(TestCase):
         generate_overdue_invoice_suggestions_for_workspace(self.workspace, grace_days=7)
         actions = CompanionSuggestedAction.objects.filter(
             workspace=self.workspace,
-            action_type=CompanionSuggestedAction.ACTION_INVOICE_REMINDER,
+            action_type=CompanionSuggestedAction.ACTION_OVERDUE_INVOICE_REMINDERS,
         )
         self.assertEqual(actions.count(), 1)
         action = actions.first()
         self.assertEqual(action.context, CompanionSuggestedAction.CONTEXT_INVOICES)
-        self.assertEqual(action.payload.get("invoice_id"), overdue_invoice.id)
-        self.assertGreaterEqual(action.payload.get("days_overdue"), 10)
+        self.assertIn(overdue_invoice.id, action.payload.get("invoice_ids"))
+        self.assertGreaterEqual(action.payload.get("invoices")[0].get("days_overdue"), 10)
 
         # Deduplicate on repeat runs
         generate_overdue_invoice_suggestions_for_workspace(self.workspace, grace_days=7)
         self.assertEqual(
             CompanionSuggestedAction.objects.filter(
                 workspace=self.workspace,
-                action_type=CompanionSuggestedAction.ACTION_INVOICE_REMINDER,
+                action_type=CompanionSuggestedAction.ACTION_OVERDUE_INVOICE_REMINDERS,
             ).count(),
             1,
         )
@@ -579,7 +670,7 @@ class CompanionDeterministicSuggestionTests(TestCase):
         generate_uncategorized_expense_suggestions_for_workspace(self.workspace, max_actions=3)
         actions = CompanionSuggestedAction.objects.filter(
             workspace=self.workspace,
-            action_type=CompanionSuggestedAction.ACTION_CATEGORIZE_EXPENSES_BATCH,
+            action_type=CompanionSuggestedAction.ACTION_UNCATEGORIZED_EXPENSE_REVIEW,
         )
         self.assertEqual(actions.count(), 1)
         action = actions.first()
@@ -592,7 +683,52 @@ class CompanionDeterministicSuggestionTests(TestCase):
         self.assertEqual(
             CompanionSuggestedAction.objects.filter(
                 workspace=self.workspace,
-                action_type=CompanionSuggestedAction.ACTION_CATEGORIZE_EXPENSES_BATCH,
+                action_type=CompanionSuggestedAction.ACTION_UNCATEGORIZED_EXPENSE_REVIEW,
             ).count(),
             1,
         )
+
+    def test_uncategorized_transactions_cleanup_action_created(self):
+        suspense_account = Account.objects.create(
+            business=self.workspace,
+            name="Uncategorized Transactions",
+            code="9999",
+            type=Account.AccountType.ASSET,
+        )
+        journal = JournalEntry.objects.create(business=self.workspace, date=timezone.now().date(), description="Test")
+        JournalLine.objects.create(journal_entry=journal, account=suspense_account, debit=Decimal("100.00"), credit=Decimal("0.00"))
+        metrics = gather_workspace_metrics(self.workspace)
+        actions = generate_uncategorized_transactions_cleanup_actions(self.workspace, metrics=metrics)
+        self.assertTrue(actions)
+        self.assertEqual(actions[0].action_type, CompanionSuggestedAction.ACTION_UNCATEGORIZED_TRANSACTIONS_CLEANUP)
+
+    def test_reconciliation_period_close_action_created(self):
+        metrics = {"has_unfinished_reconciliation_period": True, "unreconciled_count": 2}
+        actions = generate_reconciliation_period_close_actions(self.workspace, metrics=metrics)
+        self.assertTrue(actions)
+        self.assertEqual(actions[0].action_type, CompanionSuggestedAction.ACTION_RECONCILIATION_PERIOD_TO_CLOSE)
+
+    def test_inactive_customers_followup_action(self):
+        past_date = timezone.now().date() - timedelta(days=120)
+        Invoice.objects.create(
+            business=self.workspace,
+            customer=self.customer,
+            invoice_number="INV-500",
+            status=Invoice.Status.SENT,
+            issue_date=past_date,
+            due_date=past_date + timedelta(days=10),
+            total_amount=Decimal("50.00"),
+            grand_total=Decimal("50.00"),
+        )
+        actions = generate_inactive_customers_followup(self.workspace)
+        self.assertTrue(actions)
+        self.assertEqual(actions[0].action_type, CompanionSuggestedAction.ACTION_INACTIVE_CUSTOMERS_FOLLOWUP)
+
+    def test_expense_spike_category_action(self):
+        category = Category.objects.create(business=self.workspace, name="Travel", type=Category.CategoryType.EXPENSE)
+        today = timezone.now().date()
+        Expense.objects.create(business=self.workspace, category=category, supplier=self.supplier, date=today - timedelta(days=60), amount=Decimal("100.00"))
+        Expense.objects.create(business=self.workspace, category=category, supplier=self.supplier, date=today - timedelta(days=10), amount=Decimal("300.00"))
+        actions = generate_expense_spike_category_review(self.workspace, threshold_pct=50)
+        self.assertTrue(actions)
+        self.assertEqual(actions[0].action_type, CompanionSuggestedAction.ACTION_SPIKE_EXPENSE_CATEGORY_REVIEW)
