@@ -52,6 +52,7 @@ def _get_list_env(name: str) -> list[str]:
 
 DEBUG = _get_bool_env("DJANGO_DEBUG", _get_bool_env("DEBUG", True))
 SHOW_LOGIN_FALLBACK = os.getenv("SHOW_LOGIN_FALLBACK", "true").lower() == "true"
+ENABLE_DJANGO_ADMIN = _get_bool_env("ENABLE_DJANGO_ADMIN", DEBUG)
 
 # ALLOWED_HOSTS / CSRF_TRUSTED_ORIGINS (Render + env overrides)
 RENDER_EXTERNAL_HOSTNAME = os.environ.get("RENDER_EXTERNAL_HOSTNAME")
@@ -136,6 +137,7 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "allauth.account.middleware.AccountMiddleware",  # Required for django-allauth
+    "core.middleware.AdminSuperuserGuardMiddleware",
     "core.middleware.GoogleOAuthLoggingMiddleware",
 ]
 

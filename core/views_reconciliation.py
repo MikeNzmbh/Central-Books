@@ -1,7 +1,9 @@
 from datetime import date, timedelta
+import logging
 from decimal import Decimal, ROUND_HALF_UP
 
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ValidationError
 from django.http import JsonResponse, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -10,8 +12,13 @@ from django.views.decorators.http import require_GET, require_POST
 from django.db import models
 from django.db.models import Q
 from core.utils import get_current_business
+from core.services.periods import resolve_comparison, resolve_period
 from core.services.reconciliation_engine import ReconciliationEngine
-from core.services.bank_reconciliation import BankReconciliationService
+from core.services.bank_reconciliation import (
+    BankReconciliationService,
+    RECONCILED_STATUSES,
+    set_reconciled_state,
+)
 from core.services.bank_matching import BankMatchingEngine
 from core.reconciliation import recompute_bank_transaction_status
 from core.models import (
@@ -25,6 +32,7 @@ from core.models import (
     JournalEntry,
 )
 
+logger = logging.getLogger(__name__)
 
 @login_required
 def reconcile_bank_account(request: HttpRequest, pk: int) -> HttpResponse:
@@ -123,7 +131,7 @@ def _period_options_for_account(bank_account: BankAccount) -> list[dict]:
 
 
 def _json_error(message, status=400, code: str | None = None):
-    payload = {"error": message}
+    payload = {"detail": message, "error": message}
     if code:
         payload["code"] = code
     return JsonResponse(payload, status=status)
@@ -143,6 +151,69 @@ def _ensure_business(request):
     if business is None:
         return None, JsonResponse({"error": "No business selected"}, status=401)
     return business, None
+
+
+def _session_mutable_or_error(session: ReconciliationSession):
+    if session.status == ReconciliationSession.Status.COMPLETED:
+        return _json_error(
+            "This reconciliation period is completed and cannot be modified. Reopen the period to make changes.",
+            status=400,
+            code="session_completed",
+        )
+    return None
+
+
+def _assert_tx_in_session_period(bank_tx: BankTransaction, session: ReconciliationSession):
+    if bank_tx.date and (
+        bank_tx.date < session.statement_start_date or bank_tx.date > session.statement_end_date
+    ):
+        raise ValidationError("Transaction is out of period for this session.")
+
+
+def _assert_entry_in_session_period(entry: JournalEntry, session: ReconciliationSession):
+    if entry.date and (
+        entry.date < session.statement_start_date or entry.date > session.statement_end_date
+    ):
+        raise ValidationError("Journal entry is out of period for this session.")
+
+
+def _attach_transactions_to_session(session: ReconciliationSession):
+    """
+    Attach any orphan bank transactions in the session period to this session
+    and normalize their reconciliation flags.
+    """
+    candidates = BankTransaction.objects.filter(
+        bank_account=session.bank_account,
+        date__gte=session.statement_start_date,
+        date__lte=session.statement_end_date,
+        reconciliation_session__isnull=True,
+    ).order_by("date", "id")
+
+    for tx in candidates:
+        reconciled_flag = tx.status in RECONCILED_STATUSES
+        set_reconciled_state(
+            tx,
+            reconciled=reconciled_flag,
+            session=session,
+            status=tx.status,
+        )
+
+
+def _session_for_tx(bank_tx: BankTransaction) -> ReconciliationSession:
+    """
+    Resolve or create the reconciliation session that should own this transaction.
+    Prefers an existing reconciliation_session if already set.
+    """
+    if bank_tx.reconciliation_session_id:
+        return bank_tx.reconciliation_session  # type: ignore[return-value]
+
+    import calendar
+
+    tx_date = bank_tx.date or timezone.localdate()
+    start_date = tx_date.replace(day=1)
+    _, last_day = calendar.monthrange(tx_date.year, tx_date.month)
+    end_date = date(tx_date.year, tx_date.month, last_day)
+    return _get_or_create_session(bank_tx.bank_account.business, bank_tx.bank_account, start_date, end_date)
 
 
 # --- Reconciliation V1 (stable API for React UI) ---
@@ -255,12 +326,13 @@ def _parse_iso_date(value: str | None, field: str) -> date:
         raise ValueError(f"Invalid {field} format. Use YYYY-MM-DD") from exc
 
 
-def _simplified_status(tx: BankTransaction) -> str:
+def _simplified_status(tx: BankTransaction, session: ReconciliationSession | None = None) -> str:
+    in_session = session is None or tx.reconciliation_session_id == getattr(session, "id", None)
     if tx.status == BankTransaction.TransactionStatus.EXCLUDED:
-        return "excluded"
+        return "excluded" if in_session else "new"
     if tx.status == BankTransaction.TransactionStatus.PARTIAL:
-        return "partial"
-    if tx.is_reconciled or tx.status in (
+        return "partial" if in_session else "new"
+    if in_session and tx.status in (
         BankTransaction.TransactionStatus.MATCHED,
         BankTransaction.TransactionStatus.MATCHED_SINGLE,
         BankTransaction.TransactionStatus.MATCHED_MULTI,
@@ -268,20 +340,21 @@ def _simplified_status(tx: BankTransaction) -> str:
         BankTransaction.TransactionStatus.LEGACY_CREATED,
     ):
         return "matched"
+    if in_session and tx.is_reconciled:
+        return "matched"
     return "new"
 
 
-def _serialize_tx(tx: BankTransaction) -> dict:
-    status = _simplified_status(tx)
+def _serialize_tx(tx: BankTransaction, session: ReconciliationSession | None = None) -> dict:
+    status = _simplified_status(tx, session)
     counterparty = None
     if tx.customer:
         counterparty = tx.customer.name
     elif tx.supplier:
         counterparty = tx.supplier.name
 
-    rec_status = tx.reconciliation_status or BankTransaction.RECO_STATUS_UNRECONCILED
-    if tx.status == BankTransaction.TransactionStatus.EXCLUDED:
-        rec_status = BankTransaction.RECO_STATUS_RECONCILED
+    in_session = session and tx.reconciliation_session_id == session.id
+    rec_status = BankTransaction.RECO_STATUS_RECONCILED if (in_session and tx.status in RECONCILED_STATUSES) else BankTransaction.RECO_STATUS_UNRECONCILED
 
     return {
         "id": tx.id,
@@ -294,17 +367,19 @@ def _serialize_tx(tx: BankTransaction) -> dict:
         "reconciliation_status": rec_status,
         "match_confidence": float(tx.suggestion_confidence) / 100.0 if tx.suggestion_confidence else None,
         "engine_reason": tx.suggestion_reason,
-        "includedInSession": status != "excluded",
+        "includedInSession": bool(in_session),
     }
 
 
-def _session_feed(bank_account: BankAccount, start_date: date, end_date: date) -> dict:
+def _session_feed(session: ReconciliationSession) -> dict:
+    bank_account = session.bank_account
     qs = (
         BankTransaction.objects.filter(
             bank_account=bank_account,
-            date__gte=start_date,
-            date__lte=end_date,
+            date__gte=session.statement_start_date,
+            date__lte=session.statement_end_date,
         )
+        .filter(Q(reconciliation_session__isnull=True) | Q(reconciliation_session=session))
         .select_related("customer", "supplier")
         .order_by("-date", "-id")
     )
@@ -317,30 +392,38 @@ def _session_feed(bank_account: BankAccount, start_date: date, end_date: date) -
     }
 
     for tx in qs:
-        payload = _serialize_tx(tx)
-        buckets[_simplified_status(tx)].append(payload)
+        payload = _serialize_tx(tx, session=session)
+        bucket = _simplified_status(tx, session=session)
+        payload["ui_status"] = bucket.upper()
+        in_session = tx.reconciliation_session_id == session.id
+        payload["is_cleared"] = bool(
+            in_session
+            and tx.status in RECONCILED_STATUSES
+            and tx.status != BankTransaction.TransactionStatus.EXCLUDED
+        )
+        buckets[bucket].append(payload)
     return buckets
 
 
 def _session_transactions_queryset(session: ReconciliationSession):
     return BankTransaction.objects.filter(
-        bank_account=session.bank_account,
-        date__gte=session.statement_start_date,
-        date__lte=session.statement_end_date,
+        reconciliation_session=session,
     )
 
 
 def _cleared_sum_for_session(session: ReconciliationSession) -> Decimal:
-    qs = _session_transactions_queryset(session).exclude(
-        status=BankTransaction.TransactionStatus.EXCLUDED
-    )
-    cleared_qs = qs.filter(
-        Q(reconciliation_status=BankTransaction.RECO_STATUS_RECONCILED)
-        | Q(status=BankTransaction.TransactionStatus.PARTIAL)
-        | Q(reconciliation_status__iexact="partial")
-    )
-    cleared_sum = cleared_qs.aggregate(total=models.Sum("amount"))["total"] or Decimal("0.00")
-    return _quantize_money(cleared_sum)
+    cleared_qs = _session_transactions_queryset(session).filter(status__in=RECONCILED_STATUSES)
+    total = Decimal("0.00")
+    for tx in cleared_qs:
+        signed_amount = tx.amount or Decimal("0.00")
+        if tx.status == BankTransaction.TransactionStatus.PARTIAL and tx.allocated_amount is not None:
+            signed_amount = tx.allocated_amount
+            if tx.amount and tx.amount < 0:
+                signed_amount = -signed_amount
+        elif tx.status == BankTransaction.TransactionStatus.EXCLUDED:
+            signed_amount = Decimal("0.00")
+        total += signed_amount
+    return _quantize_money(total)
 
 
 def _get_or_create_session(business, bank_account: BankAccount, start_date: date, end_date: date):
@@ -371,28 +454,23 @@ def _get_or_create_session(business, bank_account: BankAccount, start_date: date
         updates.append("opening_balance")
     if updates:
         session.save(update_fields=updates)
+    _attach_transactions_to_session(session)
     return session
 
 
 def _session_payload(session: ReconciliationSession, include_periods: bool = False) -> dict:
     ledger_end = _account_balance_as_of(session.bank_account.account, session.statement_end_date)
-    feed = _session_feed(session.bank_account, session.statement_start_date, session.statement_end_date)
+    feed = _session_feed(session)
 
-    total_txs = sum(len(v) for v in feed.values())
-
-    def _is_reconciled(item: dict) -> bool:
-        if item.get("status") == "excluded":
-            return True
-        return item.get("reconciliation_status") == BankTransaction.RECO_STATUS_RECONCILED
-
-    reconciled_count = len(
-        [i for bucket in feed.values() for i in bucket if _is_reconciled(i)]
-    )
+    session_txs = _session_transactions_queryset(session)
+    total_txs = session_txs.count()
+    reconciled_count = session_txs.filter(status__in=RECONCILED_STATUSES).count()
+    excluded_count = session_txs.filter(status=BankTransaction.TransactionStatus.EXCLUDED).count()
     reconciled_percent = float(round((reconciled_count / total_txs * 100), 2)) if total_txs else 0.0
     unreconciled_count = total_txs - reconciled_count
     cleared_sum = _cleared_sum_for_session(session)
-    cleared_balance = _quantize_money(session.opening_balance + cleared_sum)
-    difference = _quantize_money(session.closing_balance - cleared_balance)
+    cleared_balance = _quantize_money((session.opening_balance or Decimal("0.00")) + cleared_sum)
+    difference = _quantize_money((session.closing_balance or Decimal("0.00")) - cleared_balance)
 
     payload = {
         "session": {
@@ -411,6 +489,7 @@ def _session_payload(session: ReconciliationSession, include_periods: bool = Fal
             "total_transactions": total_txs,
             "unreconciled_count": unreconciled_count,
             "reconciled_count": reconciled_count,
+            "excluded_count": excluded_count,
         },
         "feed": feed,
         "bank_account": {
@@ -521,6 +600,9 @@ def _apply_match(session: ReconciliationSession, bank_tx: BankTransaction, journ
     """
     Link a bank transaction to a journal entry and mark both sides reconciled.
     """
+    _assert_tx_in_session_period(bank_tx, session)
+    _assert_entry_in_session_period(journal_entry, session)
+
     # Clear existing matches to avoid duplicates
     BankReconciliationMatch.objects.filter(bank_transaction=bank_tx).delete()
     ts = timezone.now()
@@ -533,23 +615,15 @@ def _apply_match(session: ReconciliationSession, bank_tx: BankTransaction, journ
         reconciled_by=user,
     )
 
-    bank_tx.is_reconciled = True
-    bank_tx.reconciled_at = ts
-    bank_tx.status = BankTransaction.TransactionStatus.MATCHED
-    bank_tx.reconciliation_status = BankTransaction.RECO_STATUS_RECONCILED
     bank_tx.allocated_amount = abs(bank_tx.amount or Decimal("0.00"))
-    bank_tx.reconciliation_session = session
     bank_tx.posted_journal_entry = journal_entry
-    bank_tx.save(
-        update_fields=[
-            "is_reconciled",
-            "reconciled_at",
-            "status",
-            "reconciliation_status",
-            "allocated_amount",
-            "reconciliation_session",
-            "posted_journal_entry",
-        ]
+    bank_tx.save(update_fields=["allocated_amount", "posted_journal_entry"])
+    set_reconciled_state(
+        bank_tx,
+        reconciled=True,
+        session=session,
+        status=BankTransaction.TransactionStatus.MATCHED_SINGLE,
+        reconciled_at=ts,
     )
 
     if bank_tx.bank_account.account:
@@ -637,6 +711,8 @@ def api_reconciliation_set_statement_balance_v1(request: HttpRequest, session_id
         return error
 
     session = get_object_or_404(ReconciliationSession, pk=session_id, business=business)
+    if (resp := _session_mutable_or_error(session)):
+        return resp
     body = _parse_json(request) or {}
     opening = body.get("opening_balance")
     statement = body.get("statement_ending_balance")
@@ -665,12 +741,16 @@ def api_reconciliation_match_v1(request: HttpRequest, session_id: int):
         return error
 
     session = get_object_or_404(ReconciliationSession, pk=session_id, business=business)
+    if (resp := _session_mutable_or_error(session)):
+        return resp
     body = _parse_json(request) or {}
     tx_id = body.get("transaction_id")
     if not tx_id:
         return _json_error("transaction_id is required")
 
     bank_tx = get_object_or_404(BankTransaction, pk=tx_id, bank_account=session.bank_account)
+    if bank_tx.reconciliation_session_id not in (None, session.id):
+        return _json_error("Transaction belongs to another reconciliation session.")
     if bank_tx.date and (
         bank_tx.date < session.statement_start_date or bank_tx.date > session.statement_end_date
     ):
@@ -684,7 +764,10 @@ def api_reconciliation_match_v1(request: HttpRequest, session_id: int):
 
     journal_entry = get_object_or_404(JournalEntry, pk=journal_entry_id, business=business)
 
-    _apply_match(session, bank_tx, journal_entry, request.user)
+    try:
+        _apply_match(session, bank_tx, journal_entry, request.user)
+    except ValidationError as exc:
+        return _json_error(str(exc))
     return JsonResponse(_session_payload(session))
 
 
@@ -696,12 +779,17 @@ def api_reconciliation_unmatch_v1(request: HttpRequest, session_id: int):
         return error
 
     session = get_object_or_404(ReconciliationSession, pk=session_id, business=business)
+    if (resp := _session_mutable_or_error(session)):
+        return resp
     body = _parse_json(request) or {}
     tx_id = body.get("transaction_id")
     if not tx_id:
         return _json_error("transaction_id is required")
 
     bank_tx = get_object_or_404(BankTransaction, pk=tx_id, bank_account=session.bank_account)
+    if bank_tx.reconciliation_session_id not in (None, session.id):
+        return _json_error("Transaction belongs to another reconciliation session.")
+
     match_entries = list(
         BankReconciliationMatch.objects.filter(bank_transaction=bank_tx).values_list(
             "journal_entry_id", flat=True
@@ -709,25 +797,18 @@ def api_reconciliation_unmatch_v1(request: HttpRequest, session_id: int):
     )
     BankReconciliationMatch.objects.filter(bank_transaction=bank_tx).delete()
 
-    bank_tx.status = BankTransaction.TransactionStatus.NEW
-    bank_tx.is_reconciled = False
-    bank_tx.reconciliation_status = BankTransaction.RECO_STATUS_UNRECONCILED
     bank_tx.allocated_amount = Decimal("0.0000")
-    bank_tx.reconciled_at = None
     bank_tx.posted_journal_entry = None
-    if bank_tx.reconciliation_session_id == session.id:
-        bank_tx.reconciliation_session = None
-    bank_tx.save(
-        update_fields=[
-            "status",
-            "is_reconciled",
-            "allocated_amount",
-            "reconciled_at",
-            "posted_journal_entry",
-            "reconciliation_session",
-            "reconciliation_status",
-        ]
-    )
+    bank_tx.save(update_fields=["allocated_amount", "posted_journal_entry"])
+    try:
+        set_reconciled_state(
+            bank_tx,
+            reconciled=False,
+            session=session,
+            status=BankTransaction.TransactionStatus.NEW,
+        )
+    except ValidationError as exc:
+        return _json_error(str(exc))
 
     if bank_tx.bank_account.account and match_entries:
         JournalLine.objects.filter(
@@ -749,6 +830,8 @@ def api_reconciliation_exclude_v1(request: HttpRequest, session_id: int):
         return error
 
     session = get_object_or_404(ReconciliationSession, pk=session_id, business=business)
+    if (resp := _session_mutable_or_error(session)):
+        return resp
     body = _parse_json(request) or {}
     tx_id = body.get("transaction_id")
     excluded = body.get("excluded", True)
@@ -756,32 +839,39 @@ def api_reconciliation_exclude_v1(request: HttpRequest, session_id: int):
         return _json_error("transaction_id is required")
 
     bank_tx = get_object_or_404(BankTransaction, pk=tx_id, bank_account=session.bank_account)
+    try:
+        _assert_tx_in_session_period(bank_tx, session)
+    except ValidationError as exc:
+        return _json_error(str(exc))
+    if bank_tx.reconciliation_session_id not in (None, session.id):
+        return _json_error("Transaction belongs to another reconciliation session.")
     if excluded:
         BankReconciliationMatch.objects.filter(bank_transaction=bank_tx).delete()
-        bank_tx.status = BankTransaction.TransactionStatus.EXCLUDED
-        bank_tx.is_reconciled = False
-        bank_tx.reconciled_at = None
-        bank_tx.reconciliation_session = session
         bank_tx.allocated_amount = Decimal("0.0000")
         bank_tx.posted_journal_entry = None
-        bank_tx.reconciliation_status = BankTransaction.RECO_STATUS_RECONCILED
+        bank_tx.save(update_fields=["allocated_amount", "posted_journal_entry"])
+        try:
+            set_reconciled_state(
+                bank_tx,
+                reconciled=True,
+                session=session,
+                status=BankTransaction.TransactionStatus.EXCLUDED,
+            )
+        except ValidationError as exc:
+            return _json_error(str(exc))
     else:
         if bank_tx.status == BankTransaction.TransactionStatus.EXCLUDED:
             bank_tx.status = BankTransaction.TransactionStatus.NEW
-        if bank_tx.reconciliation_session_id == session.id:
-            bank_tx.reconciliation_session = None
-        bank_tx.reconciliation_status = BankTransaction.RECO_STATUS_UNRECONCILED
-    bank_tx.save(
-        update_fields=[
-            "status",
-            "is_reconciled",
-            "reconciled_at",
-            "reconciliation_session",
-            "allocated_amount",
-            "posted_journal_entry",
-            "reconciliation_status",
-        ]
-    )
+        bank_tx.save(update_fields=["status"])
+        try:
+            set_reconciled_state(
+                bank_tx,
+                reconciled=False,
+                session=session,
+                status=bank_tx.status,
+            )
+        except ValidationError as exc:
+            return _json_error(str(exc))
 
     return JsonResponse(_session_payload(session))
 
@@ -802,13 +892,49 @@ def api_reconciliation_session_report(request: HttpRequest, session_id: int):
         business=business,
     )
 
+    period_key = request.GET.get("period_preset") or request.GET.get("period") or "custom"
+    start_param = request.GET.get("start_date") or session.statement_start_date
+    end_param = request.GET.get("end_date") or session.statement_end_date
+    compare_to = request.GET.get("compare_to") or "none"
+    period_info = resolve_period(period_key, start_param, end_param, session.bank_account.business.fiscal_year_start)
+    comparison_info = resolve_comparison(period_info["start"], period_info["end"], compare_to)
+
     payload = _session_payload(session)
     feed = payload.get("feed", {})
     flattened = (feed.get("new", []) or []) + (feed.get("matched", []) or []) + (feed.get("partial", []) or []) + (feed.get("excluded", []) or [])
 
+    def _coerce_feed_date(raw):
+        if isinstance(raw, date):
+            return raw
+        try:
+            return date.fromisoformat(str(raw))
+        except Exception:
+            try:
+                return timezone.datetime.fromisoformat(str(raw)).date()  # type: ignore[attr-defined]
+            except Exception:
+                return None
+
+    filtered_feed = []
+    for item in flattened:
+        tx_date = _coerce_feed_date(item.get("date"))
+        if tx_date and (tx_date < period_info["start"] or tx_date > period_info["end"]):
+            continue
+        filtered_feed.append(item)
+
     response = {
         "bank_account": payload.get("bank_account", {}),
-        "period": payload.get("period", {}),
+        "period": {
+            "label": period_info.get("label"),
+            "start": period_info["start"].isoformat(),
+            "end": period_info["end"].isoformat(),
+            "preset": period_info.get("preset"),
+        },
+        "comparison": {
+            "label": comparison_info.get("compare_label"),
+            "start": comparison_info.get("compare_start"),
+            "end": comparison_info.get("compare_end"),
+            "compare_to": comparison_info.get("compare_to"),
+        },
         "opening_balance": float(session.opening_balance or 0),
         "statement_ending_balance": float(session.closing_balance or 0),
         "ledger_ending_balance": float(payload.get("session", {}).get("ledger_ending_balance") or 0),
@@ -826,7 +952,7 @@ def api_reconciliation_session_report(request: HttpRequest, session_id: int):
                 "status": item.get("status"),
                 "reconciliation_status": item.get("reconciliation_status"),
             }
-            for item in flattened
+            for item in filtered_feed
         ],
     }
     return JsonResponse(response)
@@ -880,13 +1006,47 @@ def api_reconciliation_complete_v1(request: HttpRequest, session_id: int):
     return JsonResponse(payload)
 
 
-def _mark_reconciled(bank_tx: BankTransaction, journal_entry):
+@login_required
+@require_POST
+def api_reconciliation_reopen_session(request: HttpRequest, session_id: int):
+    business, error = _ensure_business(request)
+    if error:
+        return error
+    if not request.user.is_staff:
+        return _json_error(
+            "You do not have permission to reopen this reconciliation period.",
+            status=403,
+            code="forbidden",
+        )
+
+    session = get_object_or_404(ReconciliationSession, pk=session_id, business=business)
+    if session.status != ReconciliationSession.Status.COMPLETED:
+        return _json_error("Only completed sessions can be reopened.", status=400, code="invalid_state")
+
+    session.status = ReconciliationSession.Status.IN_PROGRESS
+    session.completed_at = None
+    session.save(update_fields=["status", "completed_at"])
+
+    logger.info(
+        "reconciliation.session_reopened",
+        extra={"session_id": session.id, "user_id": request.user.id},
+    )
+
+    return JsonResponse(_session_payload(session, include_periods=True))
+
+
+def _mark_reconciled(bank_tx: BankTransaction, journal_entry, session: ReconciliationSession | None = None):
     ts = timezone.now()
-    bank_tx.is_reconciled = True
-    bank_tx.reconciled_at = ts
-    bank_tx.status = BankTransaction.TransactionStatus.MATCHED_SINGLE
+    target_session = session or _session_for_tx(bank_tx)
     bank_tx.allocated_amount = abs(bank_tx.amount or 0)
-    bank_tx.save(update_fields=["is_reconciled", "reconciled_at", "status", "allocated_amount"])
+    bank_tx.save(update_fields=["allocated_amount"])
+    set_reconciled_state(
+        bank_tx,
+        reconciled=True,
+        session=target_session,
+        status=BankTransaction.TransactionStatus.MATCHED_SINGLE,
+        reconciled_at=ts,
+    )
 
     bank_account = bank_tx.bank_account.account
     if bank_account:
@@ -1180,15 +1340,24 @@ def api_reconciliation_confirm_match(request: HttpRequest):
     from core.models import JournalEntry
     journal_entry = get_object_or_404(JournalEntry, pk=je_id, business=business)
 
-    BankReconciliationService.confirm_match(
-        bank_transaction=bank_tx,
-        journal_entry=journal_entry,
-        match_confidence=Decimal(str(confidence)),
-        user=request.user,
-    )
-    _mark_reconciled(bank_tx, journal_entry)
-    recompute_bank_transaction_status(bank_tx)
-        
+    session = bank_tx.reconciliation_session or _session_for_tx(bank_tx)
+    if (resp := _session_mutable_or_error(session)):
+        return resp
+    try:
+        _assert_tx_in_session_period(bank_tx, session)
+        _assert_entry_in_session_period(journal_entry, session)
+        BankReconciliationService.confirm_match(
+            bank_transaction=bank_tx,
+            journal_entry=journal_entry,
+            match_confidence=Decimal(str(confidence)),
+            user=request.user,
+            session=session,
+        )
+        _mark_reconciled(bank_tx, journal_entry, session=session)
+        recompute_bank_transaction_status(bank_tx)
+    except ValidationError as exc:
+        return _json_error(str(exc))
+
     return JsonResponse({"status": "ok"})
 
 
@@ -1217,25 +1386,26 @@ def api_reconciliation_add_as_new(request: HttpRequest):
         BankTransaction, pk=bank_tx_id, bank_account__business=business
     )
     
-    # Get session if provided
     session = None
     if session_id:
         session = get_object_or_404(ReconciliationSession, pk=session_id, business=business)
-    
-    # Create a simple journal entry using the helper function
+    else:
+        session = _session_for_tx(bank_tx)
+
+    if (resp := _session_mutable_or_error(session)):
+        return resp
+
     try:
+        _assert_tx_in_session_period(bank_tx, session)
         je = _create_simple_entry_for_tx(session, bank_tx) if session else _create_simple_entry_for_tx_no_session(business, bank_tx)
-        
-        # Mark as reconciled
-        _mark_reconciled(bank_tx, je)
+        _mark_reconciled(bank_tx, je, session=session)
         recompute_bank_transaction_status(bank_tx)
-        
         return JsonResponse({
             "status": "ok",
             "journal_entry_id": je.id,
             "transaction_id": bank_tx.id,
         })
-    except ValueError as e:
+    except (ValueError, ValidationError) as e:
         return _json_error(str(e))
 
 
@@ -1315,14 +1485,22 @@ def api_reconciliation_create_split(request: HttpRequest):
     bank_tx = get_object_or_404(
         BankTransaction, pk=bank_tx_id, bank_account__business=business
     )
-    je, _match = BankReconciliationService.create_split_entry(
-        bank_transaction=bank_tx,
-        splits=splits,
-        user=request.user,
-        description=bank_tx.description,
-    )
-    _mark_reconciled(bank_tx, je)
-    recompute_bank_transaction_status(bank_tx)
+    session = bank_tx.reconciliation_session or _session_for_tx(bank_tx)
+    if (resp := _session_mutable_or_error(session)):
+        return resp
+    try:
+        _assert_tx_in_session_period(bank_tx, session)
+        je, _match = BankReconciliationService.create_split_entry(
+            bank_transaction=bank_tx,
+            splits=splits,
+            user=request.user,
+            description=bank_tx.description,
+            session=session,
+        )
+        _mark_reconciled(bank_tx, je, session=session)
+        recompute_bank_transaction_status(bank_tx)
+    except ValidationError as exc:
+        return _json_error(str(exc))
     return JsonResponse({"status": "ok"})
 
 
@@ -1460,27 +1638,10 @@ def api_reconciliation_create_rule(request: HttpRequest):
         }
     )
 
-def _mark_reconciled(bank_tx: BankTransaction, journal_entry):
-    ts = timezone.now()
-    bank_tx.is_reconciled = True
-    bank_tx.reconciled_at = ts
-    bank_tx.status = BankTransaction.TransactionStatus.MATCHED
-    bank_tx.reconciliation_status = BankTransaction.RECO_STATUS_RECONCILED
-    bank_tx.allocated_amount = abs(bank_tx.amount or 0)
-    bank_tx.save(update_fields=["is_reconciled", "reconciled_at", "status", "allocated_amount", "reconciliation_status"])
-
-    bank_account = bank_tx.bank_account.account
-    if bank_account:
-        journal_lines = JournalLine.objects.filter(
-            journal_entry=journal_entry, account=bank_account
-        )
-        for line in journal_lines:
-            line.is_reconciled = True
-            line.reconciled_at = ts
-            line.save(update_fields=["is_reconciled", "reconciled_at"])
 @login_required
 @require_GET
 def api_reconciliation_config(request: HttpRequest):
+    # LEGACY: keep for backward compatibility with older clients. Prefer v1 endpoints above.
     business, error = _ensure_business(request)
     if error:
         return error
@@ -1514,6 +1675,7 @@ def api_reconciliation_config(request: HttpRequest):
 
 @login_required
 def api_reconciliation_session(request: HttpRequest):
+    # LEGACY: session endpoint used by early SPA. New flows should use v1 session APIs above.
     business, error = _ensure_business(request)
     if error:
         return error
@@ -1692,6 +1854,7 @@ def api_reconciliation_feed(request: HttpRequest):
     """
     Feed data for a bank account + period. Returns grouped transactions and balances.
     """
+    # LEGACY: retained for backwards compatibility; v1 endpoints provide canonical session views.
     business, error = _ensure_business(request)
     if error:
         return error
@@ -1852,14 +2015,30 @@ def api_reconciliation_toggle_include(request: HttpRequest):
     
     tx = get_object_or_404(BankTransaction, pk=tx_id, bank_account__business=business)
     session = get_object_or_404(ReconciliationSession, pk=session_id, business=business)
-    
-    if included:
-        tx.reconciliation_session = session
-    else:
-        if tx.reconciliation_session == session:
-            tx.reconciliation_session = None
-            
-    tx.save(update_fields=["reconciliation_session"])
+    if (resp := _session_mutable_or_error(session)):
+        return resp
+    if tx.reconciliation_session_id not in (None, session.id):
+        return _json_error("Transaction belongs to another reconciliation session.")
+    try:
+        if included:
+            _assert_tx_in_session_period(tx, session)
+            set_reconciled_state(
+                tx,
+                reconciled=False,
+                session=session,
+                status=tx.status,
+            )
+        else:
+            if tx.reconciliation_session_id == session.id and tx.status in RECONCILED_STATUSES:
+                return _json_error("Unmatch transaction before removing it from this session.")
+            set_reconciled_state(
+                tx,
+                reconciled=False,
+                session=None,
+                status=tx.status,
+            )
+    except ValidationError as exc:
+        return _json_error(str(exc))
     return JsonResponse({"status": "ok"})
 
 @login_required
@@ -1875,6 +2054,8 @@ def api_reconciliation_create_adjustment(request: HttpRequest):
     account_name = body.get("account_name") # e.g. "Bank Fee"
     
     session = get_object_or_404(ReconciliationSession, pk=session_id, business=business)
+    if (resp := _session_mutable_or_error(session)):
+        return resp
     
     # Create a BankTransaction for the adjustment
     # and immediately reconcile it against a new JournalEntry
@@ -1886,11 +2067,11 @@ def api_reconciliation_create_adjustment(request: HttpRequest):
         description=f"Adjustment: {adj_type}",
         amount=-amount if adj_type == "Bank fee" else amount, # Fee is negative
         status=BankTransaction.TransactionStatus.MATCHED,
-        is_reconciled=True,
-        reconciled_at=timezone.now(),
+        is_reconciled=False,
+        reconciled_at=None,
         reconciliation_session=session,
         allocated_amount=amount,
-        reconciliation_status=BankTransaction.RECO_STATUS_RECONCILED,
+        reconciliation_status=BankTransaction.RECO_STATUS_UNRECONCILED,
     )
     
     # 2. Create JournalEntry
@@ -1909,7 +2090,8 @@ def api_reconciliation_create_adjustment(request: HttpRequest):
         credit=abs(tx.amount) if tx.amount < 0 else Decimal("0"),
         description=f"Adjustment: {adj_type}",
         is_reconciled=True,
-        reconciled_at=timezone.now()
+        reconciled_at=timezone.now(),
+        reconciliation_session=session,
     )
     
     # Counterpart line (Expense/Income)
@@ -1935,7 +2117,10 @@ def api_reconciliation_create_adjustment(request: HttpRequest):
         account=counter_account,
         debit=abs(tx.amount) if tx.amount < 0 else Decimal("0"),
         credit=Decimal("0") if tx.amount < 0 else tx.amount,
-        description=f"Adjustment: {adj_type}"
+        description=f"Adjustment: {adj_type}",
+        is_reconciled=True,
+        reconciled_at=timezone.now(),
+        reconciliation_session=session,
     )
     
     je.check_balance()
@@ -1948,6 +2133,12 @@ def api_reconciliation_create_adjustment(request: HttpRequest):
         match_confidence=Decimal("1.00"),
         matched_amount=abs(tx.amount),
         reconciled_by=request.user
+    )
+    set_reconciled_state(
+        tx,
+        reconciled=True,
+        session=session,
+        status=BankTransaction.TransactionStatus.MATCHED,
     )
     
     return JsonResponse({"status": "ok"})

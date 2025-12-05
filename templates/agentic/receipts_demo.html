@@ -1,0 +1,22 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agentic Accounting OS — Receipts Demo</title>
+    <link rel="stylesheet" href="{% static 'frontend/assets/index.css' %}">
+    {% if debug %}
+    <script type="module" src="http://localhost:5173/@vite/client"></script>
+    <script type="module" src="http://localhost:5173/agentic/agentic-receipts-demo.tsx"></script>
+    {% else %}
+    <script type="module" src="{% static 'frontend/assets/agentic-receipts-demo.js' %}"></script>
+    {% endif %}
+</head>
+
+<body class="bg-slate-50">
+    <div id="agentic-receipts-root"></div>
+</body>
+
+</html>

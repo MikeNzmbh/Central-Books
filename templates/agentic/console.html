@@ -1,0 +1,45 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agentic Console | CERN Books</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #0a0f1c;
+            color: #f3f4f6;
+        }
+
+        #agentic-console-root {
+            min-height: 100vh;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="agentic-console-root"></div>
+
+    {% if debug %}
+    <!-- Development mode: Vite dev server -->
+    <script type="module" src="http://localhost:5173/src/agentic/agentic-console-entry.tsx"></script>
+    {% else %}
+    <!-- Production mode: Built assets -->
+    <script type="module" src="{% static 'js/agentic-console.js' %}"></script>
+    {% endif %}
+</body>
+
+</html>

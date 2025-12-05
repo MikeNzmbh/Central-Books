@@ -1,0 +1,875 @@
+{
+  "id": "scenario-42",
+  "name": "Monthly Bookkeeping November 2025",
+  "description": "Synthetic bookkeeping scenario for November 2025",
+  "created_at": "2025-12-05 16:07:30.276755",
+  "seed": 42,
+  "documents": [
+    {
+      "id": "rcpt-4d93fb89",
+      "filename": "receipt_fedex_1.pdf",
+      "category": "receipt",
+      "content": "FedEx - $29.38 - shipping",
+      "metadata": {},
+      "expected_vendor": "FedEx",
+      "expected_amount": "29.38",
+      "expected_currency": "USD",
+      "expected_date": "2025-11-09",
+      "expected_category_code": "5200"
+    },
+    {
+      "id": "rcpt-cedf3b65",
+      "filename": "receipt_marriott_hotels_2.pdf",
+      "category": "receipt",
+      "content": "Marriott Hotels - $184.88 - travel",
+      "metadata": {},
+      "expected_vendor": "Marriott Hotels",
+      "expected_amount": "184.88",
+      "expected_currency": "USD",
+      "expected_date": "2025-11-04",
+      "expected_category_code": "6200"
+    },
+    {
+      "id": "rcpt-9dbc3062",
+      "filename": "receipt_usps_3.pdf",
+      "category": "receipt",
+      "content": "USPS - $45.69 - shipping",
+      "metadata": {},
+      "expected_vendor": "USPS",
+      "expected_amount": "45.69",
+      "expected_currency": "USD",
+      "expected_date": "2025-11-03",
+      "expected_category_code": "5200"
+    },
+    {
+      "id": "rcpt-91cdcaa4",
+      "filename": "receipt_industrial_supply_co_4.pdf",
+      "category": "receipt",
+      "content": "Industrial Supply Co - $257.21 - supplies",
+      "metadata": {},
+      "expected_vendor": "Industrial Supply Co",
+      "expected_amount": "257.21",
+      "expected_currency": "USD",
+      "expected_date": "2025-11-03",
+      "expected_category_code": "5100"
+    },
+    {
+      "id": "rcpt-cde8d2c1",
+      "filename": "receipt_marriott_hotels_5.pdf",
+      "category": "receipt",
+      "content": "Marriott Hotels - $276.34 - travel",
+      "metadata": {},
+      "expected_vendor": "Marriott Hotels",
+      "expected_amount": "276.34",
+      "expected_currency": "USD",
+      "expected_date": "2025-11-01",
+      "expected_category_code": "6200"
+    },
+    {
+      "id": "inv-c80c3c04",
+      "filename": "invoice_acme_corp_INV-20251130-001.pdf",
+      "category": "invoice",
+      "content": "\nINVOICE INV-20251130-001\nFrom: ACME Corp\nDate: 2025-11-30\nDue: Net 30\n\nSubtotal: $4196.45\nTax (8%): $335.72\nTotal: $4532.17\n\nPayment Terms: Net 30\n",
+      "metadata": {
+        "invoice_number": "INV-20251130-001",
+        "subtotal": "4196.45",
+        "tax_amount": "335.72"
+      },
+      "expected_vendor": "ACME Corp",
+      "expected_amount": "4532.17",
+      "expected_currency": "USD",
+      "expected_date": "2025-11-30",
+      "expected_category_code": "5100"
+    },
+    {
+      "id": "inv-8368e96e",
+      "filename": "invoice_google_cloud_INV-20251110-002.pdf",
+      "category": "invoice",
+      "content": "\nINVOICE INV-20251110-002\nFrom: Google Cloud\nDate: 2025-11-10\nDue: Net 30\n\nSubtotal: $540.37\nTax (8%): $43.23\nTotal: $583.60\n\nPayment Terms: Net 30\n",
+      "metadata": {
+        "invoice_number": "INV-20251110-002",
+        "subtotal": "540.37",
+        "tax_amount": "43.23"
+      },
+      "expected_vendor": "Google Cloud",
+      "expected_amount": "583.60",
+      "expected_currency": "USD",
+      "expected_date": "2025-11-10",
+      "expected_category_code": "6300"
+    },
+    {
+      "id": "inv-044cf100",
+      "filename": "invoice_industrial_supply_co_INV-20251111-003.pdf",
+      "category": "invoice",
+      "content": "\nINVOICE INV-20251111-003\nFrom: Industrial Supply Co\nDate: 2025-11-11\nDue: Net 30\n\nSubtotal: $2104.30\nTax (8%): $168.34\nTotal: $2272.64\n\nPayment Terms: Net 30\n",
+      "metadata": {
+        "invoice_number": "INV-20251111-003",
+        "subtotal": "2104.30",
+        "tax_amount": "168.34"
+      },
+      "expected_vendor": "Industrial Supply Co",
+      "expected_amount": "2272.64",
+      "expected_currency": "USD",
+      "expected_date": "2025-11-11",
+      "expected_category_code": "5100"
+    },
+    {
+      "id": "stmt-29defa5b",
+      "filename": "bank_statement_202511.csv",
+      "category": "bank_statement",
+      "content": "BANK STATEMENT\nAccount: Business Checking ****1234\nPeriod: 2025-11-01 to 2025-12-01\nOpening Balance: $10,000.00\n\nDATE        DESCRIPTION                    AMOUNT      BALANCE\n----------------------------------------------------------------------\n2025-11-01  REFUND                          +$   4702.59  $  11928.00\n2025-11-02  STAPLES PAYMENT                 -$    101.57  $  12983.84\n2025-11-05  ACH CREDIT                      +$   3091.12  $  13226.60\n2025-11-06  ENTERPRISE RENT-A-CAR PAYMENT   -$    126.05  $  12605.55\n2025-11-10  ACME CORP PAYMENT               -$   2774.59  $   7225.41\n2025-11-11  PACIFIC GAS & ELECTRIC PAYMENT  -$    162.54  $  12443.01\n2025-11-13  STAPLES PAYMENT                 -$    141.19  $  13085.41\n2025-11-16  FEDEX PAYMENT                   -$     68.27  $  11859.73\n2025-11-17  GOOGLE CLOUD PAYMENT            -$    252.24  $  12731.60\n2025-12-01  INDUSTRIAL SUPPLY CO PAYMENT    -$   1724.25  $  10135.48\n----------------------------------------------------------------------\nClosing Balance: $12443.01",
+      "metadata": {
+        "opening_balance": "10000.00",
+        "closing_balance": "12443.01",
+        "transaction_count": 10,
+        "transactions": [
+          {
+            "date": "2025-11-01",
+            "description": "REFUND",
+            "amount": "4702.59",
+            "type": "credit",
+            "balance": "11928.00",
+            "category": "1200"
+          },
+          {
+            "date": "2025-11-02",
+            "description": "STAPLES PAYMENT",
+            "amount": "101.57",
+            "type": "debit",
+            "balance": "12983.84",
+            "category": "6100"
+          },
+          {
+            "date": "2025-11-05",
+            "description": "ACH CREDIT",
+            "amount": "3091.12",
+            "type": "credit",
+            "balance": "13226.60",
+            "category": "1200"
+          },
+          {
+            "date": "2025-11-06",
+            "description": "ENTERPRISE RENT-A-CAR PAYMENT",
+            "amount": "126.05",
+            "type": "debit",
+            "balance": "12605.55",
+            "category": "6200"
+          },
+          {
+            "date": "2025-11-10",
+            "description": "ACME CORP PAYMENT",
+            "amount": "2774.59",
+            "type": "debit",
+            "balance": "7225.41",
+            "category": "5100"
+          },
+          {
+            "date": "2025-11-11",
+            "description": "PACIFIC GAS & ELECTRIC PAYMENT",
+            "amount": "162.54",
+            "type": "debit",
+            "balance": "12443.01",
+            "category": "6500"
+          },
+          {
+            "date": "2025-11-13",
+            "description": "STAPLES PAYMENT",
+            "amount": "141.19",
+            "type": "debit",
+            "balance": "13085.41",
+            "category": "6100"
+          },
+          {
+            "date": "2025-11-16",
+            "description": "FEDEX PAYMENT",
+            "amount": "68.27",
+            "type": "debit",
+            "balance": "11859.73",
+            "category": "5200"
+          },
+          {
+            "date": "2025-11-17",
+            "description": "GOOGLE CLOUD PAYMENT",
+            "amount": "252.24",
+            "type": "debit",
+            "balance": "12731.60",
+            "category": "6300"
+          },
+          {
+            "date": "2025-12-01",
+            "description": "INDUSTRIAL SUPPLY CO PAYMENT",
+            "amount": "1724.25",
+            "type": "debit",
+            "balance": "10135.48",
+            "category": "5100"
+          }
+        ]
+      },
+      "expected_vendor": "Demo Bank",
+      "expected_amount": "2443.01",
+      "expected_currency": "USD",
+      "expected_date": "2025-12-01",
+      "expected_category_code": ""
+    }
+  ],
+  "transactions": [
+    {
+      "id": "txn-rcpt-4d93fb89",
+      "source_document_id": "rcpt-4d93fb89",
+      "description": "Transaction from FedEx",
+      "amount": "29.38",
+      "currency": "USD",
+      "date": "2025-11-09",
+      "category_code": "5200",
+      "vendor_name": "FedEx",
+      "transaction_type": "debit",
+      "is_recurring": false
+    },
+    {
+      "id": "txn-rcpt-cedf3b65",
+      "source_document_id": "rcpt-cedf3b65",
+      "description": "Transaction from Marriott Hotels",
+      "amount": "184.88",
+      "currency": "USD",
+      "date": "2025-11-04",
+      "category_code": "6200",
+      "vendor_name": "Marriott Hotels",
+      "transaction_type": "debit",
+      "is_recurring": false
+    },
+    {
+      "id": "txn-rcpt-9dbc3062",
+      "source_document_id": "rcpt-9dbc3062",
+      "description": "Transaction from USPS",
+      "amount": "45.69",
+      "currency": "USD",
+      "date": "2025-11-03",
+      "category_code": "5200",
+      "vendor_name": "USPS",
+      "transaction_type": "debit",
+      "is_recurring": false
+    },
+    {
+      "id": "txn-rcpt-91cdcaa4",
+      "source_document_id": "rcpt-91cdcaa4",
+      "description": "Transaction from Industrial Supply Co",
+      "amount": "257.21",
+      "currency": "USD",
+      "date": "2025-11-03",
+      "category_code": "5100",
+      "vendor_name": "Industrial Supply Co",
+      "transaction_type": "debit",
+      "is_recurring": false
+    },
+    {
+      "id": "txn-rcpt-cde8d2c1",
+      "source_document_id": "rcpt-cde8d2c1",
+      "description": "Transaction from Marriott Hotels",
+      "amount": "276.34",
+      "currency": "USD",
+      "date": "2025-11-01",
+      "category_code": "6200",
+      "vendor_name": "Marriott Hotels",
+      "transaction_type": "debit",
+      "is_recurring": false
+    },
+    {
+      "id": "txn-inv-c80c3c04",
+      "source_document_id": "inv-c80c3c04",
+      "description": "Transaction from ACME Corp",
+      "amount": "4532.17",
+      "currency": "USD",
+      "date": "2025-11-30",
+      "category_code": "5100",
+      "vendor_name": "ACME Corp",
+      "transaction_type": "debit",
+      "is_recurring": false
+    },
+    {
+      "id": "txn-inv-8368e96e",
+      "source_document_id": "inv-8368e96e",
+      "description": "Transaction from Google Cloud",
+      "amount": "583.60",
+      "currency": "USD",
+      "date": "2025-11-10",
+      "category_code": "6300",
+      "vendor_name": "Google Cloud",
+      "transaction_type": "debit",
+      "is_recurring": false
+    },
+    {
+      "id": "txn-inv-044cf100",
+      "source_document_id": "inv-044cf100",
+      "description": "Transaction from Industrial Supply Co",
+      "amount": "2272.64",
+      "currency": "USD",
+      "date": "2025-11-11",
+      "category_code": "5100",
+      "vendor_name": "Industrial Supply Co",
+      "transaction_type": "debit",
+      "is_recurring": false
+    },
+    {
+      "id": "txn-stmt-29defa5b-0",
+      "source_document_id": "stmt-29defa5b",
+      "description": "REFUND",
+      "amount": "4702.59",
+      "currency": "USD",
+      "date": "2025-11-01",
+      "category_code": "1200",
+      "vendor_name": "Demo Bank",
+      "transaction_type": "credit",
+      "is_recurring": false
+    },
+    {
+      "id": "txn-stmt-29defa5b-1",
+      "source_document_id": "stmt-29defa5b",
+      "description": "STAPLES PAYMENT",
+      "amount": "101.57",
+      "currency": "USD",
+      "date": "2025-11-02",
+      "category_code": "6100",
+      "vendor_name": "Demo Bank",
+      "transaction_type": "debit",
+      "is_recurring": false
+    },
+    {
+      "id": "txn-stmt-29defa5b-2",
+      "source_document_id": "stmt-29defa5b",
+      "description": "ACH CREDIT",
+      "amount": "3091.12",
+      "currency": "USD",
+      "date": "2025-11-05",
+      "category_code": "1200",
+      "vendor_name": "Demo Bank",
+      "transaction_type": "credit",
+      "is_recurring": false
+    },
+    {
+      "id": "txn-stmt-29defa5b-3",
+      "source_document_id": "stmt-29defa5b",
+      "description": "ENTERPRISE RENT-A-CAR PAYMENT",
+      "amount": "126.05",
+      "currency": "USD",
+      "date": "2025-11-06",
+      "category_code": "6200",
+      "vendor_name": "Demo Bank",
+      "transaction_type": "debit",
+      "is_recurring": false
+    },
+    {
+      "id": "txn-stmt-29defa5b-4",
+      "source_document_id": "stmt-29defa5b",
+      "description": "ACME CORP PAYMENT",
+      "amount": "2774.59",
+      "currency": "USD",
+      "date": "2025-11-10",
+      "category_code": "5100",
+      "vendor_name": "Demo Bank",
+      "transaction_type": "debit",
+      "is_recurring": false
+    },
+    {
+      "id": "txn-stmt-29defa5b-5",
+      "source_document_id": "stmt-29defa5b",
+      "description": "PACIFIC GAS & ELECTRIC PAYMENT",
+      "amount": "162.54",
+      "currency": "USD",
+      "date": "2025-11-11",
+      "category_code": "6500",
+      "vendor_name": "Demo Bank",
+      "transaction_type": "debit",
+      "is_recurring": false
+    },
+    {
+      "id": "txn-stmt-29defa5b-6",
+      "source_document_id": "stmt-29defa5b",
+      "description": "STAPLES PAYMENT",
+      "amount": "141.19",
+      "currency": "USD",
+      "date": "2025-11-13",
+      "category_code": "6100",
+      "vendor_name": "Demo Bank",
+      "transaction_type": "debit",
+      "is_recurring": false
+    },
+    {
+      "id": "txn-stmt-29defa5b-7",
+      "source_document_id": "stmt-29defa5b",
+      "description": "FEDEX PAYMENT",
+      "amount": "68.27",
+      "currency": "USD",
+      "date": "2025-11-16",
+      "category_code": "5200",
+      "vendor_name": "Demo Bank",
+      "transaction_type": "debit",
+      "is_recurring": false
+    },
+    {
+      "id": "txn-stmt-29defa5b-8",
+      "source_document_id": "stmt-29defa5b",
+      "description": "GOOGLE CLOUD PAYMENT",
+      "amount": "252.24",
+      "currency": "USD",
+      "date": "2025-11-17",
+      "category_code": "6300",
+      "vendor_name": "Demo Bank",
+      "transaction_type": "debit",
+      "is_recurring": false
+    },
+    {
+      "id": "txn-stmt-29defa5b-9",
+      "source_document_id": "stmt-29defa5b",
+      "description": "INDUSTRIAL SUPPLY CO PAYMENT",
+      "amount": "1724.25",
+      "currency": "USD",
+      "date": "2025-12-01",
+      "category_code": "5100",
+      "vendor_name": "Demo Bank",
+      "transaction_type": "debit",
+      "is_recurring": false
+    }
+  ],
+  "journal_entries": [
+    {
+      "entry_id": "je-txn-rcpt-4d93fb89",
+      "source_transaction_id": "txn-rcpt-4d93fb89",
+      "date": "2025-11-09",
+      "description": "Transaction from FedEx",
+      "lines": [
+        {
+          "account_code": "5200",
+          "account_name": "Shipping & Freight",
+          "side": "debit",
+          "amount": "29.38"
+        },
+        {
+          "account_code": "1000",
+          "account_name": "Cash/Bank",
+          "side": "credit",
+          "amount": "29.38"
+        }
+      ],
+      "is_balanced": true,
+      "total_debits": "29.38",
+      "total_credits": "29.38"
+    },
+    {
+      "entry_id": "je-txn-rcpt-cedf3b65",
+      "source_transaction_id": "txn-rcpt-cedf3b65",
+      "date": "2025-11-04",
+      "description": "Transaction from Marriott Hotels",
+      "lines": [
+        {
+          "account_code": "6200",
+          "account_name": "Travel & Entertainment",
+          "side": "debit",
+          "amount": "184.88"
+        },
+        {
+          "account_code": "1000",
+          "account_name": "Cash/Bank",
+          "side": "credit",
+          "amount": "184.88"
+        }
+      ],
+      "is_balanced": true,
+      "total_debits": "184.88",
+      "total_credits": "184.88"
+    },
+    {
+      "entry_id": "je-txn-rcpt-9dbc3062",
+      "source_transaction_id": "txn-rcpt-9dbc3062",
+      "date": "2025-11-03",
+      "description": "Transaction from USPS",
+      "lines": [
+        {
+          "account_code": "5200",
+          "account_name": "Shipping & Freight",
+          "side": "debit",
+          "amount": "45.69"
+        },
+        {
+          "account_code": "1000",
+          "account_name": "Cash/Bank",
+          "side": "credit",
+          "amount": "45.69"
+        }
+      ],
+      "is_balanced": true,
+      "total_debits": "45.69",
+      "total_credits": "45.69"
+    },
+    {
+      "entry_id": "je-txn-rcpt-91cdcaa4",
+      "source_transaction_id": "txn-rcpt-91cdcaa4",
+      "date": "2025-11-03",
+      "description": "Transaction from Industrial Supply Co",
+      "lines": [
+        {
+          "account_code": "5100",
+          "account_name": "Raw Materials",
+          "side": "debit",
+          "amount": "257.21"
+        },
+        {
+          "account_code": "1000",
+          "account_name": "Cash/Bank",
+          "side": "credit",
+          "amount": "257.21"
+        }
+      ],
+      "is_balanced": true,
+      "total_debits": "257.21",
+      "total_credits": "257.21"
+    },
+    {
+      "entry_id": "je-txn-rcpt-cde8d2c1",
+      "source_transaction_id": "txn-rcpt-cde8d2c1",
+      "date": "2025-11-01",
+      "description": "Transaction from Marriott Hotels",
+      "lines": [
+        {
+          "account_code": "6200",
+          "account_name": "Travel & Entertainment",
+          "side": "debit",
+          "amount": "276.34"
+        },
+        {
+          "account_code": "1000",
+          "account_name": "Cash/Bank",
+          "side": "credit",
+          "amount": "276.34"
+        }
+      ],
+      "is_balanced": true,
+      "total_debits": "276.34",
+      "total_credits": "276.34"
+    },
+    {
+      "entry_id": "je-txn-inv-c80c3c04",
+      "source_transaction_id": "txn-inv-c80c3c04",
+      "date": "2025-11-30",
+      "description": "Transaction from ACME Corp",
+      "lines": [
+        {
+          "account_code": "5100",
+          "account_name": "Raw Materials",
+          "side": "debit",
+          "amount": "4532.17"
+        },
+        {
+          "account_code": "1000",
+          "account_name": "Cash/Bank",
+          "side": "credit",
+          "amount": "4532.17"
+        }
+      ],
+      "is_balanced": true,
+      "total_debits": "4532.17",
+      "total_credits": "4532.17"
+    },
+    {
+      "entry_id": "je-txn-inv-8368e96e",
+      "source_transaction_id": "txn-inv-8368e96e",
+      "date": "2025-11-10",
+      "description": "Transaction from Google Cloud",
+      "lines": [
+        {
+          "account_code": "6300",
+          "account_name": "Software & Subscriptions",
+          "side": "debit",
+          "amount": "583.60"
+        },
+        {
+          "account_code": "1000",
+          "account_name": "Cash/Bank",
+          "side": "credit",
+          "amount": "583.60"
+        }
+      ],
+      "is_balanced": true,
+      "total_debits": "583.60",
+      "total_credits": "583.60"
+    },
+    {
+      "entry_id": "je-txn-inv-044cf100",
+      "source_transaction_id": "txn-inv-044cf100",
+      "date": "2025-11-11",
+      "description": "Transaction from Industrial Supply Co",
+      "lines": [
+        {
+          "account_code": "5100",
+          "account_name": "Raw Materials",
+          "side": "debit",
+          "amount": "2272.64"
+        },
+        {
+          "account_code": "1000",
+          "account_name": "Cash/Bank",
+          "side": "credit",
+          "amount": "2272.64"
+        }
+      ],
+      "is_balanced": true,
+      "total_debits": "2272.64",
+      "total_credits": "2272.64"
+    },
+    {
+      "entry_id": "je-txn-stmt-29defa5b-0",
+      "source_transaction_id": "txn-stmt-29defa5b-0",
+      "date": "2025-11-01",
+      "description": "REFUND",
+      "lines": [
+        {
+          "account_code": "1000",
+          "account_name": "Cash/Bank",
+          "side": "debit",
+          "amount": "4702.59"
+        },
+        {
+          "account_code": "1200",
+          "account_name": "Accounts Receivable",
+          "side": "credit",
+          "amount": "4702.59"
+        }
+      ],
+      "is_balanced": true,
+      "total_debits": "4702.59",
+      "total_credits": "4702.59"
+    },
+    {
+      "entry_id": "je-txn-stmt-29defa5b-1",
+      "source_transaction_id": "txn-stmt-29defa5b-1",
+      "date": "2025-11-02",
+      "description": "STAPLES PAYMENT",
+      "lines": [
+        {
+          "account_code": "6100",
+          "account_name": "Office Supplies",
+          "side": "debit",
+          "amount": "101.57"
+        },
+        {
+          "account_code": "1000",
+          "account_name": "Cash/Bank",
+          "side": "credit",
+          "amount": "101.57"
+        }
+      ],
+      "is_balanced": true,
+      "total_debits": "101.57",
+      "total_credits": "101.57"
+    },
+    {
+      "entry_id": "je-txn-stmt-29defa5b-2",
+      "source_transaction_id": "txn-stmt-29defa5b-2",
+      "date": "2025-11-05",
+      "description": "ACH CREDIT",
+      "lines": [
+        {
+          "account_code": "1000",
+          "account_name": "Cash/Bank",
+          "side": "debit",
+          "amount": "3091.12"
+        },
+        {
+          "account_code": "1200",
+          "account_name": "Accounts Receivable",
+          "side": "credit",
+          "amount": "3091.12"
+        }
+      ],
+      "is_balanced": true,
+      "total_debits": "3091.12",
+      "total_credits": "3091.12"
+    },
+    {
+      "entry_id": "je-txn-stmt-29defa5b-3",
+      "source_transaction_id": "txn-stmt-29defa5b-3",
+      "date": "2025-11-06",
+      "description": "ENTERPRISE RENT-A-CAR PAYMENT",
+      "lines": [
+        {
+          "account_code": "6200",
+          "account_name": "Travel & Entertainment",
+          "side": "debit",
+          "amount": "126.05"
+        },
+        {
+          "account_code": "1000",
+          "account_name": "Cash/Bank",
+          "side": "credit",
+          "amount": "126.05"
+        }
+      ],
+      "is_balanced": true,
+      "total_debits": "126.05",
+      "total_credits": "126.05"
+    },
+    {
+      "entry_id": "je-txn-stmt-29defa5b-4",
+      "source_transaction_id": "txn-stmt-29defa5b-4",
+      "date": "2025-11-10",
+      "description": "ACME CORP PAYMENT",
+      "lines": [
+        {
+          "account_code": "5100",
+          "account_name": "Raw Materials",
+          "side": "debit",
+          "amount": "2774.59"
+        },
+        {
+          "account_code": "1000",
+          "account_name": "Cash/Bank",
+          "side": "credit",
+          "amount": "2774.59"
+        }
+      ],
+      "is_balanced": true,
+      "total_debits": "2774.59",
+      "total_credits": "2774.59"
+    },
+    {
+      "entry_id": "je-txn-stmt-29defa5b-5",
+      "source_transaction_id": "txn-stmt-29defa5b-5",
+      "date": "2025-11-11",
+      "description": "PACIFIC GAS & ELECTRIC PAYMENT",
+      "lines": [
+        {
+          "account_code": "6500",
+          "account_name": "Utilities",
+          "side": "debit",
+          "amount": "162.54"
+        },
+        {
+          "account_code": "1000",
+          "account_name": "Cash/Bank",
+          "side": "credit",
+          "amount": "162.54"
+        }
+      ],
+      "is_balanced": true,
+      "total_debits": "162.54",
+      "total_credits": "162.54"
+    },
+    {
+      "entry_id": "je-txn-stmt-29defa5b-6",
+      "source_transaction_id": "txn-stmt-29defa5b-6",
+      "date": "2025-11-13",
+      "description": "STAPLES PAYMENT",
+      "lines": [
+        {
+          "account_code": "6100",
+          "account_name": "Office Supplies",
+          "side": "debit",
+          "amount": "141.19"
+        },
+        {
+          "account_code": "1000",
+          "account_name": "Cash/Bank",
+          "side": "credit",
+          "amount": "141.19"
+        }
+      ],
+      "is_balanced": true,
+      "total_debits": "141.19",
+      "total_credits": "141.19"
+    },
+    {
+      "entry_id": "je-txn-stmt-29defa5b-7",
+      "source_transaction_id": "txn-stmt-29defa5b-7",
+      "date": "2025-11-16",
+      "description": "FEDEX PAYMENT",
+      "lines": [
+        {
+          "account_code": "5200",
+          "account_name": "Shipping & Freight",
+          "side": "debit",
+          "amount": "68.27"
+        },
+        {
+          "account_code": "1000",
+          "account_name": "Cash/Bank",
+          "side": "credit",
+          "amount": "68.27"
+        }
+      ],
+      "is_balanced": true,
+      "total_debits": "68.27",
+      "total_credits": "68.27"
+    },
+    {
+      "entry_id": "je-txn-stmt-29defa5b-8",
+      "source_transaction_id": "txn-stmt-29defa5b-8",
+      "date": "2025-11-17",
+      "description": "GOOGLE CLOUD PAYMENT",
+      "lines": [
+        {
+          "account_code": "6300",
+          "account_name": "Software & Subscriptions",
+          "side": "debit",
+          "amount": "252.24"
+        },
+        {
+          "account_code": "1000",
+          "account_name": "Cash/Bank",
+          "side": "credit",
+          "amount": "252.24"
+        }
+      ],
+      "is_balanced": true,
+      "total_debits": "252.24",
+      "total_credits": "252.24"
+    },
+    {
+      "entry_id": "je-txn-stmt-29defa5b-9",
+      "source_transaction_id": "txn-stmt-29defa5b-9",
+      "date": "2025-12-01",
+      "description": "INDUSTRIAL SUPPLY CO PAYMENT",
+      "lines": [
+        {
+          "account_code": "5100",
+          "account_name": "Raw Materials",
+          "side": "debit",
+          "amount": "1724.25"
+        },
+        {
+          "account_code": "1000",
+          "account_name": "Cash/Bank",
+          "side": "credit",
+          "amount": "1724.25"
+        }
+      ],
+      "is_balanced": true,
+      "total_debits": "1724.25",
+      "total_credits": "1724.25"
+    }
+  ],
+  "compliance": {
+    "is_compliant": true,
+    "issues": []
+  },
+  "audit": {
+    "risk_level": "low",
+    "findings": [
+      {
+        "code": "UNUSUAL_SCALE",
+        "severity": "medium",
+        "message": "Transaction 3x above average",
+        "transaction_id": "txn-inv-c80c3c04",
+        "journal_entry_id": null
+      },
+      {
+        "code": "UNUSUAL_SCALE",
+        "severity": "medium",
+        "message": "Transaction 3x above average",
+        "transaction_id": "txn-stmt-29defa5b-0",
+        "journal_entry_id": null
+      }
+    ]
+  },
+  "total_revenue": "7793.71",
+  "total_expenses": "13532.61",
+  "net_income": "-5738.90"
+}

@@ -1,0 +1,167 @@
+{
+  "generated_at": "2025-12-05T16:07:30.690500",
+  "experiments": {
+    "baseline_heuristic": {
+      "config_name": "baseline_heuristic",
+      "mode": "baseline_heuristic",
+      "started_at": "2025-12-05T16:07:30.683889",
+      "finished_at": "2025-12-05T16:07:30.685335",
+      "scenario_results": [
+        {
+          "scenario_id": "scenario-42",
+          "seed": 42,
+          "scores": {
+            "extraction_accuracy": 1.0,
+            "journal_correctness": 0.75,
+            "compliance_correctness": 1.0,
+            "audit_correctness": 1.0,
+            "composite_score": 0.925
+          },
+          "duration_ms": 0.58,
+          "errors": []
+        },
+        {
+          "scenario_id": "scenario-123",
+          "seed": 123,
+          "scores": {
+            "extraction_accuracy": 1.0,
+            "journal_correctness": 0.75,
+            "compliance_correctness": 1.0,
+            "audit_correctness": 1.0,
+            "composite_score": 0.925
+          },
+          "duration_ms": 0.35,
+          "errors": []
+        },
+        {
+          "scenario_id": "scenario-456",
+          "seed": 456,
+          "scores": {
+            "extraction_accuracy": 1.0,
+            "journal_correctness": 0.75,
+            "compliance_correctness": 1.0,
+            "audit_correctness": 1.0,
+            "composite_score": 0.925
+          },
+          "duration_ms": 0.33,
+          "errors": []
+        }
+      ],
+      "aggregate_scores": {
+        "extraction_accuracy": 1.0,
+        "journal_correctness": 0.75,
+        "compliance_correctness": 1.0,
+        "audit_correctness": 1.0,
+        "composite_score": 0.925
+      }
+    },
+    "rag_single_agent": {
+      "config_name": "rag_single_agent",
+      "mode": "rag_single_agent",
+      "started_at": "2025-12-05T16:07:30.685355",
+      "finished_at": "2025-12-05T16:07:30.686295",
+      "scenario_results": [
+        {
+          "scenario_id": "scenario-42",
+          "seed": 42,
+          "scores": {
+            "extraction_accuracy": 1.0,
+            "journal_correctness": 0.75,
+            "compliance_correctness": 1.0,
+            "audit_correctness": 1.0,
+            "composite_score": 0.925
+          },
+          "duration_ms": 0.31,
+          "errors": []
+        },
+        {
+          "scenario_id": "scenario-123",
+          "seed": 123,
+          "scores": {
+            "extraction_accuracy": 1.0,
+            "journal_correctness": 0.75,
+            "compliance_correctness": 1.0,
+            "audit_correctness": 1.0,
+            "composite_score": 0.925
+          },
+          "duration_ms": 0.3,
+          "errors": []
+        },
+        {
+          "scenario_id": "scenario-456",
+          "seed": 456,
+          "scores": {
+            "extraction_accuracy": 1.0,
+            "journal_correctness": 0.75,
+            "compliance_correctness": 1.0,
+            "audit_correctness": 1.0,
+            "composite_score": 0.925
+          },
+          "duration_ms": 0.3,
+          "errors": []
+        }
+      ],
+      "aggregate_scores": {
+        "extraction_accuracy": 1.0,
+        "journal_correctness": 0.75,
+        "compliance_correctness": 1.0,
+        "audit_correctness": 1.0,
+        "composite_score": 0.925
+      }
+    },
+    "agentic_full": {
+      "config_name": "agentic_full",
+      "mode": "agentic_full",
+      "started_at": "2025-12-05T16:07:30.686311",
+      "finished_at": "2025-12-05T16:07:30.690342",
+      "scenario_results": [
+        {
+          "scenario_id": "scenario-42",
+          "seed": 42,
+          "scores": {
+            "extraction_accuracy": 0.0,
+            "journal_correctness": 0.0,
+            "compliance_correctness": 1.0,
+            "audit_correctness": 0.5,
+            "composite_score": 0.35
+          },
+          "duration_ms": 2.74,
+          "errors": []
+        },
+        {
+          "scenario_id": "scenario-123",
+          "seed": 123,
+          "scores": {
+            "extraction_accuracy": 0.0,
+            "journal_correctness": 0.0,
+            "compliance_correctness": 1.0,
+            "audit_correctness": 0.5,
+            "composite_score": 0.35
+          },
+          "duration_ms": 0.64,
+          "errors": []
+        },
+        {
+          "scenario_id": "scenario-456",
+          "seed": 456,
+          "scores": {
+            "extraction_accuracy": 0.0,
+            "journal_correctness": 0.0,
+            "compliance_correctness": 1.0,
+            "audit_correctness": 0.5,
+            "composite_score": 0.35
+          },
+          "duration_ms": 0.63,
+          "errors": []
+        }
+      ],
+      "aggregate_scores": {
+        "extraction_accuracy": 0.0,
+        "journal_correctness": 0.0,
+        "compliance_correctness": 1.0,
+        "audit_correctness": 0.5,
+        "composite_score": 0.35
+      }
+    }
+  }
+}

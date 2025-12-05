@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import { ReportExportButton } from "./ReportExportButton";
+import { ReportPeriodPicker, PeriodSelection } from "../components/reports/ReportPeriodPicker";
 
 export interface CashflowPeriodPoint {
   periodLabel: string;
@@ -25,6 +26,18 @@ export interface CashflowReportProps {
   username: string;
   asOfLabel: string;
   baseCurrency: string;
+  period?: {
+    start?: string;
+    end?: string;
+    preset?: string;
+    label?: string | null;
+  };
+  comparison?: {
+    label?: string | null;
+    start?: string | null;
+    end?: string | null;
+    compare_to?: string | null;
+  };
   summary: {
     netChange: number;
     totalInflows: number;
@@ -50,6 +63,8 @@ const CashflowReportPage: React.FC<CashflowReportProps> = ({
   bankingUrl,
   invoicesUrl,
   expensesUrl,
+  period,
+  comparison,
 }) => {
   const currencyCode =
     baseCurrency?.replace(/[^A-Za-z]/g, "").slice(0, 3).toUpperCase() || "USD";
@@ -89,6 +104,20 @@ const CashflowReportPage: React.FC<CashflowReportProps> = ({
     1
   );
 
+  const handlePeriodChange = (selection: PeriodSelection) => {
+    const params = new URLSearchParams(window.location.search);
+    params.set("period_preset", selection.preset || "last_6_months");
+    if (selection.preset === "custom") {
+      if (selection.startDate) params.set("start_date", selection.startDate);
+      if (selection.endDate) params.set("end_date", selection.endDate);
+    } else {
+      params.delete("start_date");
+      params.delete("end_date");
+    }
+    params.set("compare_to", selection.compareTo || "none");
+    window.location.search = params.toString();
+  };
+
   const hasTrend = trend.length > 0;
   const safeTrend = hasTrend ? trend : [];
 
@@ -107,7 +136,12 @@ const CashflowReportPage: React.FC<CashflowReportProps> = ({
               Cash moving in and out of your business. Trends, drivers, activities—everything you
               need to keep runway calm and predictable.
             </p>
-            <p className="text-xs text-slate-400">{asOfLabel}</p>
+            <p className="text-xs text-slate-400">
+              {period?.label ? `Showing ${period.label}` : asOfLabel}
+            </p>
+            {comparison?.label && (
+              <p className="text-[11px] text-slate-500">Compared to {comparison.label}</p>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -122,6 +156,20 @@ const CashflowReportPage: React.FC<CashflowReportProps> = ({
             <ReportExportButton to="/reports/cashflow/print/" />
           </div>
         </header>
+
+        <div className="flex flex-col md:flex-row md:items-center md:justify-end">
+          <ReportPeriodPicker
+            preset={(period?.preset as PeriodSelection["preset"]) || "last_6_months"}
+            startDate={period?.start}
+            endDate={period?.end}
+            compareTo={(comparison?.compare_to as PeriodSelection["compareTo"]) || "previous_period"}
+            onApply={handlePeriodChange}
+            onChange={(sel) => {
+              if (sel.preset !== "custom") handlePeriodChange(sel);
+            }}
+            className="md:max-w-xl w-full"
+          />
+        </div>
 
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <div className="rounded-3xl bg-white shadow-sm border border-slate-100 px-4 py-4 flex flex-col gap-2">

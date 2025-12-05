@@ -88,6 +88,7 @@ export interface RecoSession {
   reconciledPercent: number; // 0–100
   totalTransactions: number;
   reconciledCount?: number;
+  excludedCount?: number;
   unreconciledCount: number;
 }
 
@@ -99,6 +100,8 @@ export interface BankTransaction {
   amount: number; // Numeric for calculation
   currency: string;
   status: RecoStatus;
+  uiStatus?: "NEW" | "MATCHED" | "PARTIAL" | "EXCLUDED";
+  isCleared?: boolean;
   reconciliationStatus?: "reconciled" | "unreconciled";
   match_confidence?: number | null;
   engine_reason?: string | null;
@@ -126,6 +129,7 @@ interface ReconciliationPageState {
   search: string;
   loading: boolean;
   error: string | null;
+  actionError: string | null;
   completionError: string | null;
 }
 
@@ -153,7 +157,12 @@ async function fetchJson<T = any>(url: string, options?: RequestInit): Promise<T
     throw new Error(msg);
   }
 
-  return res.json();
+  try {
+    return await res.json();
+  } catch {
+    // Some endpoints may return empty body on success
+    return {} as T;
+  }
 }
 
 function getCsrfToken() {
@@ -207,9 +216,16 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
     search: "",
     loading: false,
     error: null,
+    actionError: null,
     completionError: null,
   });
 
+  const setActionError = (msg: string | null) => {
+    setState(prev => ({ ...prev, actionError: msg }));
+  };
+
+  const activeBank = state.bankAccounts.find((b) => b.id === state.activeBankId) || null;
+  const activePeriod = state.periods.find((p) => p.id === state.activePeriodId) || null;
   const isLocked = state.session?.status === "COMPLETED";
 
   // Initial Load
@@ -238,7 +254,7 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
   }, [state.activeBankId, state.activePeriodId]);
 
   async function loadAccounts() {
-    setState(prev => ({ ...prev, loading: true, error: null, completionError: null }));
+    setState(prev => ({ ...prev, loading: true, error: null, completionError: null, actionError: null }));
     try {
       const accounts = await fetchJson<BankAccountSummary[]>("/api/reconciliation/accounts/");
       setState(prev => ({
@@ -272,7 +288,7 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
   });
 
   async function loadPeriods(bankId: string) {
-    setState(prev => ({ ...prev, loading: true, error: null, completionError: null, periods: [], activePeriodId: null, session: null, transactions: [] }));
+    setState(prev => ({ ...prev, loading: true, error: null, actionError: null, completionError: null, periods: [], activePeriodId: null, session: null, transactions: [] }));
     try {
       const raw = await fetchJson<any>(`/api/reconciliation/accounts/${bankId}/periods/`);
       const source = Array.isArray(raw) ? raw : raw?.periods || [];
@@ -294,7 +310,7 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
     if (!periodId) return;
     const period = state.periods.find(p => p.id === periodId);
     if (!period) return;
-    setState(prev => ({ ...prev, loading: true, error: null, completionError: null }));
+    setState(prev => ({ ...prev, loading: true, error: null, actionError: null, completionError: null }));
     try {
       const params = new URLSearchParams({
         account: bankId,
@@ -327,10 +343,12 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
             recStatusLower === "reconciled" || recStatusLower === "reco_status_reconciled"
               ? "reconciled"
               : "unreconciled";
+          const uiStatus = (t.ui_status || t.status || "NEW").toString().toUpperCase();
+          const recoStatusLower = uiStatus.toLowerCase() as RecoStatus;
 
           // Fetch candidates only for unmatched, non-excluded transactions
           let matchCandidates: Array<{ journal_entry_id: number; confidence: number; reason?: string }> = [];
-          if (reconciliationStatus === "unreconciled" && t.status !== "excluded" && t.status !== "matched") {
+          if (reconciliationStatus === "unreconciled" && recoStatusLower !== "excluded" && recoStatusLower !== "matched") {
             try {
               const candidates = await fetchJson<any[]>(`/api/reconciliation/matches/?transaction_id=${t.id}`);
               matchCandidates = candidates.map((c: any) => ({
@@ -350,12 +368,14 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
             counterparty: t.counterparty,
             amount: Number(t.amount),
             currency: t.currency || data.bank_account?.currency || "USD",
-            status: (t.status || "new").toLowerCase() as RecoStatus,
+            status: recoStatusLower,
+            uiStatus: uiStatus as BankTransaction["uiStatus"],
+            isCleared: Boolean(t.is_cleared),
             reconciliationStatus,
             match_confidence: t.match_confidence,
             engine_reason: t.engine_reason,
             matchCandidates,
-            includedInSession: t.includedInSession !== false,
+            includedInSession: t.includedInSession ?? uiStatus !== "EXCLUDED",
           };
         })
       );
@@ -371,8 +391,12 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
       // Use backend values for progress calculation
       const totalTransactions = Number(sessionData.total_transactions ?? transactions.length);
       const reconciledCount = Number(sessionData.reconciled_count ?? 0);
+      const excludedCount = Number(sessionData.excluded_count ?? 0);
       const unreconciledCount = Number(sessionData.unreconciled_count ?? totalTransactions - reconciledCount);
-      const reconciledPercent = Number(sessionData.reconciled_percent ?? 0);
+      const reconciledPercent = Number(
+        sessionData.reconciled_percent ??
+        (totalTransactions ? ((reconciledCount + excludedCount) / totalTransactions) * 100 : 0)
+      );
 
       const session: RecoSession = {
         id: String(sessionData.id || ""),
@@ -390,6 +414,7 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
         reconciledPercent: reconciledPercent,
         totalTransactions,
         reconciledCount,
+        excludedCount,
         unreconciledCount,
       };
 
@@ -400,19 +425,21 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
         session,
         transactions,
         loading: false,
+        actionError: null,
       }));
     } catch (e: any) {
       console.error(e);
-      setState(prev => ({ ...prev, loading: false, error: e.message, transactions: [], session: null }));
+      const msg = e?.message || "Failed to load session.";
+      setState(prev => ({ ...prev, loading: false, error: msg, actionError: msg, transactions: [], session: null }));
     }
   }
 
   const onSelectBank = (bankId: string) => {
-    setState((prev) => ({ ...prev, activeBankId: bankId, activePeriodId: null, error: null }));
+    setState((prev) => ({ ...prev, activeBankId: bankId, activePeriodId: null, error: null, actionError: null }));
   };
 
   const onSelectPeriod = (periodId: string) => {
-    setState((prev) => ({ ...prev, activePeriodId: periodId }));
+    setState((prev) => ({ ...prev, activePeriodId: periodId, actionError: null }));
   };
 
   const onChangeSessionField = async (field: "beginningBalance" | "endingBalance", value: number) => {
@@ -462,6 +489,7 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
     if (isLocked) return;
     if (!state.session || !state.activeBankId || !state.activePeriodId) return;
     try {
+      setActionError(null);
       await fetchJson(`/api/reconciliation/session/${state.session.id}/exclude/`, {
         method: "POST",
         headers: {
@@ -473,8 +501,9 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
 
       // Refresh session and feed after exclude
       await loadSession(state.activeBankId, state.activePeriodId);
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      setActionError(e?.message || "Could not update transaction.");
     }
   };
 
@@ -489,6 +518,7 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
     }
 
     try {
+      setActionError(null);
       const chosen = tx.matchCandidates[0];
       await fetchJson(`/api/reconciliation/confirm-match/`, {
         method: "POST",
@@ -507,7 +537,7 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
       await loadSession(state.activeBankId, state.activePeriodId);
     } catch (e: any) {
       console.error(e);
-      alert(e.message);
+      setActionError(e?.message || "Could not match transaction.");
     }
   };
 
@@ -516,6 +546,7 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
     if (!state.session || !state.activeBankId || !state.activePeriodId) return;
 
     try {
+      setActionError(null);
       // Call the backend to create a new transaction from this bank line
       // This will categorize it and mark as reconciled
       await fetchJson(`/api/reconciliation/add-as-new/`, {
@@ -534,7 +565,7 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
       await loadSession(state.activeBankId, state.activePeriodId);
     } catch (e: any) {
       console.error(e);
-      alert(e.message);
+      setActionError(e?.message || "Could not add transaction.");
     }
   };
 
@@ -542,6 +573,7 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
     if (isLocked) return;
     if (!state.session || !state.activeBankId || !state.activePeriodId) return;
     try {
+      setActionError(null);
       await fetchJson(`/api/reconciliation/session/${state.session.id}/unmatch/`, {
         method: "POST",
         headers: {
@@ -553,15 +585,16 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
 
       // Refresh session and feed after unmatch
       await loadSession(state.activeBankId, state.activePeriodId);
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      setActionError(e?.message || "Could not unmatch transaction.");
     }
   };
 
   const onCompleteSession = async () => {
     if (!state.session || !state.activeBankId || !state.activePeriodId || isLocked) return;
     try {
-      setState(prev => ({ ...prev, completionError: null, loading: true }));
+      setState(prev => ({ ...prev, completionError: null, actionError: null, loading: true }));
       await fetchJson(`/api/reconciliation/sessions/${state.session.id}/complete/`, {
         method: "POST",
         headers: {
@@ -572,14 +605,36 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
       await loadSession(state.activeBankId, state.activePeriodId);
     } catch (e: any) {
       const msg = e?.message || "Could not complete period, please try again.";
-      setState(prev => ({ ...prev, completionError: msg, loading: false }));
+      setState(prev => ({ ...prev, completionError: msg, actionError: msg, loading: false }));
     }
   }
 
+  const onReopenSession = async () => {
+    if (!state.session || !state.activeBankId || !state.activePeriodId) return;
+    const confirmed = window.confirm("Reopen this statement period for editing?");
+    if (!confirmed) return;
+    try {
+      setState(prev => ({ ...prev, loading: true, actionError: null, completionError: null }));
+      await fetchJson(`/api/reconciliation/sessions/${state.session.id}/reopen/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCsrfToken(),
+        },
+      });
+      await loadSession(state.activeBankId, state.activePeriodId);
+    } catch (e: any) {
+      console.error(e);
+      setActionError(e?.message || "Could not reopen period.");
+      setState(prev => ({ ...prev, loading: false }));
+    }
+  };
+
   const filteredTransactions = useMemo(() => {
     return state.transactions.filter((tx) => {
+      const txUiStatus = (tx.uiStatus || tx.status || "NEW").toLowerCase() as RecoStatus;
       const matchesStatus =
-        state.statusFilter === "all" || tx.status === state.statusFilter;
+        state.statusFilter === "all" || txUiStatus === state.statusFilter;
       const matchesSearch = state.search
         ? (tx.description + " " + (tx.counterparty || "")).toLowerCase().includes(
           state.search.toLowerCase(),
@@ -606,9 +661,22 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
   return (
     <div className="flex min-h-screen w-full flex-col bg-slate-50 text-slate-900">
       <PageHeader session={state.session} />
+      <div className="px-4 md:px-8 mt-2 text-xs text-slate-500">
+        <span className="font-semibold text-slate-700">Bank account:</span> {activeBank?.name || "—"} ·{" "}
+        <span className="font-semibold text-slate-700">Statement period:</span>{" "}
+        {activePeriod
+          ? `${new Date(activePeriod.startDate).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" })} – ${new Date(activePeriod.endDate).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" })}`
+          : "—"}
+        {state.session && (
+          <span className="ml-3 inline-flex items-center rounded-full bg-slate-100 px-2 py-[2px] text-[11px] font-semibold uppercase tracking-wide text-slate-600">
+            {state.session.status}
+          </span>
+        )}
+      </div>
 
       <main className="flex-1 px-4 py-6 md:px-8">
-        <CompanionStrip context="reconciliation" className="mb-4" />
+        <CompanionStrip context="reconciliation" className="mb-6" />
+
         {state.error && (
           <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 flex items-center gap-3 justify-between">
             <div className="flex items-center gap-2">
@@ -618,6 +686,21 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
             <Button size="sm" onClick={loadAccounts} className="rounded-full bg-red-600 hover:bg-red-700">
               Retry
             </Button>
+          </div>
+        )}
+        {state.actionError && !state.error && (
+          <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4" />
+              <span>{state.actionError}</span>
+            </div>
+            <button
+              type="button"
+              className="ml-auto text-[11px] font-semibold text-amber-700 hover:text-amber-900"
+              onClick={() => setActionError(null)}
+            >
+              Dismiss
+            </button>
           </div>
         )}
 
@@ -639,16 +722,19 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
             onSelectPeriod={onSelectPeriod}
             onChangeSessionField={onChangeSessionField}
             onComplete={onCompleteSession}
+            onReopen={onReopenSession}
             disableComplete={disableComplete}
             completionError={state.completionError}
             completeDisabledReason={completionDisabledReason}
+            activeBank={activeBank}
+            activePeriod={activePeriod}
           />
 
           <div className="grid grid-cols-12 gap-6">
             <div className="col-span-12 xl:col-span-8 flex flex-col gap-6">
               <ProgressSummary session={state.session} />
 
-              <section className="rounded-3xl border border-slate-200 bg-white shadow-sm flex flex-col min-h-[500px]">
+              <section className="rounded-3xl border border-slate-200 bg-white shadow-sm flex flex-col">
                 <div className="border-b border-slate-100 p-4 md:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
                     <h2 className="text-sm font-semibold tracking-wide text-slate-900">
@@ -680,17 +766,21 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
                   </div>
                 </div>
 
-                <TransactionFeed
-                  transactions={filteredTransactions}
-                  onToggleInclude={onToggleInclude}
-                  onMatch={onMatch}
-                  onAddAsNew={onAddAsNew}
-                  onUnmatch={onUnmatch}
-                  isLocked={isLocked}
-                />
+                <ScrollArea className="max-h-[600px]">
+                  <TransactionFeed
+                    transactions={filteredTransactions}
+                    activeFilter={state.statusFilter}
+                    onToggleInclude={onToggleInclude}
+                    onMatch={onMatch}
+                    onAddAsNew={onAddAsNew}
+                    onUnmatch={onUnmatch}
+                    isLocked={isLocked}
+                    totalCount={state.session?.totalTransactions ?? state.transactions.length}
+                  />
+                </ScrollArea>
               </section>
 
-              <AdjustmentsPanel session={state.session} isLocked={isLocked} onUpdate={() => loadSession(state.activeBankId!, state.activePeriodId)} />
+              <AdjustmentsPanel session={state.session} isLocked={isLocked} onUpdate={() => loadSession(state.activeBankId!, state.activePeriodId)} onError={setActionError} />
             </div>
 
             <div className="col-span-12 xl:col-span-4 flex flex-col gap-6">
@@ -739,9 +829,12 @@ interface SessionSetupBarProps {
   onSelectPeriod: (id: string) => void;
   onChangeSessionField: (field: "beginningBalance" | "endingBalance", value: number) => void;
   onComplete: () => void;
+  onReopen?: () => void;
   disableComplete: boolean;
   completionError?: string | null;
   completeDisabledReason?: string | null;
+  activeBank: BankAccountSummary | null;
+  activePeriod: RecoPeriodOption | null;
 }
 
 function SessionSetupBar({
@@ -751,14 +844,14 @@ function SessionSetupBar({
   onSelectPeriod,
   onChangeSessionField,
   onComplete,
+  onReopen,
   disableComplete,
   completionError,
   completeDisabledReason,
+  activeBank,
+  activePeriod,
 }: SessionSetupBarProps) {
   const { bankAccounts, activeBankId, periods, activePeriodId, session } = state;
-
-  const activeBank = bankAccounts.find((b) => b.id === activeBankId) || null;
-  const activePeriod = periods.find((p) => p.id === activePeriodId) || null;
 
   return (
     <section className="rounded-3xl border border-slate-200 bg-white shadow-sm p-5 flex flex-col gap-5">
@@ -865,6 +958,9 @@ function SessionSetupBar({
                 </span>
                 <span className="text-xs font-medium opacity-70">{activeBank?.currency}</span>
               </div>
+              <span className="text-[11px] text-slate-500">
+                Difference = Statement ending – Cleared balance.
+              </span>
             </div>
           </div>
         </div>
@@ -881,6 +977,15 @@ function SessionSetupBar({
           >
             {session?.status === "COMPLETED" ? "Period Completed" : "Complete period"}
           </Button>
+          {session?.status === "COMPLETED" && (
+            <Button
+              variant="outline"
+              onClick={onReopen}
+              className="w-full rounded-xl border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 disabled:opacity-60"
+            >
+              Reopen period
+            </Button>
+          )}
           <Button
             variant="outline"
             disabled={isLocked}
@@ -888,6 +993,9 @@ function SessionSetupBar({
           >
             Save draft
           </Button>
+          {session?.status === "COMPLETED" && (
+            <p className="text-[11px] text-slate-500 leading-snug">This period is locked. Reopen the period to make changes.</p>
+          )}
           {completionError && (
             <p className="text-xs text-red-600 leading-snug">{completionError}</p>
           )}
@@ -907,52 +1015,118 @@ interface ProgressSummaryProps {
 function ProgressSummary({ session }: ProgressSummaryProps) {
   if (!session) return null;
 
+  const differenceCalm = Math.abs(session.difference) <= 0.01;
+  const differenceToneClass = differenceCalm
+    ? "border-emerald-200 bg-emerald-50/50 text-emerald-700"
+    : "border-amber-200 bg-amber-50/50 text-amber-700";
+  const differenceHelper = differenceCalm
+    ? "Balances align for this statement period."
+    : "You still have unreconciled transactions in this period.";
+
   return (
-    <section className="rounded-3xl border border-slate-200 bg-white shadow-sm p-5 flex flex-col gap-4">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-            Reconciliation Progress
-          </span>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-slate-900">
-              {session.reconciledPercent.toFixed(0)}%
-            </span>
-            <span className="text-sm text-slate-500">
-              of {session.totalTransactions} transactions
-            </span>
+    <section className="rounded-3xl border border-slate-200 bg-white shadow-sm p-5">
+      {/* Header with progress percentage */}
+      <div className="flex items-baseline gap-2 mb-4">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+          Reconciliation Progress
+        </span>
+        <span className="text-2xl font-bold text-slate-900 ml-auto">
+          {session.reconciledPercent.toFixed(0)}%
+        </span>
+      </div>
+
+      {/* Progress bar */}
+      <div className="mb-6">
+        <div className="h-3 w-full rounded-full bg-slate-100 overflow-hidden">
+          <motion.div
+            initial={{ width: 0 }}
+            animate={{ width: `${session.reconciledPercent}%` }}
+            transition={{ duration: 0.5, ease: "easeOut" }}
+            className="h-full bg-emerald-500"
+          />
+        </div>
+      </div>
+
+      {/* Main content - two column layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Left: Financial Summary */}
+        <div className="flex flex-col gap-3">
+          <h3 className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            Financial Summary
+          </h3>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-slate-600">Cleared balance</span>
+              <span className="font-mono font-semibold text-slate-900">
+                {formatAmount(session.clearedBalance, session.bankAccount.currency)}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-slate-600">Statement ending</span>
+              <span className="font-mono font-semibold text-slate-900">
+                {formatAmount(session.endingBalance, session.bankAccount.currency)}
+              </span>
+            </div>
+
+            <Separator />
+
+            <div className={`flex items-center justify-between rounded-xl border px-3 py-2.5 ${differenceToneClass}`}>
+              <span className="text-sm font-medium">Difference</span>
+              <span className="font-mono font-bold text-lg">
+                {formatAmount(session.difference, session.bankAccount.currency)}
+              </span>
+            </div>
           </div>
+
+          <p className="text-[11px] text-slate-500 leading-relaxed">
+            {differenceHelper}
+          </p>
         </div>
 
-        <div className="flex-1 md:max-w-md flex flex-col justify-center">
-          <div className="h-3 w-full rounded-full bg-slate-100 overflow-hidden">
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: `${session.reconciledPercent}%` }}
-              transition={{ duration: 0.5, ease: "easeOut" }}
-              className="h-full bg-emerald-500"
-            />
-          </div>
-        </div>
+        {/* Right: Transaction Summary */}
+        <div className="flex flex-col gap-3">
+          <h3 className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            Transaction Summary
+          </h3>
 
-        <div className="flex flex-col items-start md:items-end gap-1 text-xs">
-          <div className="flex items-center gap-2">
-            <span className="text-slate-500">Cleared balance:</span>
-            <span className="font-mono font-medium text-slate-900">
-              {formatAmount(session.clearedBalance, session.bankAccount.currency)}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-slate-500">Statement ending:</span>
-            <span className="font-mono font-medium text-slate-900">
-              {formatAmount(session.endingBalance, session.bankAccount.currency)}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-slate-500">Status:</span>
-            <span className="font-mono font-medium text-slate-900">
-              {session.reconciledCount ?? 0} / {session.totalTransactions} reconciled
-            </span>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 px-3 py-3">
+              <div className="text-[11px] font-medium text-emerald-700 uppercase tracking-wide mb-1">
+                Reconciled
+              </div>
+              <div className="text-2xl font-bold text-emerald-900">
+                {session.reconciledCount ?? 0}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+              <div className="text-[11px] font-medium text-slate-600 uppercase tracking-wide mb-1">
+                Excluded
+              </div>
+              <div className="text-2xl font-bold text-slate-900">
+                {session.excludedCount ?? 0}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-amber-100 bg-amber-50/50 px-3 py-3">
+              <div className="text-[11px] font-medium text-amber-700 uppercase tracking-wide mb-1">
+                Unreconciled
+              </div>
+              <div className="text-2xl font-bold text-amber-900">
+                {session.unreconciledCount}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+              <div className="text-[11px] font-medium text-slate-600 uppercase tracking-wide mb-1">
+                Total
+              </div>
+              <div className="text-2xl font-bold text-slate-900">
+                {session.totalTransactions}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -996,27 +1170,49 @@ function StatusFilter({ active, onChange }: StatusFilterProps) {
 
 interface TransactionFeedProps {
   transactions: BankTransaction[];
+  activeFilter: RecoStatus | "all";
   onToggleInclude: (id: string) => void;
   onMatch: (id: string) => void;
   onAddAsNew: (id: string) => void;
   onUnmatch: (id: string) => void;
   isLocked: boolean;
+  totalCount: number;
 }
 
-function TransactionFeed({ transactions, onToggleInclude, onMatch, onAddAsNew, onUnmatch, isLocked }: TransactionFeedProps) {
+function TransactionFeed({ transactions, onToggleInclude, onMatch, onAddAsNew, onUnmatch, isLocked, activeFilter, totalCount }: TransactionFeedProps) {
+  if (totalCount === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+        <div className="h-12 w-12 rounded-full bg-slate-50 flex items-center justify-center text-2xl">
+          📄
+        </div>
+        <div className="space-y-1">
+          <p className="text-sm font-medium text-slate-900">
+            No bank transactions for this statement period yet.
+          </p>
+          <p className="text-xs text-slate-500 max-w-xs mx-auto">
+            Import a statement or sync your bank feed to start reconciling this period.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   if (!transactions.length) {
+    const filterCopy: Record<RecoStatus | "all", string> = {
+      all: "No transactions in this period.",
+      new: "No new transactions in this period.",
+      matched: "No matched transactions in this period.",
+      partial: "No partial transactions in this period.",
+      excluded: "No excluded transactions in this period.",
+    };
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
         <div className="h-12 w-12 rounded-full bg-slate-50 flex items-center justify-center text-2xl">
           ✨
         </div>
         <div className="space-y-1">
-          <p className="text-sm font-medium text-slate-900">
-            Everything in this period is reconciled
-          </p>
-          <p className="text-xs text-slate-500 max-w-xs mx-auto">
-            Great job! New imports and matches will appear here automatically.
-          </p>
+          <p className="text-sm font-medium text-slate-900">{filterCopy[activeFilter]}</p>
         </div>
       </div>
     );
@@ -1049,105 +1245,126 @@ interface TransactionRowProps {
 }
 
 function TransactionRow({ tx, onToggleInclude, onMatch, onAddAsNew, onUnmatch, isLocked }: TransactionRowProps) {
-  const isMatched = tx.status === "matched";
-  const isExcluded = tx.status === "excluded";
-  const reconciliationStatus = tx.reconciliationStatus ?? "unreconciled";
-  const isReconciled = reconciliationStatus === "reconciled";
+  const uiStatus = (tx.uiStatus || tx.status || "NEW").toUpperCase();
+  const isExcluded = uiStatus === "EXCLUDED";
+  const isMatched = uiStatus === "MATCHED";
+  const isPartial = uiStatus === "PARTIAL";
+  const isCleared = Boolean(tx.isCleared);
+  const isReconciled = uiStatus === "MATCHED" || uiStatus === "PARTIAL" || isExcluded;
   const hasCandidate = tx.matchCandidates && tx.matchCandidates.length > 0;
   const actionsDisabled = isLocked;
+  const isPositive = tx.amount >= 0;
+
+  // Status colors for left border
+  const statusBorderColor = isMatched
+    ? "border-l-emerald-500"
+    : isPartial
+      ? "border-l-amber-500"
+      : isExcluded
+        ? "border-l-slate-300"
+        : "border-l-slate-200";
 
   return (
-    <article className={`group flex flex-col gap-3 p-4 transition-colors hover:bg-slate-50/50 ${!tx.includedInSession ? "opacity-60" : ""}`}>
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-start gap-4">
-          <div className="pt-1">
-            <input
-              type="checkbox"
-              checked={tx.includedInSession}
-              onChange={() => onToggleInclude(tx.id)}
-              disabled={actionsDisabled}
-              className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900/20 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
-            />
-          </div>
+    <article
+      className={`
+        group flex items-center gap-4 px-4 py-3 border-l-4 ${statusBorderColor}
+        transition-colors hover:bg-slate-50/80
+        ${!tx.includedInSession ? "opacity-50" : ""}
+      `}
+    >
+      {/* Checkbox */}
+      <input
+        type="checkbox"
+        checked={tx.includedInSession}
+        onChange={() => onToggleInclude(tx.id)}
+        disabled={actionsDisabled}
+        className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900/20 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 shrink-0"
+      />
 
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-slate-500 w-12">
-                {new Date(tx.date).toLocaleDateString(undefined, {
-                  month: "short",
-                  day: "2-digit",
-                })}
-              </span>
-              <p className="text-sm font-medium text-slate-900 line-clamp-1">
-                {tx.description}
-              </p>
-            </div>
+      {/* Date */}
+      <div className="w-16 shrink-0">
+        <span className="text-xs font-medium text-slate-500">
+          {new Date(tx.date).toLocaleDateString(undefined, {
+            month: "short",
+            day: "2-digit",
+          })}
+        </span>
+      </div>
 
-            <div className="pl-14">
-              {tx.counterparty && (
-                <p className="text-xs text-slate-500 mb-1">{tx.counterparty}</p>
-              )}
+      {/* Description & Counterparty */}
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-slate-900 truncate">
+          {tx.description}
+        </p>
+        {tx.counterparty && (
+          <p className="text-xs text-slate-500 truncate">{tx.counterparty}</p>
+        )}
+      </div>
 
-              {/* Inline warning for transactions without match candidates */}
-              {!isReconciled && !hasCandidate && !isExcluded && (
-                <div className="flex items-start gap-1.5 mt-1 text-xs text-orange-600">
-                  <svg className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                  </svg>
-                  <span className="leading-tight">
-                    No existing invoice, expense, or journal entry found with this amount/date.
-                    If you continue, this will be added as a new transaction in your books.
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+      {/* Amount */}
+      <div className="w-28 shrink-0 text-right">
+        <span className={`text-sm font-bold font-mono ${isPositive ? "text-emerald-600" : "text-slate-900"}`}>
+          {formatAmount(tx.amount, tx.currency)}
+        </span>
+      </div>
 
-        <div className="flex flex-col items-end gap-2 min-w-[140px]">
-          <span className="text-sm font-bold text-slate-900 font-mono">
-            {formatAmount(tx.amount, tx.currency)}
+      {/* Status Badge */}
+      <div className="w-24 shrink-0 flex justify-center">
+        {isMatched ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold uppercase text-emerald-700 ring-1 ring-emerald-200">
+            <Check className="h-3 w-3" />
+            Matched
           </span>
-          <StatusPill status={isReconciled ? "matched" as RecoStatus : tx.status} />
-          <span className="text-[10px] text-slate-500">{isReconciled ? "Reconciled" : "Unreconciled"}</span>
+        ) : isPartial ? (
+          <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-bold uppercase text-amber-700 ring-1 ring-amber-200">
+            Partial
+          </span>
+        ) : isExcluded ? (
+          <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase text-slate-500">
+            Excluded
+          </span>
+        ) : (
+          <span className="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-1 text-[10px] font-bold uppercase text-sky-700 ring-1 ring-sky-200">
+            New
+          </span>
+        )}
+      </div>
 
-          <div className="flex gap-2 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            {!isMatched && !isExcluded && !isReconciled ? (
-              hasCandidate ? (
-                <Button
-                  size="sm"
-                  onClick={() => onMatch(tx.id)}
-                  disabled={actionsDisabled}
-                  className="h-7 rounded-full bg-slate-900 px-3 text-[11px] font-medium text-white hover:bg-slate-800"
-                  title={`Match confidence: ${Math.round((tx.matchCandidates![0].confidence || 1.0) * 100)}%`}
-                >
-                  Match
-                </Button>
-              ) : (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onAddAsNew(tx.id)}
-                  disabled={actionsDisabled}
-                  className="h-7 rounded-full border-slate-200 px-3 text-[11px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-                >
-                  Add as new
-                </Button>
-              )
-            ) : null}
-            {isMatched && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onUnmatch(tx.id)}
-                disabled={actionsDisabled}
-                className="h-7 rounded-full border-slate-200 px-3 text-[11px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-              >
-                Unmatch
-              </Button>
-            )}
-          </div>
-        </div>
+      {/* Actions */}
+      <div className="w-24 shrink-0 flex justify-end gap-2">
+        {!isMatched && !isExcluded && uiStatus !== "MATCHED" && uiStatus !== "PARTIAL" ? (
+          hasCandidate ? (
+            <Button
+              size="sm"
+              onClick={() => onMatch(tx.id)}
+              disabled={actionsDisabled}
+              className="h-7 rounded-full bg-slate-900 px-3 text-[11px] font-medium text-white hover:bg-slate-800"
+            >
+              Match
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onAddAsNew(tx.id)}
+              disabled={actionsDisabled}
+              className="h-7 rounded-full border-slate-200 px-3 text-[11px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+            >
+              Add new
+            </Button>
+          )
+        ) : null}
+        {isMatched && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onUnmatch(tx.id)}
+            disabled={actionsDisabled}
+            className="h-7 rounded-full border-slate-200 px-3 text-[11px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+          >
+            Undo
+          </Button>
+        )}
       </div>
     </article>
   );
@@ -1155,19 +1372,20 @@ function TransactionRow({ tx, onToggleInclude, onMatch, onAddAsNew, onUnmatch, i
 
 interface StatusPillProps {
   status: RecoStatus;
+  label?: string;
 }
 
-function StatusPill({ status }: StatusPillProps) {
+function StatusPill({ status, label }: StatusPillProps) {
   const base = "inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide";
   switch (status) {
     case "new":
-      return <span className={`${base} bg-slate-100 text-slate-600`}>New</span>;
+      return <span className={`${base} bg-slate-100 text-slate-600`}>{label || "New"}</span>;
     case "matched":
-      return <span className={`${base} bg-sky-50 text-sky-700 ring-1 ring-sky-100`}>Matched</span>;
+      return <span className={`${base} bg-sky-50 text-sky-700 ring-1 ring-sky-100`}>{label || "Matched"}</span>;
     case "partial":
-      return <span className={`${base} bg-amber-50 text-amber-700 ring-1 ring-amber-100`}>Partial</span>;
+      return <span className={`${base} bg-amber-50 text-amber-700 ring-1 ring-amber-100`}>{label || "Partial"}</span>;
     case "excluded":
-      return <span className={`${base} bg-slate-50 text-slate-400`}>Excluded</span>;
+      return <span className={`${base} bg-slate-50 text-slate-400`}>{label || "Excluded"}</span>;
     default:
       return null;
   }
@@ -1177,9 +1395,10 @@ interface AdjustmentsPanelProps {
   session: RecoSession | null;
   isLocked: boolean;
   onUpdate: () => void;
+  onError: (msg: string | null) => void;
 }
 
-function AdjustmentsPanel({ session, isLocked, onUpdate }: AdjustmentsPanelProps) {
+function AdjustmentsPanel({ session, isLocked, onUpdate, onError }: AdjustmentsPanelProps) {
   const [type, setType] = useState("Bank fee");
   const [amount, setAmount] = useState("");
   const [account, setAccount] = useState("Service charges");
@@ -1219,6 +1438,7 @@ function AdjustmentsPanel({ session, isLocked, onUpdate }: AdjustmentsPanelProps
     if (!cleanedAmount || cleanedAmount === ".") return;
     setLoading(true);
     try {
+      onError(null);
       await fetchJson("/api/reconciliation/create-adjustment/", {
         method: "POST",
         headers: {
@@ -1236,7 +1456,7 @@ function AdjustmentsPanel({ session, isLocked, onUpdate }: AdjustmentsPanelProps
       onUpdate();
     } catch (e) {
       console.error(e);
-      alert("Failed to add adjustment");
+      onError(e instanceof Error ? e.message : "Failed to add adjustment");
     } finally {
       setLoading(false);
     }

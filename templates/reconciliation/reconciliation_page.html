@@ -2,11 +2,6 @@
 {% load static mb_extras %}
 
 {% block content %}
-<!-- Companion strip container -->
-<div class="mb-4 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-  <div data-companion-context="reconciliation"></div>
-</div>
-
 <div id="reconciliation-root" data-bank-account-id="{{ bank_account_id }}"></div>
 
 <!-- Fallback in case JS fails to load -->

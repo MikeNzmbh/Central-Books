@@ -13,6 +13,11 @@ from .models import CompanionInsight, CompanionSuggestedAction, WorkspaceCompani
 from .serializers import CompanionInsightSerializer, CompanionSuggestedActionSerializer, HealthIndexSerializer
 from .services import (
     create_health_snapshot,
+    evaluate_bank_context,
+    evaluate_expenses_context,
+    evaluate_invoices_context,
+    evaluate_ledger_context,
+    evaluate_reconciliation_context,
     ensure_metric_insights,
     gather_workspace_metrics,
     get_latest_health_snapshot,
@@ -36,6 +41,8 @@ class CompanionOverviewView(APIView):
         Never returns error status codes - always returns HTTP 200 with appropriate data or empty fallback.
         """
         context_filter = request.query_params.get("context") or None
+        period_start_filter = request.query_params.get("period_start") or None
+        period_end_filter = request.query_params.get("period_end") or None
         
         # Build fallback response structure
         def _get_fallback_response():
@@ -50,6 +57,7 @@ class CompanionOverviewView(APIView):
                     "insight_explanations": {},
                     "action_explanations": {},
                     "context_summary": None,
+                    "focus_items": [],
                 },
                 "actions": [],
                 "has_new_actions": False,
@@ -57,6 +65,9 @@ class CompanionOverviewView(APIView):
                 "context": context_filter,
                 "context_all_clear": True,
                 "context_metrics": {},
+                "context_reasons": [],
+                "context_severity": None,
+                "focus_items": [],
             }
         
         try:
@@ -102,16 +113,27 @@ class CompanionOverviewView(APIView):
                 )
                 insights_data = CompanionInsightSerializer(insights, many=True).data
 
-            refresh_suggested_actions_for_workspace(workspace, snapshot=snapshot)
+            refresh_suggested_actions_for_workspace(workspace, snapshot=snapshot, metrics=raw_metrics)
+            action_severity_order = Case(
+                When(severity=CompanionSuggestedAction.SEVERITY_CRITICAL, then=0),
+                When(severity=CompanionSuggestedAction.SEVERITY_HIGH, then=1),
+                When(severity=CompanionSuggestedAction.SEVERITY_MEDIUM, then=2),
+                When(severity=CompanionSuggestedAction.SEVERITY_LOW, then=3),
+                When(severity=CompanionSuggestedAction.SEVERITY_INFO, then=4),
+                default=5,
+                output_field=IntegerField(),
+            )
             actions_qs = CompanionSuggestedAction.objects.filter(
                 workspace=workspace, status=CompanionSuggestedAction.STATUS_OPEN
-            ).order_by("-created_at")
+            ).order_by(action_severity_order, "-created_at")
             actions_data = CompanionSuggestedActionSerializer(actions_qs, many=True).data
 
             context_insights = insights
             context_actions = actions_qs
             context_all_clear = False
             context_metrics = {}
+            context_reasons: list[str] = []
+            context_severity = "info"
             new_actions_count = 0
             has_new_actions = False
 
@@ -128,8 +150,25 @@ class CompanionOverviewView(APIView):
                 has_new_actions = new_actions_count > 0
                 context_insights = [i for i in insights if getattr(i, "context", CompanionInsight.CONTEXT_DASHBOARD) == context_filter]
                 context_actions = [a for a in actions_qs if getattr(a, "context", CompanionSuggestedAction.CONTEXT_DASHBOARD) == context_filter]
-                if not context_insights and not context_actions:
-                    context_all_clear = True
+                evaluation = None
+                if context_filter == CompanionInsight.CONTEXT_INVOICES:
+                    evaluation = evaluate_invoices_context(workspace, raw_metrics)
+                elif context_filter == CompanionInsight.CONTEXT_EXPENSES:
+                    evaluation = evaluate_expenses_context(workspace, raw_metrics)
+                elif context_filter == CompanionInsight.CONTEXT_BANK:
+                    evaluation = evaluate_bank_context(workspace, raw_metrics)
+                elif context_filter == CompanionInsight.CONTEXT_RECONCILIATION:
+                    evaluation = evaluate_reconciliation_context(workspace, raw_metrics)
+                elif context_filter == CompanionInsight.CONTEXT_REPORTS:
+                    evaluation = evaluate_ledger_context(workspace, raw_metrics)
+
+                if evaluation:
+                    context_all_clear = evaluation.get("all_clear", False)
+                    context_reasons = evaluation.get("reasons") or []
+                    context_severity = evaluation.get("severity") or CompanionSuggestedAction.SEVERITY_INFO
+                else:
+                    context_all_clear = not context_insights and not context_actions
+                    context_reasons = context_reasons or (["All clear"] if context_all_clear else [])
 
                 if context_filter in {CompanionInsight.CONTEXT_BANK, CompanionInsight.CONTEXT_RECONCILIATION}:
                     context_metrics = {
@@ -163,8 +202,55 @@ class CompanionOverviewView(APIView):
                         "uncategorized_expenses": uncategorized,
                         "top_expense_groups": top_groups,
                     }
+                if period_start_filter or period_end_filter:
+                    context_metrics["period_start"] = period_start_filter
+                    context_metrics["period_end"] = period_end_filter
                 insights_data = CompanionInsightSerializer(context_insights, many=True).data
                 actions_data = CompanionSuggestedActionSerializer(context_actions, many=True).data
+            else:
+                context_reasons = []
+                context_severity = CompanionSuggestedAction.SEVERITY_INFO
+
+            metrics_summary = {
+                "invoices": {
+                    "overdue_count": raw_metrics.get("overdue_invoices"),
+                    "oldest_unpaid_days": raw_metrics.get("oldest_unpaid_invoice_days"),
+                    "revenue_this_month": raw_metrics.get("revenue_this_month"),
+                    "revenue_last_month": raw_metrics.get("revenue_last_month"),
+                    "percent_overdue_by_amount": raw_metrics.get("percent_overdue_by_amount"),
+                    "percent_overdue_by_count": raw_metrics.get("percent_overdue_by_count"),
+                },
+                "expenses": {
+                    "uncategorized_expense_count": raw_metrics.get("uncategorized_expenses"),
+                    "top_vendor_share_mtd": raw_metrics.get("top_vendor_share_mtd"),
+                    "expenses_mtd_total": raw_metrics.get("expenses_mtd_total"),
+                    "expenses_last_month_total": raw_metrics.get("expenses_last_month_total"),
+                    "uncategorized_expense_share_pct": raw_metrics.get("uncategorized_expense_share_pct"),
+                },
+                "bank": {
+                    "unreconciled_items_count": raw_metrics.get("unreconciled_count"),
+                    "has_unfinished_period": raw_metrics.get("has_unfinished_reconciliation_period"),
+                    "unreconciled_ratio_pct": raw_metrics.get("unreconciled_ratio_pct"),
+                    "old_unreconciled_60d": raw_metrics.get("old_unreconciled_60d"),
+                },
+                "reconciliation": {
+                    "unreconciled_items_count": raw_metrics.get("unreconciled_count"),
+                    "old_unreconciled_60d": raw_metrics.get("old_unreconciled_60d"),
+                    "has_unfinished_period": raw_metrics.get("has_unfinished_reconciliation_period"),
+                },
+                "ledger": {
+                    "unbalanced_journal_entries": raw_metrics.get("unbalanced_journal_entries"),
+                    "future_dated_entries": raw_metrics.get("future_dated_entries"),
+                    "suspense_balance": raw_metrics.get("suspense_balance"),
+                    "suspense_share_of_assets_pct": raw_metrics.get("suspense_share_of_assets_pct"),
+                    "months_with_missing_activity": raw_metrics.get("months_with_missing_activity"),
+                },
+            }
+            if period_start_filter or period_end_filter:
+                metrics_summary["period"] = {
+                    "start": period_start_filter,
+                    "end": period_end_filter,
+                }
 
             llm_narrative = (
                 generate_companion_narrative(
@@ -173,9 +259,12 @@ class CompanionOverviewView(APIView):
                     raw_metrics,
                     actions=list(context_actions if context_filter in valid_contexts else actions_qs),
                     context=context_filter,
+                    context_reasons=context_reasons,
+                    metrics_summary=metrics_summary,
+                    context_severity=context_severity,
                 )
                 if snapshot
-                else {"summary": None, "insight_explanations": {}, "action_explanations": {}}
+                else {"summary": None, "insight_explanations": {}, "action_explanations": {}, "context_summary": None}
             )
 
             next_refresh_at = None
@@ -196,6 +285,9 @@ class CompanionOverviewView(APIView):
                     "context": context_filter if context_filter in valid_contexts else None,
                     "context_all_clear": context_all_clear if context_filter in valid_contexts else False,
                     "context_metrics": context_metrics if context_filter in valid_contexts else {},
+                    "context_reasons": context_reasons if context_filter in valid_contexts else [],
+                    "context_severity": context_severity if context_filter in valid_contexts else None,
+                    "focus_items": llm_narrative.get("focus_items") if isinstance(llm_narrative, dict) else [],
                 }
             )
         except Exception as exc:

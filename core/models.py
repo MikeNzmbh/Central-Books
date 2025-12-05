@@ -10,6 +10,7 @@ from django.db import models
 from django.db.models import Sum, Q
 from django.template import Context, Template
 from django.utils import timezone
+from django.core.exceptions import ValidationError
 
 if TYPE_CHECKING:
     from django.db.models import Manager
@@ -333,6 +334,16 @@ class Category(models.Model):
 
     def __str__(self):
         return self.name
+
+    def clean(self):
+        super().clean()
+        if self.account_id:
+            if self.account.business_id != self.business_id:
+                raise ValidationError({"account": "Account must belong to the same business as the category."})
+            if self.type == Category.CategoryType.INCOME and self.account.type != Account.AccountType.INCOME:
+                raise ValidationError({"account": "Income categories must use an income account."})
+            if self.type == Category.CategoryType.EXPENSE and self.account.type != Account.AccountType.EXPENSE:
+                raise ValidationError({"account": "Expense categories must use an expense account."})
 
 
 class Item(models.Model):

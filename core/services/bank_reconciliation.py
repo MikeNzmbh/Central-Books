@@ -9,6 +9,7 @@ from decimal import Decimal
 from typing import Optional
 
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 
@@ -18,9 +19,75 @@ from core.models import (
     JournalEntry,
     JournalLine,
     Account,
+    ReconciliationSession,
 )
+from core.accounting_defaults import ensure_default_accounts
+from core.reconciliation import _resolve_pl_account
 
 User = get_user_model()
+
+
+RECONCILED_STATUSES = {
+    BankTransaction.TransactionStatus.MATCHED_SINGLE,
+    BankTransaction.TransactionStatus.MATCHED_MULTI,
+    BankTransaction.TransactionStatus.MATCHED,
+    BankTransaction.TransactionStatus.PARTIAL,
+    BankTransaction.TransactionStatus.EXCLUDED,
+    BankTransaction.TransactionStatus.RECONCILED,
+}
+
+
+def set_reconciled_state(
+    bank_transaction: BankTransaction,
+    *,
+    reconciled: bool,
+    session: ReconciliationSession | None,
+    status: str | None = None,
+    reconciled_at=None,
+) -> BankTransaction:
+    """
+    Canonical helper to keep reconciliation flags in sync.
+
+    Rules:
+    - A transaction is reconciled only when it belongs to a session AND its status
+      is one of the reconciled statuses.
+    - Switching a transaction between sessions without clearing first is forbidden.
+    """
+    if session and bank_transaction.reconciliation_session and bank_transaction.reconciliation_session_id != session.id:
+        raise ValidationError("Cannot move a reconciled transaction to a different session without unmatching it first.")
+
+    if reconciled:
+        if session is None:
+            raise ValidationError("Reconciled transactions must belong to a reconciliation session.")
+        final_status = status or bank_transaction.status or BankTransaction.TransactionStatus.MATCHED_SINGLE
+        if final_status not in RECONCILED_STATUSES:
+            raise ValidationError("Reconciled transactions must use a reconciled status.")
+        bank_transaction.reconciliation_session = session
+        bank_transaction.status = final_status
+        bank_transaction.is_reconciled = True
+        bank_transaction.reconciliation_status = BankTransaction.RECO_STATUS_RECONCILED
+        bank_transaction.reconciled_at = reconciled_at or timezone.now()
+    else:
+        # Allow attaching an unreconciled transaction to a session, but block moving it across sessions.
+        if session is None:
+            bank_transaction.reconciliation_session = None
+        else:
+            bank_transaction.reconciliation_session = session
+        bank_transaction.status = status or BankTransaction.TransactionStatus.NEW
+        bank_transaction.is_reconciled = False
+        bank_transaction.reconciliation_status = BankTransaction.RECO_STATUS_UNRECONCILED
+        bank_transaction.reconciled_at = None
+
+    bank_transaction.save(
+        update_fields=[
+            "status",
+            "is_reconciled",
+            "reconciliation_status",
+            "reconciled_at",
+            "reconciliation_session",
+        ]
+    )
+    return bank_transaction
 
 
 class BankReconciliationService:
@@ -36,6 +103,7 @@ class BankReconciliationService:
         match_confidence: Decimal,
         user: Optional[User] = None,
         adjustment_entry: Optional[JournalEntry] = None,
+        session: ReconciliationSession | None = None,
     ) -> BankReconciliationMatch:
         """
         Confirm a suggested match between a bank transaction and journal entry.
@@ -61,22 +129,17 @@ class BankReconciliationService:
             reconciled_by=user,
         )
 
-        # Update bank transaction status (link-only, no auto creation here)
-        bank_transaction.status = BankTransaction.TransactionStatus.MATCHED_SINGLE
-        bank_transaction.is_reconciled = True
-        bank_transaction.reconciliation_status = BankTransaction.RECO_STATUS_RECONCILED
-        bank_transaction.reconciled_at = timezone.now()
         bank_transaction.allocated_amount = bank_transaction.amount
         bank_transaction.posted_journal_entry = journal_entry
-        bank_transaction.save(
-            update_fields=[
-                "status",
-                "allocated_amount",
-                "posted_journal_entry",
-                "is_reconciled",
-                "reconciliation_status",
-                "reconciled_at",
-            ]
+        bank_transaction.save(update_fields=["allocated_amount", "posted_journal_entry"])
+        effective_session = session or bank_transaction.reconciliation_session
+        if effective_session is None:
+            raise ValidationError("A reconciliation session is required to confirm a match.")
+        set_reconciled_state(
+            bank_transaction,
+            reconciled=True,
+            session=effective_session,
+            status=BankTransaction.TransactionStatus.MATCHED_SINGLE,
         )
 
         return match
@@ -88,6 +151,7 @@ class BankReconciliationService:
         splits: list[dict],
         user: Optional[User] = None,
         description: Optional[str] = None,
+        session: ReconciliationSession | None = None,
     ) -> tuple[JournalEntry, BankReconciliationMatch]:
         """
         Create a new journal entry for a split/categorized transaction.
@@ -119,6 +183,7 @@ class BankReconciliationService:
 
         # Determine if this is a deposit (DR Bank) or withdrawal (CR Bank)
         is_deposit = bank_transaction.amount > 0
+        defaults = ensure_default_accounts(bank_transaction.bank_account.business)
 
         # Create journal entry
         journal_entry = JournalEntry.objects.create(
@@ -130,8 +195,29 @@ class BankReconciliationService:
         # Create journal lines for each split
         for split in splits:
             account = Account.objects.get(id=split["account_id"])
+            if account.business_id != bank_transaction.bank_account.business_id:
+                raise ValidationError("Account does not belong to this business.")
             split_amount = Decimal(str(split["amount"]))
             split_desc = split.get("description", bank_transaction.description)
+
+            if is_deposit:
+                account = _resolve_pl_account(
+                    business=bank_transaction.bank_account.business,
+                    provided=account,
+                    desired_type=Account.AccountType.INCOME,
+                    defaults=defaults,
+                    default_key="sales",
+                    error_message="Select an income account to record this deposit as revenue.",
+                )
+            else:
+                account = _resolve_pl_account(
+                    business=bank_transaction.bank_account.business,
+                    provided=account,
+                    desired_type=Account.AccountType.EXPENSE,
+                    defaults=defaults,
+                    default_key="opex",
+                    error_message="Select an expense account to record this withdrawal as an expense.",
+                )
 
             if is_deposit:
                 # Deposit: DR Bank, CR Revenue/Other
@@ -184,20 +270,27 @@ class BankReconciliationService:
         )
 
         # Update bank transaction
-        bank_transaction.status = (
+        bank_transaction.allocated_amount = bank_transaction.amount
+        bank_transaction.posted_journal_entry = journal_entry
+        bank_transaction.save(update_fields=["allocated_amount", "posted_journal_entry"])
+
+        reconciled_status = (
             BankTransaction.TransactionStatus.MATCHED_MULTI
             if len(splits) > 1
             else BankTransaction.TransactionStatus.MATCHED_SINGLE
         )
-        bank_transaction.allocated_amount = bank_transaction.amount
-        bank_transaction.posted_journal_entry = journal_entry
-        bank_transaction.save(update_fields=["status", "allocated_amount", "posted_journal_entry"])
+        set_reconciled_state(
+            bank_transaction,
+            reconciled=bool(session),
+            session=session,
+            status=reconciled_status,
+        )
 
         return (journal_entry, match)
 
     @staticmethod
     @transaction.atomic
-    def unmatch(match: BankReconciliationMatch, user: Optional[User] = None) -> None:
+    def unmatch(match: BankReconciliationMatch, user: Optional[User] = None, session: ReconciliationSession | None = None) -> None:
         """
         Remove a reconciliation match and reset the bank transaction to unmatched state.
 
@@ -208,10 +301,15 @@ class BankReconciliationService:
         bank_tx = match.bank_transaction
 
         # Reset bank transaction
-        bank_tx.status = BankTransaction.TransactionStatus.NEW
         bank_tx.allocated_amount = Decimal("0")
         bank_tx.posted_journal_entry = None
-        bank_tx.save(update_fields=["status", "allocated_amount", "posted_journal_entry"])
+        bank_tx.save(update_fields=["allocated_amount", "posted_journal_entry"])
+        set_reconciled_state(
+            bank_tx,
+            reconciled=False,
+            session=session if session else None,
+            status=BankTransaction.TransactionStatus.NEW,
+        )
 
         # Delete the match
         match.delete()

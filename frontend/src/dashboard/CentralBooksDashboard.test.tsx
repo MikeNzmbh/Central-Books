@@ -30,7 +30,7 @@ describe("CentralBooksDashboard P&L card", () => {
       />
     );
 
-    expect(screen.getByText(/No income or expenses have been posted/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/No income or expenses have been posted/i).length).toBeGreaterThan(0);
   });
 
   it("renders P&L values and comparison when data exists", () => {

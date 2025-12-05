@@ -1,6 +1,7 @@
-from django.urls import path
+from django.urls import path, include
 
 from . import views
+from agentic.interfaces.api import urlpatterns as agentic_urlpatterns
 from taxes import views as tax_views
 from . import views_reconciliation
 from . import views_monitoring  # Monitoring agent Slack endpoint
@@ -19,6 +20,7 @@ from .views_reports import (
     reconciliation_report_view,
     cashflow_report_print_view,
     pl_report_print_view,
+    pl_report_api,
 )
 from .views_accounts import (
     account_detail_view,
@@ -107,6 +109,11 @@ urlpatterns = [
         pl_report_print_view,
         name="pl_report_print",
     ),
+    path(
+        "api/reports/pl/",
+        pl_report_api,
+        name="pl_report_api",
+    ),
     path("reports/tax/gst-hst/", tax_views.gst_hst_report, name="gst_hst_report"),
     path("reports/tax/us-sales/", tax_views.us_sales_tax_report, name="us_sales_tax_report"),
     path("bank-accounts/", views.bank_account_list, name="bank_account_list"),
@@ -147,6 +154,11 @@ urlpatterns = [
         "api/reconciliation/sessions/<int:session_id>/complete/",
         views_reconciliation.api_reconciliation_complete_v1,
         name="reconciliation-complete-session",
+    ),
+    path(
+        "api/reconciliation/sessions/<int:session_id>/reopen/",
+        views_reconciliation.api_reconciliation_reopen_session,
+        name="reconciliation-reopen-session",
     ),
     path(
         "api/reconciliation/session/<int:session_id>/",
@@ -275,3 +287,7 @@ urlpatterns = [
     # Slack monitoring slash command endpoint
     path("slack/monitoring/report/", views_monitoring.slack_monitoring_report, name="slack_monitoring_report"),
 ]
+
+# Add agentic API endpoints
+urlpatterns += agentic_urlpatterns
+

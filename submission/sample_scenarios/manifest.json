@@ -1,0 +1,35 @@
+{
+  "generated_at": "2025-12-05",
+  "scenarios": [
+    {
+      "id": "scenario-42",
+      "name": "Monthly Bookkeeping November 2025",
+      "documents": 9,
+      "transactions": 18,
+      "journal_entries": 18,
+      "is_compliant": true,
+      "audit_risk": "low",
+      "total_expenses": "13532.61"
+    },
+    {
+      "id": "scenario-123",
+      "name": "Monthly Bookkeeping November 2025",
+      "documents": 9,
+      "transactions": 18,
+      "journal_entries": 18,
+      "is_compliant": true,
+      "audit_risk": "low",
+      "total_expenses": "11358.07"
+    },
+    {
+      "id": "scenario-456",
+      "name": "Monthly Bookkeeping November 2025",
+      "documents": 9,
+      "transactions": 18,
+      "journal_entries": 18,
+      "is_compliant": true,
+      "audit_risk": "low",
+      "total_expenses": "9593.25"
+    }
+  ]
+}

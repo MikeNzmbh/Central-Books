@@ -28,6 +28,9 @@ describe("useCompanionContext", () => {
       context_metrics: {},
       has_new_actions: false,
       new_actions_count: 0,
+      context_reasons: ["No unreconciled items."],
+      context_severity: "none",
+      focus_items: [],
     });
 
     const { result } = renderHook(() => useCompanionContext("bank"));
@@ -37,6 +40,8 @@ describe("useCompanionContext", () => {
     expect(result.current.contextInsights).toHaveLength(0);
     expect(result.current.contextActions).toHaveLength(0);
     expect(result.current.hasNewActions).toBe(false);
+    expect(result.current.contextReasons).toHaveLength(1);
+    expect(result.current.contextSeverity).toBe("none");
   });
 
   it("returns actions/insights filtered by context", async () => {
@@ -57,6 +62,9 @@ describe("useCompanionContext", () => {
       context_metrics: {},
       has_new_actions: true,
       new_actions_count: 1,
+      context_reasons: ["2 bank items need review."],
+      context_severity: "medium",
+      focus_items: ["Focus on recon"],
     });
 
     const { result } = renderHook(() => useCompanionContext("bank"));
@@ -65,6 +73,9 @@ describe("useCompanionContext", () => {
     expect(result.current.contextInsights).toHaveLength(1);
     expect(result.current.contextActions).toHaveLength(1);
     expect(result.current.contextNarrative).toBe("Bank looks steady.");
+    expect(result.current.contextReasons).toHaveLength(1);
+    expect(result.current.contextSeverity).toBe("medium");
+    expect(result.current.focusItems).toContain("Focus on recon");
     expect(result.current.hasNewActions).toBe(true);
     expect(result.current.newActionsCount).toBe(1);
   });

@@ -3,6 +3,17 @@ from django.contrib import admin
 from .models import TaxRate
 
 
+admin.site.site_header = "CERN Books – System Admin (Legacy)"
+admin.site.site_title = "CERN Books System Admin"
+
+
+def _superuser_only(request):
+    return request.user.is_active and request.user.is_superuser
+
+
+admin.site.has_permission = _superuser_only
+
+
 @admin.register(TaxRate)
 class TaxRateAdmin(admin.ModelAdmin):
     list_display = (
@@ -22,4 +33,3 @@ class TaxRateAdmin(admin.ModelAdmin):
     @admin.display(description="Rate")
     def display_rate(self, obj):
         return f"{obj.percentage}%"
-

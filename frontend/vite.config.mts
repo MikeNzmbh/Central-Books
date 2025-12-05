@@ -76,6 +76,10 @@ export default defineConfig({
           "src/reports/pl-report-entry.tsx"
         ),
         admin: path.resolve(__dirname, "src/admin.tsx"),
+        "agentic-receipts-demo": path.resolve(
+          __dirname,
+          "src/agentic/agentic-receipts-demo.tsx"
+        ),
       },
       output: {
         assetFileNames: "assets/[name]-[hash][extname]",

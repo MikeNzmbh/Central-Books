@@ -212,6 +212,7 @@ class CategoryForm(forms.ModelForm):
         cleaned_data = super().clean()
         name = cleaned_data.get("name")
         type_ = cleaned_data.get("type")
+        account = cleaned_data.get("account")
 
         if self.business and name and type_:
             qs = Category.objects.filter(
@@ -225,6 +226,11 @@ class CategoryForm(forms.ModelForm):
                 raise ValidationError(
                     "This category already exists for your business."
                 )
+        if account and type_:
+            if type_ == Category.CategoryType.INCOME and account.type != Account.AccountType.INCOME:
+                self.add_error("account", "Income categories must use an income account.")
+            if type_ == Category.CategoryType.EXPENSE and account.type != Account.AccountType.EXPENSE:
+                self.add_error("account", "Expense categories must use an expense account.")
         return cleaned_data
 
 

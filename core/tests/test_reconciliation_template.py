@@ -90,3 +90,11 @@ class ReconciliationTemplateTest(TestCase):
         # The response should include static assets loaded via mb_extras
         # (checking that vite_asset tag works)
         self.assertContains(response, 'reconciliation-root')
+
+    def test_companion_strip_mount_rendered_once(self):
+        """Ensure only one Companion strip mount exists on reconciliation page"""
+        self.client.login(username='testuser', password='testpass123')
+        response = self.client.get('/reconciliation/', follow=True)
+        self.assertEqual(response.status_code, 200)
+        mount_count = response.content.decode().count('data-companion-context="reconciliation"')
+        self.assertEqual(mount_count, 1)

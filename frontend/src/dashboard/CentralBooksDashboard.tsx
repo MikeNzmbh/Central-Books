@@ -21,13 +21,24 @@ type DashboardMetrics = {
   expenses_month?: number;
   pl_period_start?: string;
   pl_period_end?: string;
+  pl_period_preset?: string;
   pl_selected_month?: string;
   pl_month_options?: PLMonthOption[];
   pl_period_label?: string;
+  pl_compare_to?: string;
+  pl_compare_label?: string;
+  pl_compare_start?: string;
+  pl_compare_end?: string;
   pl_prev_period_label?: string;
-  pl_prev_income?: number;
-  pl_prev_expenses?: number;
-  pl_prev_net?: number;
+  pl_prev_income?: number | null;
+  pl_prev_expenses?: number | null;
+  pl_prev_net?: number | null;
+  pl_diagnostics?: {
+    has_ledger_activity?: boolean;
+    has_bank_activity?: boolean;
+    reason_code?: string;
+    reason_message?: string;
+  };
   pl_change_income_pct?: number | null;
   pl_change_expenses_pct?: number | null;
   pl_change_net_pct?: number | null;
@@ -49,6 +60,7 @@ type InvoiceSummary = {
   issue_date: string;
   amount: number;
   due_label: string;
+  url?: string;
 };
 
 type BankFeedItem = {
@@ -98,6 +110,7 @@ export interface CentralBooksDashboardProps {
     unpaidExpenses?: string;
     startBooks?: string;
     bankImport?: string;
+    cashflowReport?: string;
   };
   is_empty_workspace?: boolean;
 }
@@ -136,8 +149,12 @@ const CentralBooksDashboard: React.FC<CentralBooksDashboardProps> = ({
     (metrics?.revenue_month || 0) === 0 &&
     (metrics?.expenses_month || 0) === 0 &&
     (metrics?.net_income_month || 0) === 0;
+  const plMessage =
+    metrics?.net_income_month === 0 && metrics?.pl_diagnostics?.reason_message
+      ? metrics.pl_diagnostics.reason_message
+      : null;
   const noLedgerActivity = Boolean(metrics?.pl_debug?.no_ledger_activity_for_period);
-  const showNoActivityMessage = pnlZero && noLedgerActivity;
+  const showNoActivityMessage = pnlZero && (noLedgerActivity || Boolean(plMessage));
   const plPeriodLabel = metrics?.pl_period_label || "This month";
   const plPrevPeriodLabel = metrics?.pl_prev_period_label || "last month";
 
@@ -283,7 +300,7 @@ const CentralBooksDashboard: React.FC<CentralBooksDashboardProps> = ({
                       vs {plPrevPeriodLabel}
                     </span>
                     <span>
-                      Revenue {formatMoney(metrics?.pl_prev_income)} · Expenses {formatMoney(metrics?.pl_prev_expenses)}
+                      Revenue {formatMoney(metrics?.pl_prev_income ?? 0)} · Expenses {formatMoney(metrics?.pl_prev_expenses ?? 0)}
                     </span>
                   </div>
                 </>
@@ -583,13 +600,13 @@ const CentralBooksDashboard: React.FC<CentralBooksDashboardProps> = ({
                 </div>
               )}
 
-              {metrics?.pl_debug?.no_ledger_activity_for_period ? (
+              {showNoActivityMessage ? (
                 <div className="rounded-2xl bg-slate-50/80 border border-slate-100 px-4 py-6 text-center">
                   <p className="text-sm text-slate-500">
-                    No ledger activity for this period
+                    {plMessage || "No income or expenses have been posted in this period."}
                   </p>
                   <p className="mt-1 text-xs text-slate-400">
-                    Create invoices or expenses to see P&amp;L data
+                    Create income or expense entries (or categorize bank transactions) to populate the P&amp;L.
                   </p>
                 </div>
               ) : (
@@ -613,6 +630,9 @@ const CentralBooksDashboard: React.FC<CentralBooksDashboardProps> = ({
                     <p className="mt-1 text-[11px] text-slate-500">
                       Revenue and expenses pulled directly from your ledger.
                     </p>
+                    {plMessage ? (
+                      <p className="mt-1 text-[11px] text-slate-500">{plMessage}</p>
+                    ) : null}
                   </div>
                 </>
               )}

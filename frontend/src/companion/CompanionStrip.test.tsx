@@ -36,11 +36,16 @@ describe("CompanionStrip", () => {
       context_metrics: {},
       has_new_actions: false,
       new_actions_count: 0,
+      context_reasons: ["No unreconciled items."],
+      context_severity: "INFO",
+      focus_items: [],
     });
 
     render(<CompanionStrip context="bank" />);
     await waitFor(() => expect(screen.getByText(/Everything looks good here/i)).toBeInTheDocument());
     expect(screen.getByText(/found nothing urgent/i)).toBeInTheDocument();
+    expect(screen.getByText(/Info/i)).toBeInTheDocument();
+    expect(screen.getByText(/No unreconciled items/i)).toBeInTheDocument();
 
     // Verify glow wrapper is present in calm state
     const glowElement = screen.getByTestId("companion-strip-glow");
@@ -87,6 +92,8 @@ describe("CompanionStrip", () => {
           status: "open",
           confidence: 0.5,
           summary: "Send reminder for INV-100",
+          short_title: "Invoice reminder",
+          severity: "MEDIUM",
           payload: { invoice_id: 100 },
           created_at: "2024-08-01T12:00:00Z",
         },
@@ -97,6 +104,8 @@ describe("CompanionStrip", () => {
           status: "open",
           confidence: 0.7,
           summary: "Match bank txn",
+          short_title: "Bank match",
+          severity: "HIGH",
           payload: {},
           created_at: "2024-08-01T12:00:00Z",
         },
@@ -109,6 +118,9 @@ describe("CompanionStrip", () => {
       context_metrics: {},
       has_new_actions: true,
       new_actions_count: 2,
+      context_reasons: ["2 overdue invoices to follow up."],
+      context_severity: "MEDIUM",
+      focus_items: ["Follow up overdue invoices"],
     });
 
     render(<CompanionStrip context="invoices" />);
@@ -117,6 +129,7 @@ describe("CompanionStrip", () => {
 
     // Verify glow wrapper is present in active state
     expect(screen.getByTestId("companion-strip-glow")).toHaveClass("companion-glow");
+    expect(screen.getByText(/Follow up overdue invoices/i)).toBeInTheDocument();
 
     expect(screen.getByText(/Overdue invoice/)).toBeInTheDocument();
     expect(screen.getByText(/Send reminder for INV-100/)).toBeInTheDocument();
@@ -179,6 +192,8 @@ describe("CompanionStrip", () => {
           status: "open",
           confidence: 0.6,
           summary: "Match bank item",
+          short_title: "Bank match",
+          severity: "MEDIUM",
           payload: {},
           created_at: "2024-08-01T12:00:00Z",
         },

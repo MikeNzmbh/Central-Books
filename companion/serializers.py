@@ -29,6 +29,7 @@ class CompanionInsightSerializer(serializers.ModelSerializer):
 class CompanionSuggestedActionSerializer(serializers.ModelSerializer):
     confidence = serializers.DecimalField(max_digits=8, decimal_places=4)
     payload = serializers.JSONField()
+    impact = serializers.SerializerMethodField()
 
     class Meta:
         model = CompanionSuggestedAction
@@ -39,8 +40,15 @@ class CompanionSuggestedActionSerializer(serializers.ModelSerializer):
             "status",
             "confidence",
             "summary",
+            "short_title",
+            "severity",
             "payload",
             "created_at",
             "source_snapshot_id",
+            "impact",
         ]
         read_only_fields = fields
+
+    def get_impact(self, obj):
+        payload = obj.payload or {}
+        return payload.get("impact")
