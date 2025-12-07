@@ -17,6 +17,11 @@
     </div>
   </div>
 </div>
+<div id="pl-ssr-fallback-totals" style="display: none;" aria-hidden="true">
+  <span class="pl-total-income">${{ total_income|floatformat:2 }}</span>
+  <span class="pl-total-expenses">${{ total_expenses|floatformat:2 }}</span>
+  <span class="pl-net-profit">${{ net_profit|floatformat:2 }}</span>
+</div>
 
 <style>
   @keyframes spin {

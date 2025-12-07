@@ -8,7 +8,7 @@ on:
 
 jobs:
   vitest-tests:
-    name: Frontend: Vitest tests
+    name: "Frontend: Vitest tests"
     runs-on: ubuntu-latest
     
     defaults:

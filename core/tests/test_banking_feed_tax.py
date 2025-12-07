@@ -7,10 +7,12 @@ documentation and can be expanded as the banking feed infrastructure matures.
 
 For unit-level validation, see core/views.py:_validate_tax_requirements()
 """
+from datetime import date
 from decimal import Decimal
 from django.test import TestCase, Client
 from django.contrib.auth import get_user_model
-from core.models import Business, TaxRate, BankAccount, BankTransaction
+from core.accounting_defaults import ensure_default_accounts
+from core.models import Business, TaxRate, BankAccount, BankTransaction, Category
 
 User = get_user_model()
 
@@ -30,19 +32,23 @@ class BankFeedTaxValidationTest(TestCase):
             owner_user=self.user,
             currency="CAD"
         )
+        self.defaults = ensure_default_accounts(self.business)
+        self.expense_category = Category.objects.create(
+            business=self.business,
+            name="Bank Expense",
+            type=Category.CategoryType.EXPENSE,
+            account=self.defaults.get("opex"),
+        )
         self.bank_account = BankAccount.objects.create(
             business=self.business,
             name="Test Checking",
-            last4="1234",
-            currency="CAD"
+            account_number_mask="1234",
         )
         self.transaction = BankTransaction.objects.create(
             bank_account=self.bank_account,
-            business=self.business,
-            date="2025-12-01",
+            date=date(2025, 12, 1),
             description="Test transaction",
-            amount=Decimal("100.00"),
-            side="OUT",
+            amount=Decimal("-100.00"),
             status="NEW"
         )
         self.client.login(username="testuser", password="testpass123")
@@ -56,7 +62,7 @@ class BankFeedTaxValidationTest(TestCase):
         response = self.client.post(
             f"/api/banking/feed/transactions/{self.transaction.id}/create/",
             data={
-                "category_id": 1,  # Assume exists
+                "category_id": self.expense_category.id,
                 "tax_treatment": "NONE",
                 "amount": 100.00
             },
@@ -74,7 +80,7 @@ class BankFeedTaxValidationTest(TestCase):
         response = self.client.post(
             f"/api/banking/feed/transactions/{self.transaction.id}/create/",
             data={
-                "category_id": 1,
+                "category_id": self.expense_category.id,
                 "tax_treatment": "ON_TOP",
                 "tax_rate_id": 1,
                 "amount": 100.00
@@ -98,7 +104,7 @@ class BankFeedTaxValidationTest(TestCase):
         response = self.client.post(
             f"/api/banking/feed/transactions/{self.transaction.id}/create/",
             data={
-                "category_id": 1,
+                "category_id": self.expense_category.id,
                 "tax_treatment": "NONE",
                 "amount": 100.00
             },
@@ -115,7 +121,7 @@ class BankFeedTaxValidationTest(TestCase):
         response = self.client.post(
             f"/api/banking/feed/transactions/{self.transaction.id}/create/",
             data={
-                "category_id": 1,
+                "category_id": self.expense_category.id,
                 "tax_treatment": "ON_TOP",
                 "amount": 100.00
             },
@@ -146,7 +152,7 @@ class BankFeedTaxValidationTest(TestCase):
         response = self.client.post(
             f"/api/banking/feed/transactions/{self.transaction.id}/create/",
             data={
-                "category_id": 1,
+                "category_id": self.expense_category.id,
                 "tax_treatment": "ON_TOP",
                 "tax_rate_id": rate.id,
                 "amount": 100.00
@@ -177,7 +183,7 @@ class BankFeedTaxValidationTest(TestCase):
         response = self.client.post(
             f"/api/banking/feed/transactions/{self.transaction.id}/create/",
             data={
-                "category_id": 1,
+                "category_id": self.expense_category.id,
                 "tax_treatment": "INCLUDED",
                 "tax_rate_id": rate.id,
                 "amount": 113.00  # Includes tax
@@ -207,7 +213,7 @@ class BankFeedTaxValidationTest(TestCase):
         response = self.client.post(
             f"/api/banking/feed/transactions/{self.transaction.id}/create/",
             data={
-                "category_id": 1,
+                "category_id": self.expense_category.id,
                 "tax_treatment": "ON_TOP",
                 "tax_rate_id": rate.id,
                 "amount": 100.00
@@ -242,7 +248,7 @@ class BankFeedTaxValidationTest(TestCase):
         response = self.client.post(
             f"/api/banking/feed/transactions/{self.transaction.id}/create/",
             data={
-                "category_id": 1,
+                "category_id": self.expense_category.id,
                 "tax_treatment": "ON_TOP",
                 "tax_rate_id": rate.id,
                 "amount": 100.00

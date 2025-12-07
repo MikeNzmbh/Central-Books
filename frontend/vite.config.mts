@@ -80,6 +80,11 @@ export default defineConfig({
           __dirname,
           "src/agentic/agentic-receipts-demo.tsx"
         ),
+        receipts: path.resolve(__dirname, "src/receipts/receipts-entry.tsx"),
+        invoices: path.resolve(__dirname, "src/invoices/invoices-entry.tsx"),
+        "books-review": path.resolve(__dirname, "src/booksReview/books-review-entry.tsx"),
+        "bank-review": path.resolve(__dirname, "src/bankReview/bank-review-entry.tsx"),
+        "companion-overview": path.resolve(__dirname, "src/companion/companion-overview-entry.tsx"),
       },
       output: {
         assetFileNames: "assets/[name]-[hash][extname]",

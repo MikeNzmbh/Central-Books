@@ -276,8 +276,10 @@ urlpatterns = [
 ]
 
 # Import and add demo page view
-from agentic.interfaces.views import receipts_demo_view
+from agentic.interfaces.views import receipts_demo_view, console_view
 urlpatterns.append(
     path("agentic/demo/receipts/", receipts_demo_view, name="agentic_receipts_demo_page"),
 )
-
+urlpatterns.append(
+    path("agentic/console", console_view, name="agentic_console"),
+)

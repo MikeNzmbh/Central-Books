@@ -187,5 +187,5 @@ export function useCompanionContext(context: CompanionContext): UseCompanionCont
 
 export function resetCompanionContextCacheForTests() {
   cachedOverview = {};
-  inFlight = null;
+  inFlight = {};
 }

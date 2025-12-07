@@ -87,3 +87,24 @@ class ProfitAndLossPeriodParamTests(TestCase):
         self.assertEqual(ctx["prev_total_income"], Decimal("120.00"))
         # Ensure prior period does not bleed in older months
         self.assertEqual(ctx["income_change_pct"].quantize(Decimal("1")), Decimal("150"))
+
+    def test_same_period_last_year_comparison(self):
+        self._add_income(Decimal("300.00"), date(2025, 10, 10))
+        self._add_income(Decimal("150.00"), date(2024, 10, 12))
+
+        self.client.force_login(self.user)
+        response = self.client.get(
+            "/profit-loss/",
+            {
+                "start_date": "2025-10-01",
+                "end_date": "2025-10-31",
+                "period_preset": "custom",
+                "compare_to": "same_period_last_year",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        ctx = response.context
+        self.assertEqual(ctx["total_income"], Decimal("300.00"))
+        self.assertEqual(ctx["prev_total_income"], Decimal("150.00"))
+        self.assertIsNotNone(ctx.get("comparison_label"))
+        self.assertEqual(ctx["income_change_pct"].quantize(Decimal("1")), Decimal("100"))

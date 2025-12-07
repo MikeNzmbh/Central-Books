@@ -8,7 +8,7 @@ on:
 
 jobs:
   django-tests:
-    name: Backend: Django tests
+    name: "Backend: Django tests"
     runs-on: ubuntu-latest
     
     steps:

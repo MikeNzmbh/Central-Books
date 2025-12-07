@@ -32,3 +32,10 @@ class PeriodResolverTests(TestCase):
         comparison = resolve_comparison(start, end, "previous_year")
         self.assertEqual(comparison["compare_start"], date(2023, 3, 1))
         self.assertEqual(comparison["compare_end"], date(2023, 3, 31))
+
+    def test_same_period_last_year_comparison_alias(self):
+        start = date(2024, 10, 1)
+        end = date(2024, 10, 31)
+        comparison = resolve_comparison(start, end, "same_period_last_year")
+        self.assertEqual(comparison["compare_start"], date(2023, 10, 1))
+        self.assertEqual(comparison["compare_end"], date(2023, 10, 31))

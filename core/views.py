@@ -334,9 +334,9 @@ def _load_tax_rate(
     if not rate:
         raise ValidationError("Tax rate not found.")
     if require_sales and not rate.applies_to_sales:
-        raise ValidationError("This tax rate is not configured for sales.")
+        raise ValidationError("This tax rate does not apply to sales.")
     if require_purchases and not rate.applies_to_purchases:
-        raise ValidationError("This tax rate is not configured for purchases.")
+        raise ValidationError("This tax rate does not apply to purchases.")
     return rate
 
 
@@ -1035,10 +1035,23 @@ def dashboard(request):
     pl_period_preset_normalized = period_info["preset"]
 
     comparison_info = resolve_comparison(month_start, month_end, pl_compare_to)
+    pl_compare_to_normalized = comparison_info.get("compare_to") or "none"
+    if (
+        pl_compare_to_normalized == "previous_period"
+        and pl_period_preset_normalized == PLPeriod.THIS_MONTH.value
+        and month_start
+    ):
+        prev_start_month, prev_end_month, prev_label, _ = get_pl_period_dates(PLPeriod.LAST_MONTH, today=today)
+        comparison_info = {
+            "compare_start": prev_start_month,
+            "compare_end": prev_end_month,
+            "compare_label": prev_label,
+            "compare_to": "previous_period",
+        }
+        pl_compare_to_normalized = "previous_period"
     prev_start = comparison_info.get("compare_start")
     prev_end = comparison_info.get("compare_end")
     pl_prev_period_label = comparison_info.get("compare_label") or ""
-    pl_compare_to_normalized = comparison_info.get("compare_to") or "none"
 
     ledger_pl = compute_ledger_pl(business, month_start, month_end)
     # Only compute previous period P&L if comparison is enabled
@@ -2589,21 +2602,16 @@ def invoice_send_email_view(request, pk):
     if not to_email:
         return HttpResponseBadRequest("No email address provided")
     
-    # Determine from_email and reply_to from business or settings/user fallback
-    from_email = (
-        business.email_from
-        or getattr(settings, "DEFAULT_FROM_EMAIL", None)
-        or getattr(business.owner_user, "email", None)
-        or getattr(request.user, "email", None)
-    )
-    reply_to_email = business.reply_to_email or from_email
-    
-    # Require a configured sender email
-    if not from_email:
+    # Require a configured sender email on the business
+    if not business.email_from:
         error_msg = "No sender email is configured. Add a business email in Account settings before sending invoices."
         invoice.email_last_error = error_msg
         invoice.save(update_fields=["email_last_error"])
         return JsonResponse({"ok": False, "error": error_msg}, status=400)
+
+    # Determine from_email and reply_to from business or settings/user fallback
+    from_email = business.email_from
+    reply_to_email = business.reply_to_email or from_email
 
     public_url = request.build_absolute_uri(reverse("invoice_public_view", args=[invoice.email_token]))
     business_name = getattr(invoice.business, "name", "Our Company")
@@ -4044,8 +4052,6 @@ def api_banking_feed_create_entry(request, tx_id):
     if tax_treatment not in ("NONE", "INCLUDED", "ON_TOP"):
         return JsonResponse({"detail": "Invalid tax treatment."}, status=400)
     tax_rate_id = payload.get("tax_rate_id")
-    if tax_treatment != "NONE" and tax_rate_id in (None, "", 0, "0"):
-        return JsonResponse({"detail": "Select a tax code when tax is enabled."}, status=400)
     amount_override = payload.get("amount")
 
     with db_transaction.atomic():
@@ -4063,11 +4069,13 @@ def api_banking_feed_create_entry(request, tx_id):
         has_active_tax_rates = TaxRate.objects.filter(business=business, is_active=True).exists()
         tax_rate = None
         if tax_treatment != "NONE":
-            if not has_active_tax_rates:
+            if tax_rate_id in (None, "", 0, "0") and not has_active_tax_rates:
                 return JsonResponse(
-                    {"detail": "No active tax rates are configured for this business."},
+                    {"detail": "No tax rates are configured for this business."},
                     status=400,
                 )
+            if tax_rate_id in (None, "", 0, "0"):
+                return JsonResponse({"detail": "Select a tax code when tax is enabled."}, status=400)
             try:
                 tax_rate = _load_tax_rate(
                     business,
@@ -4136,7 +4144,9 @@ def api_banking_feed_create_entry(request, tx_id):
                     {"detail": f"Unable to save expense: {exc}"},
                     status=400,
                 )
-            journal_entry = expense.journalentry_set.order_by("-date", "-id").first()  # type: ignore[attr-defined]
+            journal_entry = None
+            if hasattr(expense, "posted_journal_entry"):
+                journal_entry = expense.posted_journal_entry.order_by("-date", "-id").first()
             bank_tx.matched_expense = expense
             bank_tx.matched_invoice = None
             bank_tx.category = category

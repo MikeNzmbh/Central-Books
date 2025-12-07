@@ -183,10 +183,6 @@ const CompanionPanel: React.FC = () => {
                   : "Info"}
             </span>
           </div>
-          <span className="inline-flex items-center gap-1 rounded-full bg-slate-900 px-3 py-1 text-[11px] font-semibold text-slate-50">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-            {healthScore !== null ? `Health ${healthScore}/100` : "Loading"}
-          </span>
         </div>
 
         {loading && (

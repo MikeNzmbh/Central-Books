@@ -45,6 +45,10 @@ class Business(models.Model):
         blank=True,
         help_text="Reply-to address for invoice emails (optional).",
     )
+    ai_companion_enabled = models.BooleanField(
+        default=False,
+        help_text="Allow the AI companion to assist with extraction, classification, and anomaly detection (never auto-posts).",
+    )
 
     class Meta:
         constraints = [
@@ -1386,9 +1390,232 @@ class BankReconciliationMatch(models.Model):
             models.Index(fields=["journal_entry"]),
         ]
 
+
+class ReceiptRun(models.Model):
+    class RunStatus(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        RUNNING = "RUNNING", "Running"
+        COMPLETED = "COMPLETED", "Completed"
+        FAILED = "FAILED", "Failed"
+
+    business = models.ForeignKey("core.Business", on_delete=models.CASCADE, related_name="receipt_runs")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=20, choices=RunStatus.choices, default=RunStatus.PENDING, db_index=True)
+    total_documents = models.IntegerField(default=0)
+    success_count = models.IntegerField(default=0)
+    warning_count = models.IntegerField(default=0)
+    error_count = models.IntegerField(default=0)
+    metrics = models.JSONField(default=dict, blank=True)
+    engine_run_id = models.CharField(max_length=255, blank=True)
+    trace_id = models.CharField(max_length=255, blank=True)
+    llm_explanations = models.JSONField(default=list, blank=True)
+    llm_ranked_documents = models.JSONField(default=list, blank=True)
+    llm_suggested_classifications = models.JSONField(default=list, blank=True)
+    llm_suggested_followups = models.JSONField(default=list, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+
+class ReceiptDocument(models.Model):
+    class DocumentStatus(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        PROCESSED = "PROCESSED", "Processed"
+        POSTED = "POSTED", "Posted"
+        DISCARDED = "DISCARDED", "Discarded"
+        ERROR = "ERROR", "Error"
+
+    business = models.ForeignKey("core.Business", on_delete=models.CASCADE, related_name="receipt_documents")
+    run = models.ForeignKey(ReceiptRun, on_delete=models.CASCADE, related_name="documents")
+    storage_key = models.CharField(max_length=500)
+    original_filename = models.CharField(max_length=255, blank=True)
+    status = models.CharField(max_length=20, choices=DocumentStatus.choices, default=DocumentStatus.PENDING, db_index=True)
+    extracted_payload = models.JSONField(default=dict, blank=True)
+    proposed_journal_payload = models.JSONField(default=dict, blank=True)
+    audit_flags = models.JSONField(default=list, blank=True)
+    audit_score = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    audit_explanations = models.JSONField(default=list, blank=True)
+    error_message = models.TextField(blank=True)
+    posted_journal_entry = models.ForeignKey(
+        "core.JournalEntry",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="receipt_documents",
+    )
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="approved_receipts",
+    )
+    approved_at = models.DateTimeField(null=True, blank=True)
+    discarded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="discarded_receipts",
+    )
+    discarded_at = models.DateTimeField(null=True, blank=True)
+    discard_reason = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
     def __str__(self):
         return f"{self.bank_transaction_id} → {self.journal_entry_id} ({self.matched_amount})"
 
+
+class InvoiceRun(models.Model):
+    class RunStatus(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        RUNNING = "RUNNING", "Running"
+        COMPLETED = "COMPLETED", "Completed"
+        FAILED = "FAILED", "Failed"
+
+    business = models.ForeignKey("core.Business", on_delete=models.CASCADE, related_name="invoice_runs")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=20, choices=RunStatus.choices, default=RunStatus.PENDING, db_index=True)
+    total_documents = models.IntegerField(default=0)
+    success_count = models.IntegerField(default=0)
+    warning_count = models.IntegerField(default=0)
+    error_count = models.IntegerField(default=0)
+    metrics = models.JSONField(default=dict, blank=True)
+    engine_run_id = models.CharField(max_length=255, blank=True)
+    trace_id = models.CharField(max_length=255, blank=True)
+    llm_explanations = models.JSONField(default=list, blank=True)
+    llm_ranked_documents = models.JSONField(default=list, blank=True)
+    llm_suggested_classifications = models.JSONField(default=list, blank=True)
+    llm_suggested_followups = models.JSONField(default=list, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+
+class InvoiceDocument(models.Model):
+    class DocumentStatus(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        PROCESSED = "PROCESSED", "Processed"
+        POSTED = "POSTED", "Posted"
+        DISCARDED = "DISCARDED", "Discarded"
+        ERROR = "ERROR", "Error"
+
+    business = models.ForeignKey("core.Business", on_delete=models.CASCADE, related_name="invoice_documents")
+    run = models.ForeignKey(InvoiceRun, on_delete=models.CASCADE, related_name="documents")
+    storage_key = models.CharField(max_length=500)
+    original_filename = models.CharField(max_length=255, blank=True)
+    status = models.CharField(max_length=20, choices=DocumentStatus.choices, default=DocumentStatus.PENDING, db_index=True)
+    extracted_payload = models.JSONField(default=dict, blank=True)
+    proposed_journal_payload = models.JSONField(default=dict, blank=True)
+    audit_flags = models.JSONField(default=list, blank=True)
+    audit_score = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    audit_explanations = models.JSONField(default=list, blank=True)
+    error_message = models.TextField(blank=True)
+    posted_journal_entry = models.ForeignKey(
+        "core.JournalEntry",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="invoice_documents",
+    )
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="approved_invoices",
+    )
+    approved_at = models.DateTimeField(null=True, blank=True)
+    discarded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="discarded_invoices",
+    )
+    discarded_at = models.DateTimeField(null=True, blank=True)
+    discard_reason = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+
+class BooksReviewRun(models.Model):
+    class RunStatus(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        RUNNING = "RUNNING", "Running"
+        COMPLETED = "COMPLETED", "Completed"
+        FAILED = "FAILED", "Failed"
+
+    business = models.ForeignKey("core.Business", on_delete=models.CASCADE, related_name="books_review_runs")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    period_start = models.DateField()
+    period_end = models.DateField()
+    status = models.CharField(max_length=20, choices=RunStatus.choices, default=RunStatus.PENDING, db_index=True)
+    metrics = models.JSONField(default=dict, blank=True)
+    findings = models.JSONField(default=list, blank=True)
+    overall_risk_score = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    trace_id = models.CharField(max_length=255, blank=True)
+    llm_explanations = models.JSONField(default=list, blank=True)
+    llm_ranked_issues = models.JSONField(default=list, blank=True)
+    llm_suggested_checks = models.JSONField(default=list, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+
+class BankReviewRun(models.Model):
+    class RunStatus(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        RUNNING = "RUNNING", "Running"
+        COMPLETED = "COMPLETED", "Completed"
+        FAILED = "FAILED", "Failed"
+
+    business = models.ForeignKey("core.Business", on_delete=models.CASCADE, related_name="bank_review_runs")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    period_start = models.DateField(null=True, blank=True)
+    period_end = models.DateField(null=True, blank=True)
+    status = models.CharField(max_length=20, choices=RunStatus.choices, default=RunStatus.PENDING, db_index=True)
+    metrics = models.JSONField(default=dict, blank=True)
+    overall_risk_score = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    trace_id = models.CharField(max_length=255, blank=True)
+    llm_explanations = models.JSONField(default=list, blank=True)
+    llm_ranked_transactions = models.JSONField(default=list, blank=True)
+    llm_suggested_followups = models.JSONField(default=list, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+
+class BankTransactionReview(models.Model):
+    class ReviewStatus(models.TextChoices):
+        MATCHED = "MATCHED", "Matched"
+        UNMATCHED = "UNMATCHED", "Unmatched"
+        PARTIAL_MATCH = "PARTIAL_MATCH", "Partial match"
+        DUPLICATE = "DUPLICATE", "Duplicate"
+        ERROR = "ERROR", "Error"
+
+    business = models.ForeignKey("core.Business", on_delete=models.CASCADE, related_name="bank_transaction_reviews")
+    run = models.ForeignKey(BankReviewRun, on_delete=models.CASCADE, related_name="transactions")
+    raw_payload = models.JSONField(default=dict, blank=True)
+    matched_journal_ids = models.JSONField(default=list, blank=True)
+    status = models.CharField(max_length=20, choices=ReviewStatus.choices, default=ReviewStatus.UNMATCHED, db_index=True)
+    audit_flags = models.JSONField(default=list, blank=True)
+    audit_score = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    audit_explanations = models.JSONField(default=list, blank=True)
+    error_message = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
 
 class ReconciliationSession(models.Model):
     class Status(models.TextChoices):

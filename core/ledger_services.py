@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from django.db.models import Sum
 
-from .models import Account, JournalLine
+from .models import Account, JournalEntry, JournalLine
 
 
 def get_account_balance(account: Account) -> Decimal:
@@ -116,3 +116,73 @@ def compute_ledger_pl(business, start_date: date, end_date: date):
         "total_expenses": total_expense,
         "total_tax": tax_total,
     }
+
+
+def post_journal_entry_from_proposal(business, proposal: dict, approved_by):
+    """
+    Create a JournalEntry from a validated proposal payload.
+    Proposal format:
+    {
+        "date": "YYYY-MM-DD" or date,
+        "description": str,
+        "lines": [
+            {"account_id": int, "debit": Decimal/str/float, "credit": Decimal/str/float, "description": str}
+        ]
+    }
+    """
+    from datetime import date as date_cls
+
+    if not proposal or "lines" not in proposal:
+        raise ValueError("Invalid journal proposal.")
+
+    entry_date_raw = proposal.get("date") or date.today()
+    if isinstance(entry_date_raw, str):
+        entry_date = date_cls.fromisoformat(entry_date_raw)
+    else:
+        entry_date = entry_date_raw
+
+    description = proposal.get("description") or "Receipt approval"
+    lines_payload = proposal["lines"]
+    if not lines_payload:
+        raise ValueError("Journal proposal has no lines.")
+
+    account_ids = [line.get("account_id") for line in lines_payload if line.get("account_id")]
+    accounts = Account.objects.filter(id__in=account_ids, business=business).in_bulk()
+
+    lines: list[JournalLine] = []
+    total_debit = Decimal("0.00")
+    total_credit = Decimal("0.00")
+
+    for line in lines_payload:
+        account_id = line.get("account_id")
+        account = accounts.get(account_id)
+        if not account:
+            raise ValueError("Account not found for this business.")
+        debit = Decimal(str(line.get("debit", "0") or "0"))
+        credit = Decimal(str(line.get("credit", "0") or "0"))
+        total_debit += debit
+        total_credit += credit
+        lines.append(
+            JournalLine(
+                account=account,
+                debit=debit,
+                credit=credit,
+                description=line.get("description", "") or description,
+            )
+        )
+
+    if total_debit.quantize(Decimal("0.01")) != total_credit.quantize(Decimal("0.01")):
+        raise ValueError("Journal is not balanced.")
+
+    entry_kwargs = {
+        "business": business,
+        "date": entry_date,
+        "description": description,
+    }
+    if hasattr(JournalEntry, "created_by"):
+        entry_kwargs["created_by"] = approved_by  # type: ignore[assignment]
+    entry = JournalEntry.objects.create(**entry_kwargs)
+    for line in lines:
+        line.journal_entry = entry
+        line.save()
+    return entry

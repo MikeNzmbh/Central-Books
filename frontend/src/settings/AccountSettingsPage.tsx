@@ -83,6 +83,20 @@ const AlertStack: React.FC<{ messages?: { level: string; message: string }[] }> 
 const renderInput = (field: SerializedField) => {
   const baseClasses =
     "w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10";
+  if (field.type === "checkbox") {
+    return (
+      <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+        <input
+          id={field.id}
+          name={field.name}
+          type="checkbox"
+          defaultChecked={field.value === "True" || field.value === "on" || field.value === "1"}
+          className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900/20"
+        />
+        <span>{field.help_text || field.label}</span>
+      </label>
+    );
+  }
   if (field.type === "textarea") {
     return (
       <textarea

@@ -11,7 +11,7 @@ on:
 
 jobs:
   analyze:
-    name: CodeQL: Security scan
+    name: "CodeQL: Security scan"
     runs-on: ubuntu-latest
     permissions:
       actions: read

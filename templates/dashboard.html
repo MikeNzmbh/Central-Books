@@ -396,9 +396,10 @@
 
 <script>
   (function () {
-    const labels = {{ chart_cashflow_labels|default:"[]"|safe }};
-    const income = {{ chart_cashflow_income|default:"[]"|safe }};
-    const expenses = {{ chart_cashflow_expenses|default:"[]"|safe }};
+    const labels = {{ chart_cashflow_labels|default: "[]" | safe
+  }};
+  const income = {{ chart_cashflow_income|default: "[]" | safe }};
+  const expenses = {{ chart_cashflow_expenses|default: "[]" | safe }};
   const ctx = document.getElementById('cashflowChart');
   if (!ctx) return;
   new Chart(ctx, {
@@ -440,9 +441,10 @@
       return;
     }
 
-    const revenueVal = {{ revenue_month|default:0 }};
-    const subsVal = {{ subscriptions_month|default:0 }};
-    const taxesVal = {{ taxes_month|default:0 }};
+    const revenueVal = {{ revenue_month|default: 0
+  }};
+  const subsVal = {{ subscriptions_month|default: 0 }};
+  const taxesVal = {{ taxes_month|default: 0 }};
 
   const total = revenueVal + subsVal + taxesVal;
   if (total <= 0) {
