@@ -39,6 +39,9 @@ interface RunSummary {
 interface SurfaceSummary {
   recent_runs: RunSummary[];
   totals_last_30_days: Record<string, number>;
+  open_issues_count?: number;
+  high_risk_issues_count?: number;
+  headline_issue?: { id: number; title: string; severity: string } | null;
 }
 
 interface CompanionSummary {
@@ -50,6 +53,10 @@ interface CompanionSummary {
     bank_review: SurfaceSummary;
   };
   global: {
+    headline_issue?: { id: number; title: string; severity: string; surface: string };
+    open_issues_total?: number;
+    open_issues_by_severity?: Record<string, number>;
+    open_issues_by_surface?: Record<string, number>;
     last_books_review: {
       run_id: number;
       period_start: string;
@@ -69,6 +76,14 @@ interface SurfaceConfig {
   icon: React.FC<{ className?: string }>;
   href: string;
 }
+
+type CompanionIssue = {
+  id: number;
+  title: string;
+  severity: string;
+  surface: string;
+  recommended_action?: string;
+};
 
 // --- SURFACE CONFIG -------------------------------------------------------
 
@@ -97,6 +112,19 @@ const StatusBadge: React.FC<{ children: React.ReactNode; variant?: string; class
   return (
     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-md border ${styles[variant] || styles.neutral} ${className}`}>
       {children}
+    </span>
+  );
+};
+
+const SeverityPill: React.FC<{ value: string }> = ({ value }) => {
+  const map: Record<string, string> = {
+    high: "bg-rose-100 text-rose-700 border border-rose-200",
+    medium: "bg-amber-100 text-amber-800 border border-amber-200",
+    low: "bg-slate-100 text-slate-700 border border-slate-200",
+  };
+  return (
+    <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${map[value] || map.low}`}>
+      {value}
     </span>
   );
 };
@@ -190,34 +218,27 @@ const CompanionOverviewPage: React.FC = () => {
   const [healthScore, setHealthScore] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [issues, setIssues] = useState<CompanionIssue[]>([]);
 
   const loadSummary = async () => {
     setLoading(true);
     try {
-      // Fetch both APIs in parallel - summary for surfaces, context-summary for health score
-      const [summaryRes, healthRes] = await Promise.all([
+      // Fetch both APIs in parallel - summary for surfaces, issues for checklist
+      const [summaryRes, issuesRes] = await Promise.all([
         fetch("/api/agentic/companion/summary"),
-        fetch("/api/agentic/companion/context-summary/"),
+        fetch("/api/agentic/companion/issues?status=open"),
       ]);
 
       const summaryJson = await summaryRes.json();
       if (!summaryRes.ok) throw new Error(summaryJson.error || "Failed to load summary");
       setSummary(summaryJson);
 
-      // Get health score from context-summary (same source as dashboard)
-      if (healthRes.ok) {
-        const healthJson = await healthRes.json();
-        console.log("[DEBUG] Health API response:", healthJson);
-        const score = healthJson.health_index?.score;
-        if (typeof score === "number") {
-          console.log("[DEBUG] Setting health score to:", score);
-          setHealthScore(score);
-        } else {
-          console.log("[DEBUG] No valid health_index.score found, will use fallback");
-        }
-      } else {
-        console.log("[DEBUG] Health API response not ok:", healthRes.status);
+      const issuesJson = await issuesRes.json();
+      if (issuesRes.ok && Array.isArray(issuesJson.issues)) {
+        setIssues((issuesJson.issues as any[]).slice(0, 5));
       }
+
+      // Health score will use fallback calculation (line 271)
     } catch (err: any) {
       console.error("[DEBUG] Error loading summary:", err);
       setError(err?.message || "Failed to load summary");
@@ -243,13 +264,13 @@ const CompanionOverviewPage: React.FC = () => {
 
   // Build surface data from API
   const getSurfaceData = (key: string) => {
-    if (!summary) return { lastRun: "No runs", health: 0, highRisk: 0, statusMessage: "Loading..." };
+    if (!summary) return { lastRun: "No runs", health: 0, highRisk: 0, statusMessage: "Loading...", openIssues: 0, highRiskIssues: 0, headline: null as any };
 
     const surfaceKey = key as keyof typeof summary.surfaces;
     const surface = summary.surfaces[surfaceKey];
     const latest = surface?.recent_runs?.[0];
 
-    if (!latest) return { lastRun: "No runs yet", health: 100, highRisk: 0, statusMessage: "Ready to start" };
+    if (!latest) return { lastRun: "No runs yet", health: 100, highRisk: 0, statusMessage: "Ready to start", openIssues: surface?.open_issues_count || 0, highRiskIssues: surface?.high_risk_issues_count || 0, headline: surface?.headline_issue || null };
 
     const highRisk = latest.high_risk_count || 0;
     const docs = latest.documents_total || latest.transactions_total || 0;
@@ -266,6 +287,9 @@ const CompanionOverviewPage: React.FC = () => {
       docs,
       statusMessage,
       riskLevel: latest.risk_level,
+      openIssues: surface?.open_issues_count || 0,
+      highRiskIssues: surface?.high_risk_issues_count || 0,
+      headline: surface?.headline_issue || null,
     };
   };
 
@@ -297,8 +321,8 @@ const CompanionOverviewPage: React.FC = () => {
     }))),
   ].slice(0, 4) : [];
 
-  // Issues from high-risk items
-  const issues = (highRiskCounts.receipts || 0) > 0 ? [{
+  // Issues from high-risk items (for fallback display)
+  const highRiskIssues = (highRiskCounts.receipts || 0) > 0 ? [{
     id: 1,
     surface: "Receipts",
     description: `${highRiskCounts.receipts} high-risk receipts pending review`,
@@ -481,39 +505,74 @@ const CompanionOverviewPage: React.FC = () => {
             {/* Left Column: Surfaces (2/3) */}
             <div className="lg:col-span-2 space-y-6">
 
-              {/* Alert Banner */}
-              <AnimatePresence>
-                {issues.map(issue => (
-                  <motion.div
-                    key={issue.id}
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                  >
-                    <div className="flex items-center justify-between p-4 bg-white rounded-xl border border-rose-100 shadow-[0_2px_12px_rgba(244,63,94,0.08)] relative overflow-hidden group cursor-pointer hover:border-rose-200 transition-colors">
-                      <div className="absolute left-0 top-0 bottom-0 w-1 bg-rose-500" />
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-full bg-rose-50 flex items-center justify-center text-rose-600 border border-rose-100">
-                          <ShieldAlert className="w-5 h-5" />
+              {/* Today's checklist */}
+              <Card>
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                      <ShieldAlert className="w-4 h-4 text-rose-600" />
+                      Today's checklist
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Top open issues across surfaces. The companion suggests, you decide.
+                    </p>
+                  </div>
+                  <a href="/ai-companion/issues" className="text-xs font-semibold text-sky-700 hover:text-sky-900">
+                    View all →
+                  </a>
+                </div>
+                {issues.length === 0 ? (
+                  <div className="text-sm text-slate-500">No open issues. Your books look clean for now.</div>
+                ) : (
+                  <div className="space-y-2">
+                    {issues.map((issue) => (
+                      <div key={issue.id} className="border border-slate-200 rounded-lg p-3 flex items-start gap-3 bg-slate-50">
+                        <SeverityPill value={issue.severity} />
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] uppercase text-slate-500">{issue.surface}</span>
+                            <span className="font-semibold text-slate-900">{issue.title}</span>
+                          </div>
+                          <div className="text-xs text-slate-600">
+                            {issue.recommended_action || "Review this item"}
+                          </div>
                         </div>
-                        <div>
-                          <h4 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
-                            High Priority Issue
-                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-700 font-medium">URGENT</span>
-                          </h4>
-                          <p className="text-xs text-slate-500 mt-0.5">{issue.description}</p>
-                        </div>
+                        <a href="/ai-companion/issues" className="text-xs text-sky-700 hover:text-sky-900">
+                          View details
+                        </a>
                       </div>
-                      <a
-                        href="/receipts"
-                        className="px-4 py-2 bg-white border border-slate-200 text-slate-700 text-xs font-semibold rounded-lg hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 transition-all shadow-sm"
-                      >
-                        Review Now
-                      </a>
-                    </div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
+                    ))}
+                  </div>
+                )}
+              </Card>
+
+              {/* Issue counts by surface */}
+              <Card>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {surfaceConfigs.map((config) => {
+                    const surfaceKey = config.key === "books_review" ? "books" : config.key === "bank_review" ? "bank" : config.key;
+                    const surfaceData = summary?.surfaces[config.key as keyof typeof summary.surfaces];
+                    return (
+                      <div key={config.key} className="border border-slate-100 rounded-lg p-3 bg-slate-50">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-semibold text-slate-800">{config.title}</span>
+                          <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-200 text-slate-700">
+                            Open: {surfaceData?.open_issues_count || 0}
+                          </span>
+                        </div>
+                        <div className="text-xs text-slate-600 mt-1">
+                          High-risk: {surfaceData?.high_risk_issues_count || 0}
+                        </div>
+                        {surfaceData?.headline_issue && (
+                          <div className="text-xs text-slate-600 mt-1">
+                            Headline: {surfaceData.headline_issue.title}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </Card>
 
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
