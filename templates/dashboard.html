@@ -5,9 +5,7 @@
 
 {% block content %}
 <div id="dashboard-root"></div>
-<script id="dashboard-data" type="application/json">
-    {{ dashboard_payload|safe }}
-  </script>
+{{ dashboard_payload|json_script:"dashboard-data" }}
 {% vite_asset 'dashboard' 'css' as dashboard_css %}
 {% if dashboard_css %}
 <link rel="stylesheet" href="{% static dashboard_css %}">
@@ -397,8 +395,8 @@
 <script>
   (function () {
     const labels = {{ chart_cashflow_labels|default:"[]"|safe }};
-    const income = {{ chart_cashflow_income|default:"[]"|safe }};
-    const expenses = {{ chart_cashflow_expenses|default:"[]"|safe }};
+  const income = {{ chart_cashflow_income|default:"[]"|safe }};
+  const expenses = {{ chart_cashflow_expenses|default:"[]"|safe }};
   const ctx = document.getElementById('cashflowChart');
   if (!ctx) return;
   new Chart(ctx, {
@@ -441,8 +439,8 @@
     }
 
     const revenueVal = {{ revenue_month|default:0 }};
-    const subsVal = {{ subscriptions_month|default:0 }};
-    const taxesVal = {{ taxes_month|default:0 }};
+  const subsVal = {{ subscriptions_month|default:0 }};
+  const taxesVal = {{ taxes_month|default:0 }};
 
   const total = revenueVal + subsVal + taxesVal;
   if (total <= 0) {
