@@ -133,7 +133,7 @@ class TaxRatesAPITest(TestCase):
             },
             content_type="application/json"
         )
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 201)
         self.assertTrue(TaxRate.objects.filter(business=self.business, name="HST Ontario").exists())
 
     def test_create_tax_rate_invalid_percentage_negative(self):

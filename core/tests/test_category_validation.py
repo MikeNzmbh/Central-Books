@@ -36,7 +36,7 @@ class CategoryValidationTests(TestCase):
         wrong_account = Account.objects.create(
             business=self.business,
             name="Wrong Liability",
-            code="2200",
+            code="2210",
             type=Account.AccountType.LIABILITY,
         )
         category = Category(

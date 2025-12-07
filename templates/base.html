@@ -454,6 +454,14 @@
             class="sidebar-link{% if request.resolver_match.url_name == 'expense_list' %} active{% endif %}">
             <span class="sidebar-link-dot"></span> Expenses
           </a>
+          <a href="{% url 'receipts_page' %}"
+            class="sidebar-link{% if request.resolver_match.url_name == 'receipts_page' %} active{% endif %}">
+            <span class="sidebar-link-dot"></span> Receipts
+          </a>
+          <a href="{% url 'companion_overview_page' %}"
+            class="sidebar-link{% if request.resolver_match.url_name == 'companion_overview_page' or request.resolver_match.url_name == 'invoices_ai_page' or request.resolver_match.url_name == 'books_review_page' or request.resolver_match.url_name == 'bank_review_page' %} active{% endif %}">
+            <span class="sidebar-link-dot"></span> AI Companion
+          </a>
           <a href="{% url 'category_list' %}"
             class="sidebar-link{% if request.resolver_match.url_name == 'category_list' %} active{% endif %}">
             <span class="sidebar-link-dot"></span> Categories

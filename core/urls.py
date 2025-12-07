@@ -4,6 +4,7 @@ from . import views
 from agentic.interfaces.api import urlpatterns as agentic_urlpatterns
 from taxes import views as tax_views
 from . import views_reconciliation
+from . import views_receipts, views_invoices, views_books_review, views_bank_review, views_companion
 from . import views_monitoring  # Monitoring agent Slack endpoint
 from . import views_auth  # Auth API endpoints
 from .views import (
@@ -15,6 +16,18 @@ from .views import (
     ItemCreateView,
     ItemUpdateView,
 )
+from .views_receipts import api_receipts_run, api_receipts_runs, api_receipts_run_detail, api_receipt_detail, api_receipt_approve, api_receipt_discard
+from .views_invoices import (
+    api_invoices_run,
+    api_invoices_runs,
+    api_invoices_run_detail,
+    api_invoice_detail,
+    api_invoice_approve,
+    api_invoice_discard,
+)
+from .views_books_review import api_books_review_run, api_books_review_runs, api_books_review_run_detail
+from .views_bank_review import api_bank_review_run, api_bank_review_runs, api_bank_review_run_detail
+from .views_companion import api_companion_summary, companion_overview_page
 from .views_reports import (
     pnl_ledger_debug,
     reconciliation_report_view,
@@ -255,6 +268,34 @@ urlpatterns = [
         views.api_allocate_bank_transaction,
         name="api_allocate_bank_transaction",
     ),
+    # Receipt uploader / agentic receipts
+    path("api/agentic/receipts/run", views_receipts.api_receipts_run, name="api_receipts_run"),
+    path("api/agentic/receipts/runs", views_receipts.api_receipts_runs, name="api_receipts_runs"),
+    path("api/agentic/receipts/run/<int:run_id>", views_receipts.api_receipts_run_detail, name="api_receipts_run_detail"),
+    path("api/agentic/receipts/<int:receipt_id>", views_receipts.api_receipt_detail, name="api_receipt_detail"),
+    path("api/agentic/receipts/<int:receipt_id>/approve", views_receipts.api_receipt_approve, name="api_receipt_approve"),
+    path("api/agentic/receipts/<int:receipt_id>/discard", views_receipts.api_receipt_discard, name="api_receipt_discard"),
+    path("receipts/", views_receipts.receipts_page, name="receipts_page"),
+    # Invoice uploader / agentic invoices
+    path("api/agentic/invoices/run", views_invoices.api_invoices_run, name="api_invoices_run"),
+    path("api/agentic/invoices/runs", views_invoices.api_invoices_runs, name="api_invoices_runs"),
+    path("api/agentic/invoices/run/<int:run_id>", views_invoices.api_invoices_run_detail, name="api_invoices_run_detail"),
+    path("api/agentic/invoices/<int:invoice_id>", views_invoices.api_invoice_detail, name="api_invoice_detail"),
+    path("api/agentic/invoices/<int:invoice_id>/approve", views_invoices.api_invoice_approve, name="api_invoice_approve"),
+    path("api/agentic/invoices/<int:invoice_id>/discard", views_invoices.api_invoice_discard, name="api_invoice_discard"),
+    path("invoices/ai/", views_invoices.invoices_page, name="invoices_ai_page"),
+    # Books review companion
+    path("api/agentic/books-review/run", views_books_review.api_books_review_run, name="api_books_review_run"),
+    path("api/agentic/books-review/runs", views_books_review.api_books_review_runs, name="api_books_review_runs"),
+    path("api/agentic/books-review/run/<int:run_id>", views_books_review.api_books_review_run_detail, name="api_books_review_run_detail"),
+    path("books-review/", views_books_review.books_review_page, name="books_review_page"),
+    # Bank review companion
+    path("api/agentic/bank-review/run", views_bank_review.api_bank_review_run, name="api_bank_review_run"),
+    path("api/agentic/bank-review/runs", views_bank_review.api_bank_review_runs, name="api_bank_review_runs"),
+    path("api/agentic/bank-review/run/<int:run_id>", views_bank_review.api_bank_review_run_detail, name="api_bank_review_run_detail"),
+    path("bank-review/", views_bank_review.bank_review_page, name="bank_review_page"),
+    path("api/agentic/companion/summary", views_companion.api_companion_summary, name="api_companion_summary"),
+    path("ai-companion/", companion_overview_page, name="companion_overview_page"),
     path("accounts/", views.chart_of_accounts_spa, name="account_list"),
     path("accounts/<int:account_id>/", account_detail_view, name="account_detail"),
     path(
@@ -290,4 +331,3 @@ urlpatterns = [
 
 # Add agentic API endpoints
 urlpatterns += agentic_urlpatterns
-

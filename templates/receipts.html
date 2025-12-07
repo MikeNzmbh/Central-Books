@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% load static mb_extras %}
+
+{% block content %}
+{% csrf_token %}
+<div id="receipts-root" data-default-currency="{{ default_currency }}"></div>
+
+{% vite_asset 'receipts' as js_path %}
+{% if js_path %}
+<script type="module" src="{% static js_path %}"></script>
+{% endif %}
+{% vite_asset 'receipts' 'css' as css_path %}
+{% if css_path %}
+<link rel="stylesheet" href="{% static css_path %}">
+{% endif %}
+{% endblock %}

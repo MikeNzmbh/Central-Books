@@ -18,7 +18,12 @@ from core.models import (
 class InvoiceEmailTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="owner", email="owner@example.com", password="pass")
-        self.business = Business.objects.create(name="Acme Co", currency="USD", owner_user=self.user)
+        self.business = Business.objects.create(
+            name="Acme Co",
+            currency="USD",
+            owner_user=self.user,
+            email_from="billing@acme.example.com",
+        )
         self.customer = Customer.objects.create(business=self.business, name="Customer", email="cust@example.com")
         self.invoice = Invoice.objects.create(
             business=self.business,

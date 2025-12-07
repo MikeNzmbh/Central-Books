@@ -261,6 +261,9 @@ COMPANION_LLM_MODEL = env.str("COMPANION_LLM_MODEL", default="deepseek-v3.2")
 COMPANION_LLM_TIMEOUT_SECONDS = env.int("COMPANION_LLM_TIMEOUT_SECONDS", default=12)
 COMPANION_LLM_MAX_TOKENS = env.int("COMPANION_LLM_MAX_TOKENS", default=512)
 
+# OpenAI API (for vision OCR with gpt-4o-mini, falls back when DeepSeek doesn't support vision)
+OPENAI_API_KEY = env.str("OPENAI_API_KEY", default="")
+
 # --- Sentry & production security hardening ---
 
 SENTRY_DSN = os.getenv("SENTRY_DSN", "")

@@ -206,6 +206,10 @@ def resolve_comparison(
     Compute comparison period based on selected strategy.
     """
     normalized = (compare_to or "none").lower()
+    alias_map = {
+        "same_period_last_year": "previous_year",
+    }
+    normalized = alias_map.get(normalized, normalized)
     base = {"compare_start": None, "compare_end": None, "compare_label": None, "compare_to": normalized}
     if normalized == "none" or period_start is None or period_end is None:
         return base
@@ -215,6 +219,11 @@ def resolve_comparison(
         if span_months:
             compare_end = period_start - timedelta(days=1)
             compare_start = _add_months(period_start, -span_months)
+        elif period_start.day == 1:
+            # If we are partway through the month, still compare against the full prior month
+            prev_month_end = _month_end(period_start - timedelta(days=1))
+            compare_start = _month_start(prev_month_end)
+            compare_end = prev_month_end
         else:
             days = (period_end - period_start).days + 1
             compare_end = period_start - timedelta(days=1)
