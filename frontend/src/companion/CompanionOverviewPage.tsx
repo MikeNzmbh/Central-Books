@@ -229,13 +229,24 @@ const CompanionOverviewPage: React.FC = () => {
         fetch("/api/agentic/companion/issues?status=open"),
       ]);
 
-      const summaryJson = await summaryRes.json();
+      const summaryText = await summaryRes.text();
+      let summaryJson: any = null;
+      try {
+        summaryJson = JSON.parse(summaryText);
+      } catch {
+        throw new Error("Server returned an unexpected response.");
+      }
       if (!summaryRes.ok) throw new Error(summaryJson.error || "Failed to load summary");
       setSummary(summaryJson);
 
-      const issuesJson = await issuesRes.json();
-      if (issuesRes.ok && Array.isArray(issuesJson.issues)) {
-        setIssues((issuesJson.issues as any[]).slice(0, 5));
+      const issuesText = await issuesRes.text();
+      try {
+        const issuesJson = JSON.parse(issuesText);
+        if (issuesRes.ok && Array.isArray(issuesJson.issues)) {
+          setIssues((issuesJson.issues as any[]).slice(0, 5));
+        }
+      } catch {
+        // ignore issues parse errors
       }
 
       // Health score will use fallback calculation (line 271)

@@ -13,6 +13,7 @@ from django.views.decorators.http import require_GET, require_POST
 from django.utils import timezone
 
 from .agentic_receipts import ReceiptInputDocument, run_receipts_workflow
+from .companion_issues import build_receipts_issues, persist_companion_issues
 from .ledger_services import post_journal_entry_from_proposal
 from .models import ReceiptDocument, ReceiptRun
 from .utils import get_current_business
@@ -144,6 +145,7 @@ def api_receipts_run(request):
             default_vendor=default_vendor,
             triggered_by_user_id=request.user.id,
             ai_companion_enabled=business.ai_companion_enabled,
+            user_name=request.user.first_name or None,
         )
 
         success_count = 0
@@ -186,6 +188,9 @@ def api_receipts_run(request):
             run.llm_suggested_classifications = workflow_result.llm_suggested_classifications
             run.llm_suggested_followups = workflow_result.llm_suggested_followups
             run.save()
+            if business.ai_companion_enabled:
+                issues = build_receipts_issues(run, run.trace_id)
+                persist_companion_issues(business, issues, ai_companion_enabled=business.ai_companion_enabled, user_name=request.user.first_name or None)
     except Exception as exc:  # pragma: no cover - defensive
         run.status = ReceiptRun.RunStatus.FAILED
         run.error_count = run.total_documents

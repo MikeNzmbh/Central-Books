@@ -1,4 +1,75 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
+import { motion } from "framer-motion";
+import {
+  Landmark,
+  CreditCard,
+  AlertTriangle,
+  CheckCircle2,
+  ArrowRight,
+  ExternalLink,
+  Sparkles,
+  RefreshCw,
+  Wallet,
+  ShieldCheck,
+  ShieldAlert,
+  Search,
+  Info,
+  Loader2
+} from "lucide-react";
+
+// ---------------------------------------------------------------------------
+// TYPES
+// ---------------------------------------------------------------------------
+
+type RiskLevel = "low" | "medium" | "high";
+
+interface BankSummary {
+  id: string;
+  name: string;
+  last4: string;
+  currency: string;
+  status: RiskLevel;
+  unreconciledCount: number;
+  unreconciledAmount: string;
+  totalTransactions: number;
+  balance: string;
+  lastSynced: string;
+}
+
+interface BankInsight {
+  id: string;
+  type: "match" | "anomaly" | "optimization";
+  title: string;
+  description: string;
+}
+
+interface FlaggedTransaction {
+  id: string;
+  date: string;
+  description: string;
+  amount: string;
+  status: "unmatched" | "partial" | "duplicate" | "suspicious" | "matched" | "excluded";
+  suggestion: string;
+  confidence: number;
+}
+
+interface PreviousAudit {
+  date: string;
+  status: string;
+  color: string;
+}
+
+interface BankAuditSummaryResponse {
+  banks: BankSummary[];
+  insights: Record<string, BankInsight[]>;
+  flaggedTransactions: Record<string, FlaggedTransaction[]>;
+  previousAudits: PreviousAudit[];
+  companionEnabled: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// HELPERS
+// ---------------------------------------------------------------------------
 
 function getCookie(name: string): string | null {
   if (typeof document === "undefined") return null;
@@ -20,493 +91,550 @@ function getCsrfToken(): string {
   );
 }
 
-type RunStatus = "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
-type RiskLevel = "low" | "medium" | "high" | "unknown";
+// ---------------------------------------------------------------------------
+// SUB-COMPONENTS
+// ---------------------------------------------------------------------------
 
-interface AuditFlag {
-  code: string;
-  severity?: string;
-  message?: string;
-}
+const Card = ({ children, className = "", noPadding = false }: { children: React.ReactNode, className?: string, noPadding?: boolean }) => (
+  <div className={`bg-white border border-slate-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.03)] rounded-xl overflow-hidden ${className}`}>
+    {noPadding ? children : <div className="p-5">{children}</div>}
+  </div>
+);
 
-interface BankTransactionReview {
-  id: number;
-  status: string;
-  raw_payload: Record<string, any>;
-  matched_journal_ids: number[];
-  audit_flags: AuditFlag[] | Record<string, any>;
-  audit_score: string | number | null;
-  audit_explanations?: string[];
-  risk_level?: RiskLevel | null;
-  error_message?: string;
-}
-
-interface RankedTransaction {
-  transaction_id: number | string;
-  priority: string;
-  reason: string;
-}
-
-interface BankReviewRun {
-  id: number;
-  created_at: string;
-  status: RunStatus;
-  period_start?: string | null;
-  period_end?: string | null;
-  metrics?: Record<string, any>;
-  overall_risk_score?: string | number | null;
-  risk_level?: RiskLevel | null;
-  trace_id?: string | null;
-}
-
-interface RunDetail extends BankReviewRun {
-  transactions: BankTransactionReview[];
-  llm_explanations?: string[];
-  llm_ranked_transactions?: RankedTransaction[];
-  llm_suggested_followups?: string[];
-}
-
-const RISK_THRESHOLDS = { medium: 40, high: 70 };
-
-const parseRiskScore = (score: string | number | null | undefined): number | null => {
-  if (typeof score === "number") return Number.isFinite(score) ? score : null;
-  if (typeof score === "string") {
-    const parsed = parseFloat(score);
-    return Number.isFinite(parsed) ? parsed : null;
+const RiskBadge = ({ status }: { status: RiskLevel }) => {
+  if (status === "low") {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 ring-1 ring-emerald-500/10">
+        <CheckCircle2 className="w-3 h-3" /> Reconciled
+      </span>
+    );
   }
-  return null;
-};
-
-const deriveRiskLevel = (score: string | number | null | undefined): RiskLevel => {
-  const parsed = parseRiskScore(score);
-  if (parsed === null) return "unknown";
-  if (parsed >= RISK_THRESHOLDS.high) return "high";
-  if (parsed >= RISK_THRESHOLDS.medium) return "medium";
-  return "low";
-};
-
-const riskColors: Record<RiskLevel, string> = {
-  high: "bg-rose-100 text-rose-700 border border-rose-200",
-  medium: "bg-amber-100 text-amber-800 border border-amber-200",
-  low: "bg-emerald-100 text-emerald-700 border border-emerald-200",
-  unknown: "bg-slate-100 text-slate-600 border border-slate-200",
-};
-
-const RiskBadge: React.FC<{ score: string | number | null | undefined }> = ({ score }) => {
-  const level = deriveRiskLevel(score);
-  const parsed = parseRiskScore(score);
-  const label =
-    level === "high" ? "High risk" : level === "medium" ? "Medium risk" : level === "low" ? "Low risk" : "Unknown risk";
+  if (status === "medium") {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full bg-amber-50 text-amber-700 border border-amber-100 ring-1 ring-amber-500/10">
+        <AlertTriangle className="w-3 h-3" /> Review
+      </span>
+    );
+  }
   return (
-    <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold inline-flex items-center gap-1 ${riskColors[level]}`}>
-      {label}
-      {parsed !== null ? ` · ${parsed.toFixed(0)}` : ""}
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full bg-rose-50 text-rose-700 border border-rose-100 ring-1 ring-rose-500/10">
+      <ShieldAlert className="w-3 h-3" /> Attention
     </span>
   );
 };
 
-const formatDateTime = (iso: string) => new Date(iso).toLocaleString();
-
-const BankReviewPage: React.FC = () => {
-  const [runs, setRuns] = useState<BankReviewRun[]>([]);
-  const [selectedRun, setSelectedRun] = useState<RunDetail | null>(null);
-  const [loadingRuns, setLoadingRuns] = useState(false);
-  const [running, setRunning] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
-  const [periodStart, setPeriodStart] = useState<string>("");
-  const [periodEnd, setPeriodEnd] = useState<string>("");
-  const [linesJson, setLinesJson] = useState<string>('[{"date":"2025-01-01","description":"Bank deposit","amount":100}]');
-  const [highlightedTxId, setHighlightedTxId] = useState<number | null>(null);
-
-  const loadRuns = useCallback(async () => {
-    setLoadingRuns(true);
-    try {
-      const res = await fetch("/api/agentic/bank-review/runs");
-      const json = await res.json();
-      setRuns(json.runs || []);
-    } catch (err) {
-      setError("Unable to load bank review runs");
-    } finally {
-      setLoadingRuns(false);
-    }
-  }, []);
-
-  const loadRunDetail = useCallback(async (runId: number) => {
-    try {
-      const res = await fetch(`/api/agentic/bank-review/run/${runId}`);
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Failed to load run");
-      setSelectedRun(json);
-    } catch (err) {
-      setError("Unable to load run details");
-    }
-  }, []);
-
-  useEffect(() => {
-    loadRuns();
-  }, [loadRuns]);
-
-  const runReview = async () => {
-    setRunning(true);
-    setError(null);
-    setInfo(null);
-    const normalizeDate = (value: string | null) => {
-      if (!value) return "";
-      if (/^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0, 10);
-      const parsed = new Date(value);
-      if (Number.isNaN(parsed.getTime())) return "";
-      return parsed.toISOString().slice(0, 10);
-    };
-    const form = new FormData();
-    const startIso = normalizeDate(periodStart);
-    const endIso = normalizeDate(periodEnd);
-    if (periodStart && !startIso) {
-      setError("Invalid period start. Use YYYY-MM-DD.");
-      setRunning(false);
-      return;
-    }
-    if (periodEnd && !endIso) {
-      setError("Invalid period end. Use YYYY-MM-DD.");
-      setRunning(false);
-      return;
-    }
-    if (startIso) form.append("period_start", startIso);
-    if (endIso) form.append("period_end", endIso);
-    form.append("lines", linesJson);
-    try {
-      const res = await fetch("/api/agentic/bank-review/run", {
-        method: "POST",
-        body: form,
-        headers: { "X-CSRFToken": getCsrfToken() },
-        credentials: "same-origin",
-      });
-      const text = await res.text();
-      let json: any;
-      try {
-        json = JSON.parse(text);
-      } catch {
-        // Server returned HTML instead of JSON (likely a CSRF or server error page)
-        console.error("Server returned non-JSON response:", text.slice(0, 200));
-        throw new Error("Server returned an unexpected response. Please try again or check logs.");
-      }
-      if (!res.ok) throw new Error(json.error || "Review failed");
-      setInfo(`Review ${json.run_id} completed`);
-      await loadRuns();
-      if (json.run_id) {
-        await loadRunDetail(json.run_id);
-      }
-    } catch (err: any) {
-      setError(err?.message || "Review failed");
-    } finally {
-      setRunning(false);
-    }
+const FlagStatusPill = ({ status }: { status: FlaggedTransaction["status"] }) => {
+  const styles: Record<string, string> = {
+    unmatched: "bg-slate-100 text-slate-600 border-slate-200",
+    partial: "bg-blue-50 text-blue-700 border-blue-200",
+    duplicate: "bg-amber-50 text-amber-700 border-amber-200",
+    suspicious: "bg-rose-50 text-rose-700 border-rose-200",
+    matched: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    excluded: "bg-slate-50 text-slate-400 border-slate-200",
   };
-
-  const normalizeFlags = (flags: BankTransactionReview["audit_flags"]): AuditFlag[] => {
-    if (Array.isArray(flags)) return flags;
-    if (flags && typeof flags === "object") return Object.values(flags) as AuditFlag[];
-    return [];
-  };
-
-  const llmExplanations = selectedRun?.llm_explanations || [];
-  const llmRanked = selectedRun?.llm_ranked_transactions || [];
-  const llmFollowups = selectedRun?.llm_suggested_followups || [];
-  const hasLlmInsights = llmExplanations.length > 0 || llmRanked.length > 0 || llmFollowups.length > 0;
-
-  const focusTransaction = (txId: number | string | null | undefined) => {
-    if (txId === null || txId === undefined) return;
-    const parsed = Number(txId);
-    if (!Number.isFinite(parsed)) return;
-    setHighlightedTxId(parsed);
-    const el = document.getElementById(`tx-${parsed}`);
-    if (el && typeof (el as any).scrollIntoView === "function") {
-      (el as any).scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-  };
-
-  useEffect(() => {
-    if (highlightedTxId === null) return;
-    const timer = setTimeout(() => setHighlightedTxId(null), 2000);
-    return () => clearTimeout(timer);
-  }, [highlightedTxId]);
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
-      <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-[11px] font-medium text-slate-500 uppercase">Bank Companion</p>
-            <h1 className="text-2xl font-semibold">Bank Review</h1>
-            <p className="text-sm text-slate-500">Review bank transactions against the ledger.</p>
-          </div>
-        </div>
-
-        {error && <div className="rounded-lg bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3">{error}</div>}
-        {info && <div className="rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3">{info}</div>}
-
-        <section className="bg-white border border-slate-200 rounded-2xl shadow-sm p-4 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Run a bank review</h2>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <label className="block">
-              <span className="text-xs text-slate-600">Period start</span>
-              <input
-                type="date"
-                className="w-full mt-1 border border-slate-200 rounded px-2 py-1 text-sm"
-                value={periodStart}
-                onChange={(e) => setPeriodStart(e.target.value)}
-              />
-            </label>
-            <label className="block">
-              <span className="text-xs text-slate-600">Period end</span>
-              <input
-                type="date"
-                className="w-full mt-1 border border-slate-200 rounded px-2 py-1 text-sm"
-                value={periodEnd}
-                onChange={(e) => setPeriodEnd(e.target.value)}
-              />
-            </label>
-            <div className="flex items-end justify-end">
-              <button
-                onClick={runReview}
-                disabled={running}
-                className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-semibold hover:bg-slate-800 disabled:opacity-50"
-              >
-                {running ? "Running…" : "Run bank review"}
-              </button>
-            </div>
-          </div>
-          <div>
-            <span className="text-xs text-slate-600">Bank lines (JSON)</span>
-            <textarea
-              className="w-full mt-1 border border-slate-200 rounded px-2 py-1 text-sm min-h-[100px]"
-              value={linesJson}
-              onChange={(e) => setLinesJson(e.target.value)}
-            />
-            <div className="text-[11px] text-slate-500 mt-1">{"Provide an array of {date, description, amount, external_id?}."}</div>
-          </div>
-        </section>
-
-        <section className="bg-white border border-slate-200 rounded-2xl shadow-sm p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Previous runs</h2>
-            <button
-              onClick={loadRuns}
-              className="text-xs font-semibold text-slate-600 border border-slate-200 rounded px-2 py-1"
-            >
-              Refresh
-            </button>
-          </div>
-          {loadingRuns ? (
-            <div className="text-sm text-slate-500">Loading…</div>
-          ) : runs.length === 0 ? (
-            <div className="text-sm text-slate-500">No bank reviews yet.</div>
-          ) : (
-            <div className="overflow-auto">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="text-xs uppercase text-slate-500">
-                    <th className="py-2">Run</th>
-                    <th>Period</th>
-                    <th>Status</th>
-                    <th>Risk</th>
-                    <th>Unreconciled</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {runs.map((run) => (
-                    <tr key={run.id} className="border-t border-slate-100">
-                      <td className="py-2 font-semibold text-slate-800">#{run.id}</td>
-                      <td className="text-slate-600">
-                        {run.period_start || "—"} – {run.period_end || "—"}
-                      </td>
-                      <td className="text-slate-600">{run.status}</td>
-                      <td>
-                        <RiskBadge score={run.overall_risk_score} />
-                      </td>
-                      <td className="text-slate-600">{run.metrics?.transactions_unreconciled ?? "—"}</td>
-                      <td>
-                        <button
-                          className="text-xs font-semibold text-sky-700 hover:text-sky-900"
-                          onClick={() => loadRunDetail(run.id)}
-                        >
-                          View
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-
-        {selectedRun && (
-          <section className="bg-white border border-slate-200 rounded-2xl shadow-sm p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-semibold">Run #{selectedRun.id}</h3>
-                <p className="text-xs text-slate-500">
-                  {selectedRun.period_start || "—"} – {selectedRun.period_end || "—"}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                {selectedRun.trace_id && (
-                  <a
-                    href={`/agentic/console?trace=${encodeURIComponent(selectedRun.trace_id)}`}
-                    className="text-xs font-semibold text-sky-700 hover:text-sky-900 underline"
-                  >
-                    View in console
-                  </a>
-                )}
-                <RiskBadge score={selectedRun.overall_risk_score} />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
-              <div className="border border-slate-100 rounded-lg p-3">
-                <div className="text-[11px] uppercase text-slate-500">Status</div>
-                <div className="font-semibold text-slate-800">{selectedRun.status}</div>
-              </div>
-              <div className="border border-slate-100 rounded-lg p-3">
-                <div className="text-[11px] uppercase text-slate-500">Transactions</div>
-                <div className="font-semibold text-slate-800">
-                  {selectedRun.metrics?.transactions_total ?? "—"} total ·{" "}
-                  {selectedRun.metrics?.transactions_unreconciled ?? "0"} unreconciled
-                </div>
-              </div>
-              <div className="border border-slate-100 rounded-lg p-3">
-                <div className="text-[11px] uppercase text-slate-500">High risk</div>
-                <div className="font-semibold text-slate-800">{selectedRun.metrics?.transactions_high_risk ?? "—"}</div>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <div className="text-[11px] uppercase text-slate-500">AI Companion insights – suggestions only, your data remains unchanged.</div>
-              <div className="border border-slate-200 rounded-lg p-3 bg-slate-50">
-                {hasLlmInsights ? (
-                  <div className="space-y-3">
-                    {llmExplanations.length > 0 && (
-                      <div className="space-y-1">
-                        <div className="text-xs font-semibold text-slate-700">Narrative</div>
-                        <ul className="list-disc list-inside text-sm text-slate-700 space-y-1">
-                          {llmExplanations.map((line, idx) => (
-                            <li key={`llm-expl-${idx}`}>{line}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    {llmRanked.length > 0 && (
-                      <div className="space-y-2">
-                        <div className="text-xs font-semibold text-slate-700">Top transactions to review</div>
-                        <div className="space-y-1">
-                          {llmRanked.map((item, idx) => (
-                            <button
-                              key={`llm-ranked-${idx}`}
-                              onClick={() => focusTransaction(item.transaction_id)}
-                              className="w-full text-left border border-slate-200 rounded px-2 py-2 bg-white hover:border-sky-300"
-                            >
-                              <div className="flex items-center justify-between">
-                                <span className="font-semibold text-slate-800">Transaction {item.transaction_id}</span>
-                                <span className="text-[11px] uppercase bg-slate-100 text-slate-700 px-2 py-0.5 rounded">
-                                  {item.priority}
-                                </span>
-                              </div>
-                              <div className="text-sm text-slate-700">{item.reason}</div>
-                              <div className="text-[11px] text-slate-500">Click to jump to the transaction below.</div>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {llmFollowups.length > 0 && (
-                      <div className="space-y-1">
-                        <div className="text-xs font-semibold text-slate-700">Suggested follow-ups</div>
-                        <ul className="list-disc list-inside text-sm text-slate-700 space-y-1">
-                          {llmFollowups.map((line, idx) => (
-                            <li key={`followup-${idx}`}>{line}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="text-sm text-slate-500">
-                    AI insights unavailable for this run. Turn on AI Companion in Account settings to enable suggestions.
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <div className="text-[11px] uppercase text-slate-500">Transactions</div>
-              {selectedRun.transactions.length === 0 ? (
-                <div className="text-sm text-slate-500">No transactions in this run.</div>
-              ) : (
-                <div className="space-y-2">
-                  {selectedRun.transactions.map((tx) => {
-                    const flags = normalizeFlags(tx.audit_flags);
-                    const severityClass =
-                      tx.risk_level === "high" || tx.status === "UNMATCHED"
-                        ? "border-rose-200 bg-rose-50/60"
-                        : tx.risk_level === "medium"
-                          ? "border-amber-200 bg-amber-50/60"
-                          : "border-slate-100 bg-white";
-                    const highlightClass = highlightedTxId === tx.id ? "ring-2 ring-sky-500" : "";
-                    return (
-                      <div
-                        key={tx.id}
-                        id={`tx-${tx.id}`}
-                        className={`border rounded-lg p-3 ${severityClass} ${highlightClass}`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="font-semibold text-slate-800">
-                            {tx.raw_payload.date || ""} · {tx.raw_payload.description || ""}
-                          </div>
-                          <RiskBadge score={tx.audit_score} />
-                        </div>
-                        <div className="text-xs text-slate-600">Amount {tx.raw_payload.amount}</div>
-                        <div className="text-xs text-slate-600">Status {tx.status}</div>
-                        {tx.error_message && <div className="text-xs text-rose-600 mt-1">{tx.error_message}</div>}
-                        {flags.length > 0 && (
-                          <div className="mt-2 space-y-1">
-                            {flags.map((f, idx) => (
-                              <div
-                                key={`${f.code}-${idx}`}
-                                className="text-xs border border-slate-200 rounded px-2 py-1 bg-white flex items-start gap-2"
-                              >
-                                <span className="font-semibold text-slate-800">{f.code}</span>
-                                <span className="text-slate-600">{f.message || ""}</span>
-                                {f.severity && (
-                                  <span className="ml-auto text-[10px] uppercase bg-slate-100 text-slate-600 px-1 rounded">{f.severity}</span>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        {tx.matched_journal_ids && tx.matched_journal_ids.length > 0 && (
-                          <div className="text-[11px] text-slate-600 mt-1">
-                            Matched journals: {tx.matched_journal_ids.join(", ")}
-                          </div>
-                        )}
-                        {tx.audit_explanations && tx.audit_explanations.length > 0 && (
-                          <div className="text-[11px] text-slate-600 mt-1">{tx.audit_explanations.join(" ")}</div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </section>
-        )}
-      </div>
-    </div>
+    <span className={`inline-flex px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide border ${styles[status] || styles.unmatched}`}>
+      {status}
+    </span>
   );
 };
 
-export default BankReviewPage;
+const LoadingState = () => (
+  <div className="min-h-screen bg-slate-50/50 flex items-center justify-center">
+    <div className="flex flex-col items-center gap-3">
+      <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+      <p className="text-sm text-slate-500">Loading bank audit data...</p>
+    </div>
+  </div>
+);
+
+const ErrorState = ({ error, onRetry }: { error: string; onRetry: () => void }) => (
+  <div className="min-h-screen bg-slate-50/50 flex items-center justify-center">
+    <div className="flex flex-col items-center gap-4 max-w-md text-center px-4">
+      <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center">
+        <AlertTriangle className="w-6 h-6 text-rose-600" />
+      </div>
+      <h2 className="text-lg font-semibold text-slate-900">Unable to load data</h2>
+      <p className="text-sm text-slate-500">{error}</p>
+      <button
+        onClick={onRetry}
+        className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+      >
+        Try Again
+      </button>
+    </div>
+  </div>
+);
+
+const EmptyState = () => (
+  <div className="min-h-screen bg-slate-50/50 font-sans text-slate-900 pb-12">
+    <div className="relative z-10 max-w-[1400px] mx-auto px-6 py-8">
+      <header className="mb-8">
+        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+          Bank Audit & Health Check
+        </h1>
+        <p className="text-slate-500 mt-1 text-sm">
+          AI-powered diagnostic of your reconciliation status.
+        </p>
+      </header>
+
+      <Card className="max-w-xl mx-auto text-center py-12">
+        <Wallet className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+        <h2 className="text-lg font-semibold text-slate-900 mb-2">No Bank Accounts Found</h2>
+        <p className="text-sm text-slate-500 mb-6">
+          Set up your bank accounts and import transactions to start auditing.
+        </p>
+        <a
+          href="/bank/setup/"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          Set Up Banks
+          <ArrowRight className="w-4 h-4" />
+        </a>
+      </Card>
+    </div>
+  </div>
+);
+
+// ---------------------------------------------------------------------------
+// MAIN COMPONENT
+// ---------------------------------------------------------------------------
+
+export default function BankAuditHealthCheckPage() {
+  const [data, setData] = useState<BankAuditSummaryResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedBankId, setSelectedBankId] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [filterText, setFilterText] = useState("");
+
+  const fetchData = useCallback(async (isRefresh = false) => {
+    if (isRefresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
+    setError(null);
+
+    try {
+      const res = await fetch("/api/agentic/bank-audit/summary", {
+        credentials: "same-origin",
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to load data (${res.status})`);
+      }
+
+      const json: BankAuditSummaryResponse = await res.json();
+      setData(json);
+
+      // Auto-select first bank if none selected
+      if (!selectedBankId && json.banks.length > 0) {
+        setSelectedBankId(json.banks[0].id);
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to load bank audit data");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [selectedBankId]);
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const selectedBank = useMemo(() => {
+    if (!data || !selectedBankId) return null;
+    return data.banks.find(b => b.id === selectedBankId) || data.banks[0] || null;
+  }, [data, selectedBankId]);
+
+  const insights = useMemo(() => {
+    if (!data || !selectedBankId) return [];
+    return data.insights[selectedBankId] || [];
+  }, [data, selectedBankId]);
+
+  const flaggedTransactions = useMemo(() => {
+    if (!data || !selectedBankId) return [];
+    let txs = data.flaggedTransactions[selectedBankId] || [];
+
+    // Apply filter
+    if (filterText.trim()) {
+      const search = filterText.toLowerCase();
+      txs = txs.filter(tx =>
+        tx.description.toLowerCase().includes(search) ||
+        tx.amount.toLowerCase().includes(search) ||
+        tx.status.toLowerCase().includes(search)
+      );
+    }
+
+    return txs;
+  }, [data, selectedBankId, filterText]);
+
+  const totalUnreconciled = useMemo(() => {
+    if (!data) return 0;
+    return data.banks.reduce((acc, curr) => acc + curr.unreconciledCount, 0);
+  }, [data]);
+
+  const banksWithIssues = useMemo(() => {
+    if (!data) return 0;
+    return data.banks.filter(b => b.status === "high").length;
+  }, [data]);
+
+  // Loading state
+  if (loading) {
+    return <LoadingState />;
+  }
+
+  // Error state
+  if (error) {
+    return <ErrorState error={error} onRetry={() => fetchData()} />;
+  }
+
+  // Empty state - no banks
+  if (!data || data.banks.length === 0) {
+    return <EmptyState />;
+  }
+
+  const containerAnimation = {
+    hidden: { opacity: 0 },
+    show: { opacity: 1, transition: { staggerChildren: 0.1 } }
+  };
+
+  const itemAnimation = {
+    hidden: { opacity: 0, y: 10 },
+    show: { opacity: 1, y: 0, transition: { duration: 0.4 } }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50/50 font-sans text-slate-900 pb-12">
+
+      {/* Background Ambience */}
+      <div className="fixed inset-0 z-0 pointer-events-none opacity-30">
+        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-gradient-to-b from-blue-100/40 to-transparent rounded-bl-full" />
+      </div>
+
+      <div className="relative z-10 max-w-[1400px] mx-auto px-6 py-8">
+
+        {/* --- HEADER --- */}
+        <motion.header
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8"
+        >
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+              Bank Audit & Health Check
+            </h1>
+            <p className="text-slate-500 mt-1 text-sm max-w-2xl">
+              AI-powered diagnostic of your reconciliation status. Review findings here, then fix them in the Banking workspace.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-4">
+            {/* Summary Stats */}
+            <div className="hidden md:flex items-center gap-4 bg-white px-5 py-2.5 rounded-xl border border-slate-200 shadow-sm">
+              <div className="text-right">
+                <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Open Items</p>
+                <p className="text-xl font-bold text-slate-900 leading-none">
+                  {totalUnreconciled}
+                </p>
+              </div>
+              <div className="h-8 w-px bg-slate-100" />
+              <div className="text-right">
+                <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Critical</p>
+                <p className={`text-xl font-bold leading-none ${banksWithIssues > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                  {banksWithIssues}
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => fetchData(true)}
+              disabled={refreshing}
+              className="h-12 w-12 rounded-xl bg-blue-950 text-white shadow-lg shadow-blue-900/20 hover:bg-blue-900 transition-all flex items-center justify-center disabled:opacity-50"
+            >
+              <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
+        </motion.header>
+
+        {/* --- MAIN CONTENT GRID --- */}
+        <motion.div
+          variants={containerAnimation}
+          initial="hidden"
+          animate="show"
+          className="grid grid-cols-1 lg:grid-cols-12 gap-8"
+        >
+
+          {/* --- LEFT COLUMN: BANK LIST (The Vault) --- */}
+          <div className="lg:col-span-4 space-y-6">
+            <motion.div variants={itemAnimation}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <Wallet className="w-4 h-4 text-slate-400" />
+                  Banks Scanned
+                </h3>
+              </div>
+
+              <div className="space-y-3">
+                {data.banks.map((bank) => (
+                  <div
+                    key={bank.id}
+                    onClick={() => setSelectedBankId(bank.id)}
+                    className={`group relative p-5 rounded-2xl border transition-all duration-300 cursor-pointer overflow-hidden ${selectedBankId === bank.id
+                      ? 'bg-blue-950 border-blue-900 shadow-xl shadow-blue-900/20 ring-1 ring-blue-800'
+                      : 'bg-white border-slate-200 hover:border-blue-300 hover:shadow-md'
+                      }`}
+                  >
+                    {/* Active State Background FX */}
+                    {selectedBankId === bank.id && (
+                      <div className="absolute inset-0 z-0">
+                        <div className="absolute top-0 right-0 w-40 h-40 bg-blue-500/10 rounded-full blur-3xl transform translate-x-10 -translate-y-10" />
+                      </div>
+                    )}
+
+                    <div className="relative z-10 flex justify-between items-start mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-colors ${selectedBankId === bank.id ? 'bg-white/10 text-white' : 'bg-slate-50 text-slate-600'
+                          }`}>
+                          <CreditCard className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className={`text-sm font-bold ${selectedBankId === bank.id ? 'text-white' : 'text-slate-900'}`}>
+                            {bank.name}
+                          </h4>
+                          <p className={`text-xs font-mono mt-0.5 ${selectedBankId === bank.id ? 'text-blue-200' : 'text-slate-400'}`}>
+                            •••• {bank.last4}
+                          </p>
+                        </div>
+                      </div>
+                      {/* Only show badge on inactive cards to reduce noise on active card */}
+                      {selectedBankId !== bank.id && <RiskBadge status={bank.status} />}
+                    </div>
+
+                    <div className="relative z-10 grid grid-cols-2 gap-4">
+                      <div>
+                        <p className={`text-[10px] font-bold uppercase tracking-wider mb-1 ${selectedBankId === bank.id ? 'text-blue-300' : 'text-slate-400'
+                          }`}>Last Sync</p>
+                        <p className={`text-xs font-medium ${selectedBankId === bank.id ? 'text-blue-100' : 'text-slate-700'
+                          }`}>{bank.lastSynced}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className={`text-[10px] font-bold uppercase tracking-wider mb-1 ${selectedBankId === bank.id ? 'text-blue-300' : 'text-slate-400'
+                          }`}>Open Items</p>
+                        <p className={`text-xl font-bold font-mono leading-none ${bank.unreconciledCount > 0
+                          ? (selectedBankId === bank.id ? 'text-rose-300' : 'text-rose-600')
+                          : (selectedBankId === bank.id ? 'text-emerald-300' : 'text-emerald-600')
+                          }`}>{bank.unreconciledCount}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+
+            {/* History Section */}
+            {data.previousAudits.length > 0 && (
+              <motion.div variants={itemAnimation} className="pt-4 border-t border-slate-200/60">
+                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Previous Audits</h4>
+                <div className="space-y-2">
+                  {data.previousAudits.map((hist, i) => (
+                    <div key={i} className="flex items-center justify-between px-3 py-2 bg-white rounded-lg border border-slate-100 text-xs">
+                      <span className="text-slate-700 font-medium">{hist.date}</span>
+                      <span className={`font-semibold ${hist.color}`}>{hist.status}</span>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </div>
+
+          {/* --- RIGHT COLUMN: DIAGNOSTIC PANEL --- */}
+          <div className="lg:col-span-8 space-y-6">
+            {selectedBank && (
+              <motion.div variants={itemAnimation}>
+                <Card noPadding className="border-blue-100/50 shadow-md min-h-[600px] flex flex-col">
+
+                  {/* 1. Diagnostic Header */}
+                  <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                      <div className="h-10 w-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-blue-900 shadow-sm">
+                        <Landmark className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h2 className="text-lg font-bold text-slate-900">{selectedBank.name}</h2>
+                          <RiskBadge status={selectedBank.status} />
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {selectedBank.currency} Account · {selectedBank.totalTransactions} transactions scanned
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Primary Action - Drills down to Workspace */}
+                    <a
+                      href="/banking/"
+                      className="group flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 text-xs font-bold rounded-lg hover:border-blue-300 hover:text-blue-700 shadow-sm transition-all"
+                    >
+                      <span>Open in Banking Workspace</span>
+                      <ExternalLink className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                    </a>
+                  </div>
+
+                  {/* 2. AI Companion Insights (The "Brain") */}
+                  <div className="p-6 bg-gradient-to-b from-white to-blue-50/30 relative overflow-hidden">
+
+                    <div className="flex items-center justify-between mb-4 relative z-10">
+                      <div className="flex items-center gap-2">
+                        <div className="p-1.5 bg-blue-100 rounded-md">
+                          <Sparkles className="w-3.5 h-3.5 text-blue-700" />
+                        </div>
+                        <h3 className="text-sm font-bold text-slate-900">Neural Diagnostics</h3>
+                      </div>
+                      <span className="text-[10px] font-medium text-slate-400 flex items-center gap-1">
+                        <ShieldCheck className="w-3 h-3" />
+                        {data.companionEnabled ? "Suggestions only. No auto-posting." : "Enable AI Companion for insights."}
+                      </span>
+                    </div>
+
+                    {insights.length > 0 ? (
+                      <div className="grid gap-3 relative z-10">
+                        {insights.map((insight) => (
+                          <div key={insight.id} className="flex gap-4 p-4 bg-white border border-slate-200 rounded-lg shadow-sm hover:border-blue-300 transition-colors group">
+                            <div className={`mt-1 h-2 w-2 rounded-full flex-shrink-0 ${insight.type === 'anomaly' ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.6)]' :
+                              insight.type === 'optimization' ? 'bg-amber-500' : 'bg-blue-500'
+                              }`} />
+                            <div className="flex-1">
+                              <h4 className="text-xs font-bold text-slate-900 mb-1">{insight.title}</h4>
+                              <p className="text-xs font-medium text-slate-600 leading-relaxed">
+                                {insight.description}
+                              </p>
+                            </div>
+                            <div className="self-center">
+                              <button className="text-xs font-semibold text-blue-600 hover:text-blue-800 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                                Investigate <ArrowRight className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center p-8 border border-dashed border-slate-200 rounded-lg bg-slate-50/50 relative z-10">
+                        <CheckCircle2 className="w-8 h-8 text-emerald-400 mb-2" />
+                        <p className="text-sm font-medium text-slate-900">No Anomalies Detected</p>
+                        <p className="text-xs text-slate-500">
+                          {data.companionEnabled
+                            ? "Pattern matching algorithms found no issues with this account."
+                            : "Run a bank audit to generate AI insights."}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 3. Flagged Transactions Table (The "Evidence") */}
+                  <div className="flex-1 border-t border-slate-200 bg-white">
+                    <div className="px-6 py-4 flex items-center justify-between">
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                          Flagged Transactions
+                          <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold">
+                            {flaggedTransactions.length}
+                          </span>
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-1">
+                          Items requiring manual review in the Banking workspace.
+                        </p>
+                      </div>
+
+                      {(data.flaggedTransactions[selectedBankId!]?.length || 0) > 0 && (
+                        <div className="relative">
+                          <Search className="absolute left-2.5 top-1.5 w-3.5 h-3.5 text-slate-400" />
+                          <input
+                            type="text"
+                            placeholder="Filter..."
+                            value={filterText}
+                            onChange={(e) => setFilterText(e.target.value)}
+                            className="pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-md bg-slate-50 focus:ring-1 focus:ring-blue-500 outline-none w-40"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {flaggedTransactions.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className="bg-slate-50 border-y border-slate-100">
+                              <th className="pl-6 pr-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-24">Date</th>
+                              <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Description</th>
+                              <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-right w-24">Amount</th>
+                              <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider w-32">Status</th>
+                              <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">AI Suggestion</th>
+                              <th className="pr-6 py-3 w-16"></th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {flaggedTransactions.map((tx) => (
+                              <tr key={tx.id} className="group hover:bg-blue-50/30 transition-colors">
+                                <td className="pl-6 pr-4 py-3 text-xs font-mono text-slate-500">{tx.date}</td>
+                                <td className="px-4 py-3 text-xs font-semibold text-slate-900">{tx.description}</td>
+                                <td className={`px-4 py-3 text-xs font-mono font-medium text-right ${tx.amount.startsWith('-') ? 'text-slate-900' : 'text-emerald-600'}`}>
+                                  {tx.amount}
+                                </td>
+                                <td className="px-4 py-3">
+                                  <FlagStatusPill status={tx.status} />
+                                </td>
+                                <td className="px-4 py-3">
+                                  <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                                    <Sparkles className="w-3 h-3 text-blue-400 flex-shrink-0" />
+                                    <span className="truncate max-w-[200px]">{tx.suggestion}</span>
+                                    <span className="text-[10px] text-slate-400 bg-slate-100 px-1 rounded ml-1">
+                                      {tx.confidence}%
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="pr-6 py-3 text-right">
+                                  <a
+                                    href="/banking/"
+                                    className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all inline-block"
+                                    title="View in Reconciliation"
+                                  >
+                                    <ExternalLink className="w-3.5 h-3.5" />
+                                  </a>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center py-12 bg-slate-50/30">
+                        <CheckCircle2 className="w-10 h-10 text-emerald-200 mb-3" />
+                        <p className="text-sm font-medium text-slate-900">All Transactions Cleared</p>
+                        <p className="text-xs text-slate-500">No flags requiring attention.</p>
+                      </div>
+                    )}
+
+                    {flaggedTransactions.length > 0 && (
+                      <div className="p-3 bg-slate-50/50 border-t border-slate-100 flex items-center justify-center gap-1 text-xs text-slate-500">
+                        <Info className="w-3.5 h-3.5" />
+                        <span>To match or edit transactions, switch to the</span>
+                        <a href="/banking/" className="font-bold text-blue-700 hover:underline">Banking Workspace</a>
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              </motion.div>
+            )}
+          </div>
+
+        </motion.div>
+
+      </div>
+    </div>
+  );
+}

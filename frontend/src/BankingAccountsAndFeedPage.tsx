@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import CompanionStrip from "./companion/CompanionStrip";
 
 const BANK_GRADIENTS: Record<string, string> = {
   rbc: "from-indigo-500 to-indigo-700",
@@ -130,10 +129,10 @@ const AccountCard: React.FC<{ account: BankAccount }> = ({ account }) => {
   return (
     <div
       className={`relative rounded-2xl border bg-white/80 backdrop-blur-sm p-4 shadow-lg transition-all duration-200 hover:shadow-xl ${isHealthy
-          ? "border-emerald-100 ring-2 ring-emerald-50"
-          : hasAction
-            ? "border-amber-100 ring-2 ring-amber-50"
-            : "border-slate-100"
+        ? "border-emerald-100 ring-2 ring-emerald-50"
+        : hasAction
+          ? "border-amber-100 ring-2 ring-amber-50"
+          : "border-slate-100"
         }`}
     >
       <div className="flex gap-4">
@@ -449,8 +448,7 @@ const BankingAccountsAndFeedPage: React.FC<BankingAccountsAndFeedPageProps> = ({
           </div>
         </header>
 
-        {/* Companion Strip */}
-        <CompanionStrip context="bank" className="mb-6" />
+        {/* Note: CompanionStrip is mounted via companion-strip-entry on data-companion-context element */}
 
         {/* Main Content Grid */}
         <div className="grid gap-6 lg:grid-cols-[1fr_300px]">

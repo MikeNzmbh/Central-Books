@@ -75,6 +75,7 @@ def run_invoices_workflow(
     default_vendor: str | None = None,
     triggered_by_user_id: int,
     ai_companion_enabled: bool | None = None,
+    user_name: str | None = None,
 ) -> InvoicesWorkflowResult:
     """
     Synchronous entry point that wraps the Invoice agentic workflow.
@@ -448,7 +449,14 @@ def run_invoices_workflow(
             )
 
         llm_metrics = {k: v for k, v in metrics.items() if k != "trace_events"}
-        llm_result = reason_about_invoices_run(metrics=llm_metrics, documents=documents_payload)
+        # Determine risk level for tone
+        risk_level = "low" if len(high_risk) == 0 else "high" if len(high_risk) >= 3 else "medium"
+        llm_result = reason_about_invoices_run(
+            metrics=llm_metrics,
+            documents=documents_payload,
+            user_name=user_name,
+            risk_level=risk_level,
+        )
         if llm_result:
             llm_explanations = llm_result.explanations
             llm_ranked_documents = [item.model_dump() for item in llm_result.ranked_documents]

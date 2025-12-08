@@ -1,7 +1,9 @@
+import json
 from datetime import timedelta
 from decimal import Decimal
 
 from django.contrib.auth.decorators import login_required
+from django.db import models
 from django.http import JsonResponse, HttpResponseBadRequest
 from django.utils import timezone
 
@@ -10,8 +12,10 @@ from .models import (
     InvoiceRun,
     BooksReviewRun,
     BankReviewRun,
+    CompanionIssue,
 )
 from .utils import get_current_business
+from .companion_issues import get_issue_counts
 
 RISK_MEDIUM_THRESHOLD = Decimal("40.0")
 RISK_HIGH_THRESHOLD = Decimal("70.0")
@@ -63,7 +67,6 @@ def api_companion_summary(request):
 
     now = timezone.now()
     since = now - timedelta(days=30)
-
     receipts_runs_recent = list(ReceiptRun.objects.filter(business=business).order_by("-created_at")[:3])
     invoices_runs_recent = list(InvoiceRun.objects.filter(business=business).order_by("-created_at")[:3])
     books_runs_recent = list(BooksReviewRun.objects.filter(business=business).order_by("-created_at")[:3])
@@ -75,6 +78,20 @@ def api_companion_summary(request):
     bank_30 = BankReviewRun.objects.filter(business=business, created_at__gte=since)
 
     last_books = BooksReviewRun.objects.filter(business=business).order_by("-created_at").first()
+    issues_total, issues_by_sev, issues_by_surface, issues_qs = get_issue_counts(business, days=30)
+    headline_issue = (
+        issues_qs.order_by(
+            models.Case(
+                models.When(severity="high", then=0),
+                models.When(severity="medium", then=1),
+                default=2,
+                output_field=models.IntegerField(),
+            ),
+            "-created_at",
+        ).first()
+        if issues_qs.exists()
+        else None
+    )
 
     summary = {
         "ai_companion_enabled": business.ai_companion_enabled,
@@ -98,6 +115,9 @@ def api_companion_summary(request):
                     "high_risk_documents": _metrics_sum(receipts_30, "documents_high_risk"),
                     "errors": sum(r.error_count for r in receipts_30),
                 },
+                "open_issues_count": issues_by_surface.get("receipts", 0),
+                "high_risk_issues_count": issues_qs.filter(surface="receipts", severity="high").count(),
+                "headline_issue": None,
             },
             "invoices": {
                 "recent_runs": [
@@ -118,6 +138,9 @@ def api_companion_summary(request):
                     "high_risk_documents": _metrics_sum(invoices_30, "documents_high_risk"),
                     "errors": sum(r.error_count for r in invoices_30),
                 },
+                "open_issues_count": issues_by_surface.get("invoices", 0),
+                "high_risk_issues_count": issues_qs.filter(surface="invoices", severity="high").count(),
+                "headline_issue": None,
             },
             "books_review": {
                 "recent_runs": [
@@ -137,6 +160,9 @@ def api_companion_summary(request):
                     "high_risk_count": _metrics_sum(books_30, "journals_high_risk"),
                     "agent_retries": _metrics_sum(books_30, "agent_retries"),
                 },
+                "open_issues_count": issues_by_surface.get("books", 0),
+                "high_risk_issues_count": issues_qs.filter(surface="books", severity="high").count(),
+                "headline_issue": None,
             },
             "bank_review": {
                 "recent_runs": [
@@ -157,6 +183,9 @@ def api_companion_summary(request):
                     "transactions_high_risk": _metrics_sum(bank_30, "transactions_high_risk"),
                     "unreconciled": _metrics_sum(bank_30, "transactions_unreconciled"),
                 },
+                "open_issues_count": issues_by_surface.get("bank", 0),
+                "high_risk_issues_count": issues_qs.filter(surface="bank", severity="high").count(),
+                "headline_issue": None,
             },
         },
         "global": {
@@ -179,8 +208,37 @@ def api_companion_summary(request):
             + _metrics_sum(invoices_30, "agent_retries")
             + _metrics_sum(books_30, "agent_retries")
             + _metrics_sum(bank_30, "agent_retries"),
+            "open_issues_total": issues_total,
+            "open_issues_by_severity": issues_by_sev,
+            "open_issues_by_surface": issues_by_surface,
         },
     }
+
+    if headline_issue:
+        summary["global"]["headline_issue"] = {
+            "id": headline_issue.id,
+            "title": headline_issue.title,
+            "severity": headline_issue.severity,
+            "surface": headline_issue.surface,
+        }
+    for surf in ["receipts", "invoices", "books_review", "bank_review"]:
+        if surf == "books_review":
+            surface_key = "books"
+        elif surf == "bank_review":
+            surface_key = "bank"
+        else:
+            surface_key = surf
+        hi = issues_qs.filter(surface=surface_key).order_by(
+            models.Case(
+                models.When(severity="high", then=0),
+                models.When(severity="medium", then=1),
+                default=2,
+                output_field=models.IntegerField(),
+            ),
+            "-created_at",
+        ).first()
+        if hi:
+            summary["surfaces"][surf]["headline_issue"] = {"id": hi.id, "title": hi.title, "severity": hi.severity}
 
     return JsonResponse(summary)
 
@@ -194,3 +252,69 @@ def companion_overview_page(request):
     if business is None:
         return redirect("business_setup")
     return render(request, "companion_overview.html", {"business": business})
+
+
+@login_required
+def companion_issues_page(request):
+    business = get_current_business(request.user)
+    if business is None:
+        return redirect("business_setup")
+    return render(request, "companion_issues.html", {"business": business})
+
+
+@login_required
+def api_companion_issues(request):
+    business = get_current_business(request.user)
+    if business is None:
+        return JsonResponse({"error": "No business context"}, status=400)
+
+    status = request.GET.get("status", CompanionIssue.Status.OPEN)
+    surface = request.GET.get("surface")
+    severity = request.GET.get("severity")
+
+    qs = CompanionIssue.objects.filter(business=business)
+    if status:
+        qs = qs.filter(status=status)
+    if surface:
+        qs = qs.filter(surface=surface)
+    if severity:
+        qs = qs.filter(severity=severity)
+
+    data = [
+        {
+            "id": issue.id,
+            "surface": issue.surface,
+            "severity": issue.severity,
+            "status": issue.status,
+            "title": issue.title,
+            "recommended_action": issue.recommended_action,
+            "estimated_impact": issue.estimated_impact,
+            "run_type": issue.run_type,
+            "run_id": issue.run_id,
+            "created_at": issue.created_at.isoformat(),
+            "trace_id": issue.trace_id,
+        }
+        for issue in qs.order_by("-created_at")[:200]
+    ]
+    return JsonResponse({"issues": data})
+
+
+@login_required
+def api_companion_issue_patch(request, issue_id: int):
+    if request.method not in {"PATCH", "POST"}:
+        return JsonResponse({"error": "Method not allowed"}, status=405)
+    business = get_current_business(request.user)
+    if business is None:
+        return JsonResponse({"error": "No business context"}, status=400)
+    issue = CompanionIssue.objects.filter(business=business, pk=issue_id).first()
+    if not issue:
+        return JsonResponse({"error": "Issue not found"}, status=404)
+    try:
+        payload = json.loads(request.body or "{}")
+    except Exception:
+        payload = {}
+    new_status = payload.get("status")
+    if new_status and new_status in CompanionIssue.Status.values:
+        issue.status = new_status
+        issue.save(update_fields=["status", "updated_at"])
+    return JsonResponse({"id": issue.id, "status": issue.status})

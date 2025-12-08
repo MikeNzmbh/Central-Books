@@ -18,7 +18,7 @@
   </div>
 
   <div class="mb-4">
-    <div data-companion-context="invoices"></div>
+    <div data-companion-context="invoices" data-user-name="{{ user.first_name }}"></div>
   </div>
 
   <section class="page-kpi-grid invoices-kpis">
@@ -53,17 +53,17 @@
   <section class="invoices-filter-card">
     <div class="pill-tabs">
       <a href="{% url 'invoice_list' %}?status=all"
-         class="pill-tab {% if status_filter == 'all' %}is-active{% endif %}">All</a>
+        class="pill-tab {% if status_filter == 'all' %}is-active{% endif %}">All</a>
       <a href="{% url 'invoice_list' %}?status=overdue"
-         class="pill-tab {% if status_filter == 'overdue' %}is-active{% endif %}">Overdue</a>
+        class="pill-tab {% if status_filter == 'overdue' %}is-active{% endif %}">Overdue</a>
       <a href="{% url 'invoice_list' %}?status=sent"
-         class="pill-tab {% if status_filter == 'sent' %}is-active{% endif %}">Sent</a>
+        class="pill-tab {% if status_filter == 'sent' %}is-active{% endif %}">Sent</a>
       <a href="{% url 'invoice_list' %}?status=draft"
-         class="pill-tab {% if status_filter == 'draft' %}is-active{% endif %}">Draft</a>
+        class="pill-tab {% if status_filter == 'draft' %}is-active{% endif %}">Draft</a>
       <a href="{% url 'invoice_list' %}?status=paid"
-         class="pill-tab {% if status_filter == 'paid' %}is-active{% endif %}">Paid</a>
+        class="pill-tab {% if status_filter == 'paid' %}is-active{% endif %}">Paid</a>
       <a href="{% url 'invoice_list' %}?status=void"
-         class="pill-tab {% if status_filter == 'void' %}is-active{% endif %}">Void</a>
+        class="pill-tab {% if status_filter == 'void' %}is-active{% endif %}">Void</a>
     </div>
     <form method="get" class="invoices-filter-form">
       <input type="hidden" name="status" value="{{ status_filter }}">
@@ -91,44 +91,44 @@
           </thead>
           <tbody>
             {% if invoices %}
-              {% for invoice in invoices %}
-                <tr class="table-row {% if selected_invoice and invoice.pk == selected_invoice.pk %}table-row-selected{% endif %}"
-                    onclick="window.location='{% url 'invoice_list' %}?status={{ status_filter }}&invoice={{ invoice.pk }}'">
-                  <td>#{{ invoice.invoice_number }}</td>
-                  <td>{{ invoice.customer.name }}</td>
-                  <td class="hidden-sm">{{ invoice.issue_date|date:"M j, Y" }}</td>
-                  <td class="hidden-sm">
-                    {% if invoice.due_date %}{{ invoice.due_date|date:"M j, Y" }}{% else %}—{% endif %}
-                  </td>
-                  <td class="hidden-md text-right">
-                    {% if invoice.status == 'PAID' %}
-                      <span class="badge badge--success">Paid</span>
-                    {% elif invoice.status == 'DRAFT' %}
-                      <span class="badge badge--muted">Draft</span>
-                    {% elif invoice.status == 'VOID' %}
-                      <span class="badge badge--muted">Void</span>
-                    {% else %}
-                      {% if invoice.due_date and invoice.due_date < today %}
-                        <span class="badge badge--danger">Overdue</span>
-                      {% else %}
-                        <span class="badge badge--warning">Sent</span>
-                      {% endif %}
-                    {% endif %}
-                  </td>
-                  <td class="text-right">{{ invoice.grand_total|floatformat:2 }} {{ business.currency|default:"" }}</td>
-                  <td class="text-right" onclick="event.stopPropagation();">
-                    <a href="{% url 'invoice_update' invoice.pk %}" class="link-inline">Edit</a>
-                    <span class="dot-separator">·</span>
-                    <a href="{% url 'invoice_delete' invoice.pk %}" class="link-inline link-inline--danger">Delete</a>
-                  </td>
-                </tr>
-              {% endfor %}
+            {% for invoice in invoices %}
+            <tr
+              class="table-row {% if selected_invoice and invoice.pk == selected_invoice.pk %}table-row-selected{% endif %}"
+              onclick="window.location='{% url 'invoice_list' %}?status={{ status_filter }}&invoice={{ invoice.pk }}'">
+              <td>#{{ invoice.invoice_number }}</td>
+              <td>{{ invoice.customer.name }}</td>
+              <td class="hidden-sm">{{ invoice.issue_date|date:"M j, Y" }}</td>
+              <td class="hidden-sm">
+                {% if invoice.due_date %}{{ invoice.due_date|date:"M j, Y" }}{% else %}—{% endif %}
+              </td>
+              <td class="hidden-md text-right">
+                {% if invoice.status == 'PAID' %}
+                <span class="badge badge--success">Paid</span>
+                {% elif invoice.status == 'DRAFT' %}
+                <span class="badge badge--muted">Draft</span>
+                {% elif invoice.status == 'VOID' %}
+                <span class="badge badge--muted">Void</span>
+                {% else %}
+                {% if invoice.due_date and invoice.due_date < today %} <span class="badge badge--danger">Overdue</span>
+                  {% else %}
+                  <span class="badge badge--warning">Sent</span>
+                  {% endif %}
+                  {% endif %}
+              </td>
+              <td class="text-right">{{ invoice.grand_total|floatformat:2 }} {{ business.currency|default:"" }}</td>
+              <td class="text-right" onclick="event.stopPropagation();">
+                <a href="{% url 'invoice_update' invoice.pk %}" class="link-inline">Edit</a>
+                <span class="dot-separator">·</span>
+                <a href="{% url 'invoice_delete' invoice.pk %}" class="link-inline link-inline--danger">Delete</a>
+              </td>
+            </tr>
+            {% endfor %}
             {% else %}
-              <tr>
-                <td colspan="7" class="empty-row">
-                  No invoices yet. <a href="{% url 'invoice_create' %}" class="btn-link">Create your first invoice</a>.
-                </td>
-              </tr>
+            <tr>
+              <td colspan="7" class="empty-row">
+                No invoices yet. <a href="{% url 'invoice_create' %}" class="btn-link">Create your first invoice</a>.
+              </td>
+            </tr>
             {% endif %}
           </tbody>
         </table>
@@ -137,20 +137,17 @@
 
     <aside class="card invoices-detail">
       {% if selected_invoice %}
-        <div class="detail-header">
-          <div>
-            <h2 class="detail-title">Invoice #{{ selected_invoice.invoice_number }}</h2>
-            <p class="detail-subtitle">{{ selected_invoice.customer.name }}</p>
-          </div>
-          <div class="detail-actions">
-            <form method="post"
-                  action="{% url 'invoice_status_update' selected_invoice.pk %}"
-                  class="status-update-form"
-                  style="display:flex; gap:12px; align-items:center;">
-              {% csrf_token %}
-              <input type="hidden" name="redirect_url" value="{{ request.get_full_path }}">
-              <select name="status"
-                      style="
+      <div class="detail-header">
+        <div>
+          <h2 class="detail-title">Invoice #{{ selected_invoice.invoice_number }}</h2>
+          <p class="detail-subtitle">{{ selected_invoice.customer.name }}</p>
+        </div>
+        <div class="detail-actions">
+          <form method="post" action="{% url 'invoice_status_update' selected_invoice.pk %}" class="status-update-form"
+            style="display:flex; gap:12px; align-items:center;">
+            {% csrf_token %}
+            <input type="hidden" name="redirect_url" value="{{ request.get_full_path }}">
+            <select name="status" style="
                         border-radius:999px;
                         border:1px solid #cdd9ff;
                         background:#f8faff;
@@ -165,15 +162,13 @@
                         background-position:right 12px center;
                         background-size:12px;
                       ">
-                {% for value, label in invoice_status_choices %}
-                  <option value="{{ value }}"
-                          {% if selected_invoice.status == value %}selected{% endif %}>
-                    {{ label }}
-                  </option>
-                {% endfor %}
-              </select>
-              <button type="submit"
-                      style="
+              {% for value, label in invoice_status_choices %}
+              <option value="{{ value }}" {% if selected_invoice.status == value %}selected{% endif %}>
+                {{ label }}
+              </option>
+              {% endfor %}
+            </select>
+            <button type="submit" style="
                         border:none;
                         border-radius:999px;
                         padding:8px 24px;
@@ -184,76 +179,74 @@
                         box-shadow:none;
                         cursor:pointer;
                         transition:opacity 0.15s ease;
-                      "
-                      onmouseover="this.style.opacity='0.9';"
-                      onmouseout="this.style.opacity='1';">
-                Save
-              </button>
-            </form>
-          </div>
+                      " onmouseover="this.style.opacity='0.9';" onmouseout="this.style.opacity='1';">
+              Save
+            </button>
+          </form>
         </div>
+      </div>
 
-        <div class="mini-stat-grid">
-          <div class="mini-stat">
-            <div class="mini-stat-label">Amount</div>
-            <div class="mini-stat-value">
-              {{ selected_invoice.grand_total|floatformat:2 }} {{ business.currency|default:"" }}
-            </div>
-            <div class="mini-stat-meta">Invoice total</div>
+      <div class="mini-stat-grid">
+        <div class="mini-stat">
+          <div class="mini-stat-label">Amount</div>
+          <div class="mini-stat-value">
+            {{ selected_invoice.grand_total|floatformat:2 }} {{ business.currency|default:"" }}
           </div>
-          <div class="mini-stat">
-            <div class="mini-stat-label">Issue date</div>
-            <div class="mini-stat-value">
-              {{ selected_invoice.issue_date|date:"M j, Y" }}
-            </div>
-            <div class="mini-stat-meta">When it went out</div>
-          </div>
-          <div class="mini-stat">
-            <div class="mini-stat-label">Due date</div>
-            <div class="mini-stat-value">
-              {% if selected_invoice.due_date %}
-                {{ selected_invoice.due_date|date:"M j, Y" }}
-              {% else %}
-                —
-              {% endif %}
-            </div>
-            <div class="mini-stat-meta">When payment is expected</div>
-          </div>
+          <div class="mini-stat-meta">Invoice total</div>
         </div>
+        <div class="mini-stat">
+          <div class="mini-stat-label">Issue date</div>
+          <div class="mini-stat-value">
+            {{ selected_invoice.issue_date|date:"M j, Y" }}
+          </div>
+          <div class="mini-stat-meta">When it went out</div>
+        </div>
+        <div class="mini-stat">
+          <div class="mini-stat-label">Due date</div>
+          <div class="mini-stat-value">
+            {% if selected_invoice.due_date %}
+            {{ selected_invoice.due_date|date:"M j, Y" }}
+            {% else %}
+            —
+            {% endif %}
+          </div>
+          <div class="mini-stat-meta">When payment is expected</div>
+        </div>
+      </div>
 
-        <div class="detail-section">
-          <h3>Customer</h3>
-          <p class="detail-text">{{ selected_invoice.customer.name }}</p>
-          {% if selected_invoice.customer.email %}
-            <p class="detail-subtext">{{ selected_invoice.customer.email }}</p>
+      <div class="detail-section">
+        <h3>Customer</h3>
+        <p class="detail-text">{{ selected_invoice.customer.name }}</p>
+        {% if selected_invoice.customer.email %}
+        <p class="detail-subtext">{{ selected_invoice.customer.email }}</p>
+        {% else %}
+        <p class="detail-subtext muted">No email on file</p>
+        {% endif %}
+      </div>
+
+      <div class="detail-section">
+        <h3>Description</h3>
+        <p class="detail-text">
+          {% if selected_invoice.description %}
+          {{ selected_invoice.description }}
           {% else %}
-            <p class="detail-subtext muted">No email on file</p>
+          <span class="muted">No description provided.</span>
+          {% endif %}
+        </p>
+      </div>
+
+      <div class="detail-section">
+        <h3>Notes</h3>
+        <div class="notes-placeholder">
+          {% if selected_invoice.notes %}
+          {{ selected_invoice.notes }}
+          {% else %}
+          <span class="placeholder-text">No notes yet.</span>
           {% endif %}
         </div>
-
-        <div class="detail-section">
-          <h3>Description</h3>
-          <p class="detail-text">
-            {% if selected_invoice.description %}
-              {{ selected_invoice.description }}
-            {% else %}
-              <span class="muted">No description provided.</span>
-            {% endif %}
-          </p>
-        </div>
-
-        <div class="detail-section">
-          <h3>Notes</h3>
-          <div class="notes-placeholder">
-            {% if selected_invoice.notes %}
-              {{ selected_invoice.notes }}
-            {% else %}
-              <span class="placeholder-text">No notes yet.</span>
-            {% endif %}
-          </div>
-        </div>
+      </div>
       {% else %}
-        <p class="detail-empty">Select an invoice to see details.</p>
+      <p class="detail-empty">Select an invoice to see details.</p>
       {% endif %}
     </aside>
   </section>
@@ -261,11 +254,11 @@
 
 {% vite_asset 'companion-strip' as companion_js %}
 {% if companion_js %}
-  <script type="module" src="{% static companion_js %}"></script>
+<script type="module" src="{% static companion_js %}"></script>
 {% endif %}
 
 {% vite_asset 'companion-strip' 'css' as companion_css %}
 {% if companion_css %}
-  <link rel="stylesheet" href="{% static companion_css %}">
+<link rel="stylesheet" href="{% static companion_css %}">
 {% endif %}
 {% endblock %}

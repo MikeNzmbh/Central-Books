@@ -7,10 +7,11 @@ import type { CompanionContext } from "./api";
 
 function mountStrip(node: HTMLElement) {
   const ctx = (node.dataset.companionContext as CompanionContext) || "dashboard";
+  const userName = node.dataset.userName || undefined;
   const root = createRoot(node);
   root.render(
     <React.StrictMode>
-      <CompanionStrip context={ctx} />
+      <CompanionStrip context={ctx} userName={userName} />
     </React.StrictMode>
   );
 }

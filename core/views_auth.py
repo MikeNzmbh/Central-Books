@@ -134,3 +134,44 @@ def api_login(request):
         return JsonResponse({
             "detail": "Invalid JSON"
         }, status=400)
+
+
+@require_http_methods(["GET"])
+def api_auth_config(request):
+    """
+    API endpoint for login page configuration.
+    Returns CSRF token, OAuth availability, and redirect URLs.
+    Option B compliant: React fetches this instead of Django template logic.
+    """
+    from django.middleware.csrf import get_token
+    from django.contrib.sites.models import Site
+    from allauth.socialaccount.models import SocialApp
+
+    # Check if Google OAuth is configured for current site
+    google_enabled = False
+    google_login_url = None
+    try:
+        current_site = Site.objects.get_current()
+        google_app = SocialApp.objects.filter(
+            provider="google",
+            sites=current_site
+        ).first()
+        if google_app:
+            google_enabled = True
+            google_login_url = "/accounts/google/login/"
+    except Exception:
+        pass  # Google OAuth not available
+
+    # Determine next URL
+    next_url = request.GET.get("next", "")
+    if not next_url:
+        next_url = "/dashboard"
+
+    return JsonResponse({
+        "csrfToken": get_token(request),
+        "googleEnabled": google_enabled,
+        "googleLoginUrl": google_login_url,
+        "nextUrl": next_url,
+        "loginUrl": "/api/auth/login/",
+    })
+

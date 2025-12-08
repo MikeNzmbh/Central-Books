@@ -11,7 +11,8 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
 from .agentic_bank_review import BankInputLine, run_bank_reconciliation_workflow
-from .models import BankReviewRun, BankTransactionReview
+from .companion_issues import build_bank_review_issues, persist_companion_issues
+from .models import BankReviewRun, BankTransactionReview, BankTransaction, BankAccount
 from .utils import get_current_business
 
 RISK_MEDIUM_THRESHOLD = Decimal("40.0")
@@ -51,41 +52,115 @@ def _parse_lines(raw_lines: str | None):
         return []
 
 
+def _fetch_bank_transactions_for_period(
+    business, period_start: date | None, period_end: date | None
+) -> list[BankInputLine]:
+    """
+    Auto-fetch bank transactions from the database for the given period.
+    This allows users to run bank review without manual JSON input.
+    """
+    qs = BankTransaction.objects.filter(
+        bank_account__business=business,
+    ).exclude(
+        status=BankTransaction.TransactionStatus.EXCLUDED
+    ).order_by("date", "id")
+    
+    if period_start:
+        qs = qs.filter(date__gte=period_start)
+    if period_end:
+        qs = qs.filter(date__lte=period_end)
+    
+    bank_lines: list[BankInputLine] = []
+    for tx in qs:
+        bank_lines.append(
+            BankInputLine(
+                date=tx.date,
+                description=tx.description or "Bank transaction",
+                amount=tx.amount,
+                external_id=str(tx.id),  # Use DB ID as external reference
+            )
+        )
+    return bank_lines
+
+
 @csrf_exempt
 @login_required
 @require_POST
 def api_bank_review_run(request):
+    """
+    Run a bank review for the specified period.
+    
+    Option B compliant: JSON-only responses, auto-fetches from BankTransaction table.
+    
+    Response statuses:
+    - "completed": Review ran successfully
+    - "no_data": No transactions found (HTTP 200, not an error)
+    """
     business = get_current_business(request.user)
     if business is None:
         return JsonResponse({"error": "No business context"}, status=400)
 
+    # Parse period
     try:
         period_start_raw = request.POST.get("period_start")
         period_end_raw = request.POST.get("period_end")
         period_start = date.fromisoformat(period_start_raw) if period_start_raw else None
         period_end = date.fromisoformat(period_end_raw) if period_end_raw else None
     except Exception:
-        return JsonResponse({"error": "Invalid period. Use YYYY-MM-DD."}, status=400)
+        return JsonResponse({
+            "error": "Invalid period format",
+            "details": "Use YYYY-MM-DD format for dates."
+        }, status=400)
 
+    # Validate period: start must be <= end
+    if period_start and period_end and period_start > period_end:
+        return JsonResponse({
+            "error": "Invalid period",
+            "details": "Start date must be before or equal to end date."
+        }, status=400)
+
+    # DEV-ONLY: Manual lines override (hidden from normal UI)
+    # This is for testing/debugging only. Normal users don't see this option.
     lines_payload = _parse_lines(request.POST.get("lines"))
     bank_lines: list[BankInputLine] = []
-    for line in lines_payload:
-        try:
-            line_date = _parse_date(line.get("date")) or timezone.localdate()
-            amount = Decimal(str(line.get("amount", "0")))
-            bank_lines.append(
-                BankInputLine(
-                    date=line_date,
-                    description=line.get("description") or "Bank transaction",
-                    amount=amount,
-                    external_id=line.get("external_id"),
+    using_manual_override = False
+    
+    if lines_payload:
+        # Dev/test mode: parse manual lines
+        using_manual_override = True
+        for line in lines_payload:
+            try:
+                line_date = _parse_date(line.get("date")) or timezone.localdate()
+                amount = Decimal(str(line.get("amount", "0")))
+                bank_lines.append(
+                    BankInputLine(
+                        date=line_date,
+                        description=line.get("description") or "Bank transaction",
+                        amount=amount,
+                        external_id=line.get("external_id"),
+                    )
                 )
-            )
-        except Exception:
-            continue
+            except Exception:
+                continue
 
+    # Default: Auto-fetch from BankTransaction table per bank account
+    bank_accounts = BankAccount.objects.filter(business=business)
+    banks_checked = bank_accounts.count()
+    
     if not bank_lines:
-        return JsonResponse({"error": "No bank lines provided"}, status=400)
+        bank_lines = _fetch_bank_transactions_for_period(
+            business, period_start, period_end
+        )
+
+    # Return no_data status (HTTP 200) if no transactions found
+    if not bank_lines:
+        return JsonResponse({
+            "status": "no_data",
+            "message": "No bank transactions found for this period. Import bank statements first.",
+            "banks_checked": banks_checked,
+            "period_start": period_start.isoformat() if period_start else None,
+            "period_end": period_end.isoformat() if period_end else None,
+        }, status=200)
 
     run = BankReviewRun.objects.create(
         business=business,
@@ -103,6 +178,7 @@ def api_bank_review_run(request):
             period_end=period_end,
             triggered_by_user_id=request.user.id,
             ai_companion_enabled=business.ai_companion_enabled,
+            user_name=request.user.first_name or None,
         )
 
         high_risk_count = 0
@@ -147,6 +223,9 @@ def api_bank_review_run(request):
             run.llm_ranked_transactions = mapped_rankings
             run.llm_suggested_followups = result.llm_suggested_followups
             run.save()
+            if business.ai_companion_enabled:
+                issues = build_bank_review_issues(run, run.trace_id)
+                persist_companion_issues(business, issues, ai_companion_enabled=business.ai_companion_enabled, user_name=request.user.first_name or None)
     except Exception as exc:  # pragma: no cover
         run.status = BankReviewRun.RunStatus.FAILED
         run.save(update_fields=["status"])

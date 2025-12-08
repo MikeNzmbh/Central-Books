@@ -85,6 +85,7 @@ export default defineConfig({
         "books-review": path.resolve(__dirname, "src/booksReview/books-review-entry.tsx"),
         "bank-review": path.resolve(__dirname, "src/bankReview/bank-review-entry.tsx"),
         "companion-overview": path.resolve(__dirname, "src/companion/companion-overview-entry.tsx"),
+        "companion-issues": path.resolve(__dirname, "src/companion/companion-issues-entry.tsx"),
       },
       output: {
         assetFileNames: "assets/[name]-[hash][extname]",

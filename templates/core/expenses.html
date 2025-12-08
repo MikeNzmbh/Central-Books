@@ -18,7 +18,7 @@
   </div>
 
   <div class="mb-4">
-    <div data-companion-context="expenses"></div>
+    <div data-companion-context="expenses" data-user-name="{{ user.first_name }}"></div>
   </div>
   <section class="page-kpi-grid expenses-kpis">
     <div class="kpi-card">
@@ -52,34 +52,33 @@
   <section class="expenses-filter-card">
     <div class="expenses-filter-top">
       <div class="pill-tabs">
-      <a href="{% url 'expense_list' %}?period=this_month{% if category_filter %}&category={{ category_filter }}{% endif %}{% if status_filter != 'all' %}&status={{ status_filter }}{% endif %}"
-         class="pill-tab {% if period == 'this_month' %}is-active{% endif %}">This month</a>
-      <a href="{% url 'expense_list' %}?period=last_month{% if category_filter %}&category={{ category_filter }}{% endif %}{% if status_filter != 'all' %}&status={{ status_filter }}{% endif %}"
-         class="pill-tab {% if period == 'last_month' %}is-active{% endif %}">Last month</a>
-      <a href="{% url 'expense_list' %}?period=this_year{% if category_filter %}&category={{ category_filter }}{% endif %}{% if status_filter != 'all' %}&status={{ status_filter }}{% endif %}"
-         class="pill-tab {% if period == 'this_year' %}is-active{% endif %}">This year</a>
-      <a href="{% url 'expense_list' %}?period=last_year{% if category_filter %}&category={{ category_filter }}{% endif %}{% if status_filter != 'all' %}&status={{ status_filter }}{% endif %}"
-         class="pill-tab {% if period == 'last_year' %}is-active{% endif %}">Last year</a>
-      <a href="{% url 'expense_list' %}?period=all{% if category_filter %}&category={{ category_filter }}{% endif %}{% if status_filter != 'all' %}&status={{ status_filter }}{% endif %}"
-         class="pill-tab {% if period == 'all' %}is-active{% endif %}">All time</a>
+        <a href="{% url 'expense_list' %}?period=this_month{% if category_filter %}&category={{ category_filter }}{% endif %}{% if status_filter != 'all' %}&status={{ status_filter }}{% endif %}"
+          class="pill-tab {% if period == 'this_month' %}is-active{% endif %}">This month</a>
+        <a href="{% url 'expense_list' %}?period=last_month{% if category_filter %}&category={{ category_filter }}{% endif %}{% if status_filter != 'all' %}&status={{ status_filter }}{% endif %}"
+          class="pill-tab {% if period == 'last_month' %}is-active{% endif %}">Last month</a>
+        <a href="{% url 'expense_list' %}?period=this_year{% if category_filter %}&category={{ category_filter }}{% endif %}{% if status_filter != 'all' %}&status={{ status_filter }}{% endif %}"
+          class="pill-tab {% if period == 'this_year' %}is-active{% endif %}">This year</a>
+        <a href="{% url 'expense_list' %}?period=last_year{% if category_filter %}&category={{ category_filter }}{% endif %}{% if status_filter != 'all' %}&status={{ status_filter }}{% endif %}"
+          class="pill-tab {% if period == 'last_year' %}is-active{% endif %}">Last year</a>
+        <a href="{% url 'expense_list' %}?period=all{% if category_filter %}&category={{ category_filter }}{% endif %}{% if status_filter != 'all' %}&status={{ status_filter }}{% endif %}"
+          class="pill-tab {% if period == 'all' %}is-active{% endif %}">All time</a>
       </div>
       <div class="pill-tabs expenses-status-tabs">
-      <a href="{% url 'expense_list' %}?period={{ period }}{% if category_filter %}&category={{ category_filter }}{% endif %}"
-         class="pill-tab {% if status_filter == 'all' %}is-active{% endif %}">All</a>
-      <a href="{% url 'expense_list' %}?period={{ period }}{% if category_filter %}&category={{ category_filter }}{% endif %}&status=unpaid"
-         class="pill-tab {% if status_filter == 'unpaid' %}is-active{% endif %}">Unpaid</a>
-      <a href="{% url 'expense_list' %}?period={{ period }}{% if category_filter %}&category={{ category_filter }}{% endif %}&status=paid"
-         class="pill-tab {% if status_filter == 'paid' %}is-active{% endif %}">Paid</a>
+        <a href="{% url 'expense_list' %}?period={{ period }}{% if category_filter %}&category={{ category_filter }}{% endif %}"
+          class="pill-tab {% if status_filter == 'all' %}is-active{% endif %}">All</a>
+        <a href="{% url 'expense_list' %}?period={{ period }}{% if category_filter %}&category={{ category_filter }}{% endif %}&status=unpaid"
+          class="pill-tab {% if status_filter == 'unpaid' %}is-active{% endif %}">Unpaid</a>
+        <a href="{% url 'expense_list' %}?period={{ period }}{% if category_filter %}&category={{ category_filter }}{% endif %}&status=paid"
+          class="pill-tab {% if status_filter == 'paid' %}is-active{% endif %}">Paid</a>
       </div>
     </div>
     <div class="expenses-filter-form">
-      <select
-        name="category"
+      <select name="category"
         onchange="window.location='{% url 'expense_list' %}?period={{ period }}{% if status_filter != 'all' %}&status={{ status_filter }}{% endif %}&category=' + this.value;"
         class="input-select">
         <option value="" {% if not category_filter %}selected{% endif %}>All categories</option>
         {% for cat in categories %}
-          <option value="{{ cat.id }}" {% if category_filter == cat.id %}selected{% endif %}>{{ cat.name }}</option>
+        <option value="{{ cat.id }}" {% if category_filter==cat.id %}selected{% endif %}>{{ cat.name }}</option>
         {% endfor %}
       </select>
       <div class="input-search-pill">
@@ -106,41 +105,43 @@
           </thead>
           <tbody>
             {% if expenses %}
-              {% for expense in expenses %}
-                <tr class="table-row {% if selected_expense and expense.pk == selected_expense.pk %}table-row-selected{% endif %}"
-                    onclick="window.location='{% url 'expense_list' %}?period={{ period }}{% if category_filter %}&category={{ category_filter }}{% endif %}&expense={{ expense.pk }}'">
-                  <td>{{ expense.date|date:"M j, Y" }}</td>
-                  <td>{{ expense.description }}</td>
-                  <td class="hidden-sm">{% if expense.supplier %}{{ expense.supplier.name }}{% else %}—{% endif %}</td>
-                  <td class="hidden-sm">{% if expense.category %}{{ expense.category.name }}{% else %}—{% endif %}</td>
-                  <td class="text-right">
-                    {% if expense.status == 'PAID' %}
-                      <span class="badge badge--success">Paid</span>
-                    {% else %}
-                      <span class="badge badge--warning">Unpaid</span>
-                    {% endif %}
-                  </td>
-                  <td class="text-right">
-                    {{ expense.amount|floatformat:2 }} {{ business.currency|default:"" }}
-                  </td>
-                  <td class="text-right" onclick="event.stopPropagation();">
-                    <a href="{% url 'expense_update' expense.pk %}" class="link-inline">Edit</a>
-                    <span class="dot-separator">·</span>
-                    <a href="{% url 'expense_delete' expense.pk %}" class="link-inline link-inline--danger">Delete</a>
-                  </td>
-                </tr>
-              {% endfor %}
-              <tr>
-                <td colspan="5" class="text-right cell-meta">Total (current view)</td>
-                <td class="text-right"><strong>{{ total_filtered|floatformat:2 }} {{ business.currency|default:"" }}</strong></td>
-                <td></td>
-              </tr>
+            {% for expense in expenses %}
+            <tr
+              class="table-row {% if selected_expense and expense.pk == selected_expense.pk %}table-row-selected{% endif %}"
+              onclick="window.location='{% url 'expense_list' %}?period={{ period }}{% if category_filter %}&category={{ category_filter }}{% endif %}&expense={{ expense.pk }}'">
+              <td>{{ expense.date|date:"M j, Y" }}</td>
+              <td>{{ expense.description }}</td>
+              <td class="hidden-sm">{% if expense.supplier %}{{ expense.supplier.name }}{% else %}—{% endif %}</td>
+              <td class="hidden-sm">{% if expense.category %}{{ expense.category.name }}{% else %}—{% endif %}</td>
+              <td class="text-right">
+                {% if expense.status == 'PAID' %}
+                <span class="badge badge--success">Paid</span>
+                {% else %}
+                <span class="badge badge--warning">Unpaid</span>
+                {% endif %}
+              </td>
+              <td class="text-right">
+                {{ expense.amount|floatformat:2 }} {{ business.currency|default:"" }}
+              </td>
+              <td class="text-right" onclick="event.stopPropagation();">
+                <a href="{% url 'expense_update' expense.pk %}" class="link-inline">Edit</a>
+                <span class="dot-separator">·</span>
+                <a href="{% url 'expense_delete' expense.pk %}" class="link-inline link-inline--danger">Delete</a>
+              </td>
+            </tr>
+            {% endfor %}
+            <tr>
+              <td colspan="5" class="text-right cell-meta">Total (current view)</td>
+              <td class="text-right"><strong>{{ total_filtered|floatformat:2 }} {{ business.currency|default:""
+                  }}</strong></td>
+              <td></td>
+            </tr>
             {% else %}
-              <tr>
-                <td colspan="7" class="empty-row">
-                  No expenses found. <a href="{% url 'expense_create' %}" class="btn-link">Add an expense</a>.
-                </td>
-              </tr>
+            <tr>
+              <td colspan="7" class="empty-row">
+                No expenses found. <a href="{% url 'expense_create' %}" class="btn-link">Add an expense</a>.
+              </td>
+            </tr>
             {% endif %}
           </tbody>
         </table>
@@ -149,24 +150,22 @@
 
     <aside class="card expenses-detail">
       {% if selected_expense %}
-        <div class="detail-header" style="align-items:center;">
-          <div>
-            <h2 class="detail-title">{{ selected_expense.description|truncatechars:48 }}</h2>
-            <p class="detail-subtitle">
-              {{ selected_expense.date|date:"M j, Y" }}
-              {% if selected_expense.supplier %}
-                · {{ selected_expense.supplier.name }}
-              {% endif %}
-            </p>
-          </div>
-          <div class="detail-actions" style="display:flex; gap:12px; align-items:center;">
-            <form method="post"
-                  action="{% url 'expense_status_update' selected_expense.pk %}"
-                  style="display:flex; gap:10px; align-items:center;">
-              {% csrf_token %}
-              <input type="hidden" name="redirect_url" value="{{ request.get_full_path }}">
-              <select name="status"
-                      style="
+      <div class="detail-header" style="align-items:center;">
+        <div>
+          <h2 class="detail-title">{{ selected_expense.description|truncatechars:48 }}</h2>
+          <p class="detail-subtitle">
+            {{ selected_expense.date|date:"M j, Y" }}
+            {% if selected_expense.supplier %}
+            · {{ selected_expense.supplier.name }}
+            {% endif %}
+          </p>
+        </div>
+        <div class="detail-actions" style="display:flex; gap:12px; align-items:center;">
+          <form method="post" action="{% url 'expense_status_update' selected_expense.pk %}"
+            style="display:flex; gap:10px; align-items:center;">
+            {% csrf_token %}
+            <input type="hidden" name="redirect_url" value="{{ request.get_full_path }}">
+            <select name="status" style="
                         border-radius:999px;
                         border:1px solid #cdd9ff;
                         background:#f8faff;
@@ -181,15 +180,13 @@
                         background-position:right 12px center;
                         background-size:12px;
                       ">
-                {% for value, label in expense_status_choices %}
-                  <option value="{{ value }}"
-                          {% if selected_expense.status == value %}selected{% endif %}>
-                    {{ label }}
-                  </option>
-                {% endfor %}
-              </select>
-              <button type="submit"
-                      style="
+              {% for value, label in expense_status_choices %}
+              <option value="{{ value }}" {% if selected_expense.status==value %}selected{% endif %}>
+                {{ label }}
+              </option>
+              {% endfor %}
+            </select>
+            <button type="submit" style="
                         border:none;
                         border-radius:999px;
                         padding:8px 24px;
@@ -199,64 +196,62 @@
                         background:linear-gradient(135deg,#2563eb,#1d4ed8);
                         cursor:pointer;
                         transition:opacity 0.15s ease;
-                      "
-                      onmouseover="this.style.opacity='0.9';"
-                      onmouseout="this.style.opacity='1';">
-                Save
-              </button>
-            </form>
+                      " onmouseover="this.style.opacity='0.9';" onmouseout="this.style.opacity='1';">
+              Save
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <div class="mini-stat-grid">
+        <div class="mini-stat">
+          <div class="mini-stat-label">Amount</div>
+          <div class="mini-stat-value">
+            {{ selected_expense.amount|floatformat:2 }} {{ business.currency|default:"" }}
           </div>
         </div>
-
-        <div class="mini-stat-grid">
-          <div class="mini-stat">
-            <div class="mini-stat-label">Amount</div>
-            <div class="mini-stat-value">
-              {{ selected_expense.amount|floatformat:2 }} {{ business.currency|default:"" }}
-            </div>
-          </div>
-          <div class="mini-stat">
-            <div class="mini-stat-label">Category</div>
-            <div class="mini-stat-value">
-              {% if selected_expense.category %}
-                {{ selected_expense.category.name }}
-              {% else %}
-                —
-              {% endif %}
-            </div>
-          </div>
-          <div class="mini-stat">
-            <div class="mini-stat-label">Supplier</div>
-            <div class="mini-stat-value">
-              {% if selected_expense.supplier %}
-                {{ selected_expense.supplier.name }}
-              {% else %}
-                —
-              {% endif %}
-            </div>
-          </div>
-        </div>
-
-        <div class="detail-section">
-          <h3>Status</h3>
-          <p class="detail-text">
-            {{ selected_expense.get_status_display }}
-            {% if selected_expense.status == "PAID" and selected_expense.paid_date %}
-              · Paid {{ selected_expense.paid_date|date:"M j, Y" }}
-            {% elif selected_expense.status == "UNPAID" %}
-              · Awaiting payment
+        <div class="mini-stat">
+          <div class="mini-stat-label">Category</div>
+          <div class="mini-stat-value">
+            {% if selected_expense.category %}
+            {{ selected_expense.category.name }}
+            {% else %}
+            —
             {% endif %}
-          </p>
-        </div>
-
-        <div class="detail-section">
-          <h3 class="detail-section-title">Notes</h3>
-          <div class="notes-placeholder">
-            <span class="placeholder-text">Receipt upload coming soon.</span>
           </div>
         </div>
+        <div class="mini-stat">
+          <div class="mini-stat-label">Supplier</div>
+          <div class="mini-stat-value">
+            {% if selected_expense.supplier %}
+            {{ selected_expense.supplier.name }}
+            {% else %}
+            —
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="detail-section">
+        <h3>Status</h3>
+        <p class="detail-text">
+          {{ selected_expense.get_status_display }}
+          {% if selected_expense.status == "PAID" and selected_expense.paid_date %}
+          · Paid {{ selected_expense.paid_date|date:"M j, Y" }}
+          {% elif selected_expense.status == "UNPAID" %}
+          · Awaiting payment
+          {% endif %}
+        </p>
+      </div>
+
+      <div class="detail-section">
+        <h3 class="detail-section-title">Notes</h3>
+        <div class="notes-placeholder">
+          <span class="placeholder-text">Receipt upload coming soon.</span>
+        </div>
+      </div>
       {% else %}
-        <p class="detail-empty">Select an expense to see the details here.</p>
+      <p class="detail-empty">Select an expense to see the details here.</p>
       {% endif %}
     </aside>
   </section>
@@ -264,11 +259,11 @@
 
 {% vite_asset 'companion-strip' as companion_js %}
 {% if companion_js %}
-  <script type="module" src="{% static companion_js %}"></script>
+<script type="module" src="{% static companion_js %}"></script>
 {% endif %}
 
 {% vite_asset 'companion-strip' 'css' as companion_css %}
 {% if companion_css %}
-  <link rel="stylesheet" href="{% static companion_css %}">
+<link rel="stylesheet" href="{% static companion_css %}">
 {% endif %}
 {% endblock %}

@@ -625,7 +625,9 @@ def _append_query_param(url: str, key: str, value: str | int) -> str:
 
 def login_view(request):
     """
-    Clean Django-only login view with remember-me behaviour.
+    Thin login view - Option B compliant.
+    POST handling remains for form submission fallback.
+    React fetches config from /api/auth/config.
     """
     next_url = _resolve_next_url(request)
 
@@ -645,28 +647,8 @@ def login_view(request):
 
         messages.error(request, "Invalid email/username or password.")
 
-    dashboard_url = reverse("dashboard")
-    next_field_value = "" if next_url == dashboard_url else next_url
-
-    stored_messages = list(messages.get_messages(request))
-    error_messages = [m.message for m in stored_messages if m.level_tag == "error"]
-
-    login_payload = json.dumps(
-        {
-            "action": request.path,
-            "csrfToken": get_token(request),
-            "nextUrl": next_field_value,
-            "next": next_field_value,
-            "errors": error_messages,
-        }
-    )
-
-    context = {
-        "login_payload": login_payload,
-        "next": next_field_value,
-        "messages": [m.message for m in stored_messages],
-    }
-    return render(request, "login.html", context)
+    # Option B: Just render thin shell - React handles the rest
+    return render(request, "login.html")
 
 
 @require_http_methods(["GET", "POST"])
@@ -1382,93 +1364,91 @@ def dashboard(request):
         else:
             tax_position_label = "Net tax is balanced"
 
-    dashboard_payload = json.dumps(
-        {
-            "username": request.user.get_username() or request.user.get_full_name() or request.user.email,
-            "business": business.name if business else "",
-            "currency": business.currency if business else "",
-            "is_empty_workspace": empty_workspace,
-            "metrics": {
-                "cash_on_hand": _decimal_to_float(cash_on_hand),
-                "open_invoices_total": _decimal_to_float(open_invoices_total),
-                "open_invoices_count": open_invoices_count,
-                "net_income_month": _decimal_to_float(net_income_month),
-                "revenue_30": _decimal_to_float(revenue_30),
-                "expenses_30": _decimal_to_float(expenses_30),
-                "overdue_total": _decimal_to_float(overdue_total),
-                "overdue_count": overdue_count,
-                "unpaid_expenses_total": _decimal_to_float(unpaid_expenses_total),
-                "revenue_month": _decimal_to_float(total_income_month),
-                "expenses_month": _decimal_to_float(total_expenses_month),
-                "pl_period_start": month_start.isoformat() if month_start else None,
-                "pl_period_end": month_end.isoformat() if month_end else None,
-                "pl_period_preset": pl_period_preset_normalized,
-                "pl_period_label": pl_period_label,
-                "pl_compare_to": pl_compare_to_normalized,
-                "pl_compare_label": pl_prev_period_label,
-                "pl_compare_start": prev_start.isoformat() if prev_start else None,
-                "pl_compare_end": prev_end.isoformat() if prev_end else None,
-                "pl_prev_period_label": pl_prev_period_label,
-                "pl_prev_income": _decimal_to_float(prev_income) if prev_income is not None else None,
-                "pl_prev_expenses": _decimal_to_float(prev_expenses) if prev_expenses is not None else None,
-                "pl_prev_net": _decimal_to_float(prev_net) if prev_net is not None else None,
-                "pl_change_income_pct": _change_pct(total_income_month, prev_income) if prev_income is not None else None,
-                "pl_change_expenses_pct": _change_pct(total_expenses_month, prev_expenses) if prev_expenses is not None else None,
-                "pl_change_net_pct": _change_pct(net_income_month, prev_net) if prev_net is not None else None,
-                "pl_selected_month": pl_period_preset_normalized,
-                "pl_month_options": _get_available_pl_months(business),
-                "pl_diagnostics": pl_diagnostics,
-                "pl_debug": {
-                    "period_start": month_start.isoformat() if month_start else None,
-                    "period_end": month_end.isoformat() if month_end else None,
-                    "income_line_count": income_line_count,
-                    "expense_line_count": expense_line_count,
-                    "last_income_entry_date": last_income_entry_date.isoformat() if last_income_entry_date else None,
-                    "last_expense_entry_date": last_expense_entry_date.isoformat() if last_expense_entry_date else None,
-                    "no_ledger_activity_for_period": no_ledger_activity_for_period,
-                },
-            },
-            "tax": {
-                "sales_tax_payable": _decimal_to_float(tax_position["sales_tax_payable"]),
-                "recoverable_tax_asset": _decimal_to_float(tax_position["recoverable_tax_asset"]),
-                "net_tax": _decimal_to_float(tax_position["net_tax"]),
-                "label": tax_position_label,
-            },
-            "bankReconciliation": bank_reco,
-            "recentInvoices": recent_invoices_payload,
-            "bankFeed": bank_feed_payload,
-            "expenseSummary": expense_summary_payload,
-            "cashflow": {
-                "labels": labels,
-                "income": income_series,
-                "expenses": expense_series,
-            },
-            "topSuppliers": [
-                {
-                    "name": supplier.name,
-                    "mtdSpend": _decimal_to_float(getattr(supplier, "mtd_spend", Decimal("0"))),
-                    "paymentCount": getattr(supplier, "payment_count", 0),
-                    "category": getattr(supplier, "default_category_name", None) or "",
-                }
-                for supplier in recent_suppliers
-            ],
-            "urls": {
-                "newInvoice": reverse("invoice_create"),
-                "invoices": reverse("invoice_list"),
-                "banking": reverse("banking_accounts_feed"),
-                "expenses": reverse("expense_list"),
-                "suppliers": reverse("suppliers"),
-                "profitAndLoss": reverse("report_pnl"),
-                "bankReview": reverse("banking_accounts_feed"),
-                "overdueInvoices": reverse("invoice_list"),
-                "unpaidExpenses": reverse("expense_list"),
-                "cashflowReport": reverse("cashflow_report"),
-                "startBooks": start_books_url,
-                "bankImport": bank_import_url,
+    dashboard_payload_data = {
+        "username": request.user.get_username() or request.user.get_full_name() or request.user.email,
+        "business": business.name if business else "",
+        "currency": business.currency if business else "",
+        "is_empty_workspace": empty_workspace,
+        "metrics": {
+            "cash_on_hand": _decimal_to_float(cash_on_hand),
+            "open_invoices_total": _decimal_to_float(open_invoices_total),
+            "open_invoices_count": open_invoices_count,
+            "net_income_month": _decimal_to_float(net_income_month),
+            "revenue_30": _decimal_to_float(revenue_30),
+            "expenses_30": _decimal_to_float(expenses_30),
+            "overdue_total": _decimal_to_float(overdue_total),
+            "overdue_count": overdue_count,
+            "unpaid_expenses_total": _decimal_to_float(unpaid_expenses_total),
+            "revenue_month": _decimal_to_float(total_income_month),
+            "expenses_month": _decimal_to_float(total_expenses_month),
+            "pl_period_start": month_start.isoformat() if month_start else None,
+            "pl_period_end": month_end.isoformat() if month_end else None,
+            "pl_period_preset": pl_period_preset_normalized,
+            "pl_period_label": pl_period_label,
+            "pl_compare_to": pl_compare_to_normalized,
+            "pl_compare_label": pl_prev_period_label,
+            "pl_compare_start": prev_start.isoformat() if prev_start else None,
+            "pl_compare_end": prev_end.isoformat() if prev_end else None,
+            "pl_prev_period_label": pl_prev_period_label,
+            "pl_prev_income": _decimal_to_float(prev_income) if prev_income is not None else None,
+            "pl_prev_expenses": _decimal_to_float(prev_expenses) if prev_expenses is not None else None,
+            "pl_prev_net": _decimal_to_float(prev_net) if prev_net is not None else None,
+            "pl_change_income_pct": _change_pct(total_income_month, prev_income) if prev_income is not None else None,
+            "pl_change_expenses_pct": _change_pct(total_expenses_month, prev_expenses) if prev_expenses is not None else None,
+            "pl_change_net_pct": _change_pct(net_income_month, prev_net) if prev_net is not None else None,
+            "pl_selected_month": pl_period_preset_normalized,
+            "pl_month_options": _get_available_pl_months(business),
+            "pl_diagnostics": pl_diagnostics,
+            "pl_debug": {
+                "period_start": month_start.isoformat() if month_start else None,
+                "period_end": month_end.isoformat() if month_end else None,
+                "income_line_count": income_line_count,
+                "expense_line_count": expense_line_count,
+                "last_income_entry_date": last_income_entry_date.isoformat() if last_income_entry_date else None,
+                "last_expense_entry_date": last_expense_entry_date.isoformat() if last_expense_entry_date else None,
+                "no_ledger_activity_for_period": no_ledger_activity_for_period,
             },
         },
-        cls=DjangoJSONEncoder,
-    )
+        "tax": {
+            "sales_tax_payable": _decimal_to_float(tax_position["sales_tax_payable"]),
+            "recoverable_tax_asset": _decimal_to_float(tax_position["recoverable_tax_asset"]),
+            "net_tax": _decimal_to_float(tax_position["net_tax"]),
+            "label": tax_position_label,
+        },
+        "bankReconciliation": bank_reco,
+        "recentInvoices": recent_invoices_payload,
+        "bankFeed": bank_feed_payload,
+        "expenseSummary": expense_summary_payload,
+        "cashflow": {
+            "labels": labels,
+            "income": income_series,
+            "expenses": expense_series,
+        },
+        "topSuppliers": [
+            {
+                "name": supplier.name,
+                "mtdSpend": _decimal_to_float(getattr(supplier, "mtd_spend", Decimal("0"))),
+                "paymentCount": getattr(supplier, "payment_count", 0),
+                "category": getattr(supplier, "default_category_name", None) or "",
+            }
+            for supplier in recent_suppliers
+        ],
+        "urls": {
+            "newInvoice": reverse("invoice_create"),
+            "invoices": reverse("invoice_list"),
+            "banking": reverse("banking_accounts_feed"),
+            "expenses": reverse("expense_list"),
+            "suppliers": reverse("suppliers"),
+            "profitAndLoss": reverse("report_pnl"),
+            "bankReview": reverse("banking_accounts_feed"),
+            "overdueInvoices": reverse("invoice_list"),
+            "unpaidExpenses": reverse("expense_list"),
+            "cashflowReport": reverse("cashflow_report"),
+            "startBooks": start_books_url,
+            "bankImport": bank_import_url,
+        },
+    }
+    dashboard_payload = json.dumps(dashboard_payload_data, cls=DjangoJSONEncoder)
 
     context = {
         "business": business,
@@ -1533,6 +1513,7 @@ def dashboard(request):
         "tax_position_label": tax_position_label,
         "bank_reconciliation": bank_reco,
         "dashboard_payload": dashboard_payload,
+        "dashboard_payload_data": dashboard_payload_data,
     }
     return render(request, "dashboard.html", context)
 

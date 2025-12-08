@@ -11,6 +11,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
 from .agentic_books_review import run_books_review_workflow
+from .companion_issues import build_books_review_issues, persist_companion_issues
 from .models import BooksReviewRun
 from .utils import get_current_business
 
@@ -75,6 +76,7 @@ def api_books_review_run(request):
             period_end=period_end,
             triggered_by_user_id=request.user.id,
             ai_companion_enabled=business.ai_companion_enabled,
+            user_name=request.user.first_name or None,
         )
 
         with transaction.atomic():
@@ -87,6 +89,9 @@ def api_books_review_run(request):
             run.llm_ranked_issues = result.llm_ranked_issues
             run.llm_suggested_checks = result.llm_suggested_checks
             run.save()
+            if business.ai_companion_enabled:
+                issues = build_books_review_issues(run, run.trace_id)
+                persist_companion_issues(business, issues, ai_companion_enabled=business.ai_companion_enabled, user_name=request.user.first_name or None)
     except Exception as exc:  # pragma: no cover - defensive
         run.status = BooksReviewRun.RunStatus.FAILED
         run.save(update_fields=["status"])

@@ -1546,6 +1546,51 @@ class InvoiceDocument(models.Model):
         ordering = ["-created_at"]
 
 
+class CompanionIssue(models.Model):
+    class Surface(models.TextChoices):
+        RECEIPTS = "receipts", "Receipts"
+        INVOICES = "invoices", "Invoices"
+        BOOKS = "books", "Books"
+        BANK = "bank", "Bank"
+
+    class RunType(models.TextChoices):
+        RECEIPTS = "receipts", "Receipts"
+        INVOICES = "invoices", "Invoices"
+        BOOKS_REVIEW = "books_review", "Books Review"
+        BANK_REVIEW = "bank_review", "Bank Review"
+
+    class Severity(models.TextChoices):
+        LOW = "low", "Low"
+        MEDIUM = "medium", "Medium"
+        HIGH = "high", "High"
+
+    class Status(models.TextChoices):
+        OPEN = "open", "Open"
+        SNOOZED = "snoozed", "Snoozed"
+        RESOLVED = "resolved", "Resolved"
+
+    business = models.ForeignKey("core.Business", on_delete=models.CASCADE, related_name="companion_issues")
+    surface = models.CharField(max_length=20, choices=Surface.choices)
+    run_type = models.CharField(max_length=30, choices=RunType.choices, blank=True)
+    run_id = models.IntegerField(null=True, blank=True, help_text="ID of the originating run (no FK enforced)")
+    severity = models.CharField(max_length=10, choices=Severity.choices, default=Severity.LOW)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.OPEN)
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    recommended_action = models.CharField(max_length=255, blank=True)
+    estimated_impact = models.CharField(max_length=255, blank=True)
+    data = models.JSONField(default=dict, blank=True)
+    trace_id = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+    def __str__(self):
+        return f"[{self.surface}] {self.title}"
+
+
 class BooksReviewRun(models.Model):
     class RunStatus(models.TextChoices):
         PENDING = "PENDING", "Pending"

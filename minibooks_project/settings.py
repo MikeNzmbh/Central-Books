@@ -329,6 +329,14 @@ ACCOUNT_EMAIL_VERIFICATION = "none"  # Change to "mandatory" in production if ne
 # Skip intermediate allauth pages - go directly to Google OAuth
 SOCIALACCOUNT_LOGIN_ON_GET = True
 
+# Auto-create user accounts for social logins - skip signup form
+SOCIALACCOUNT_AUTO_SIGNUP = True
+
+# Trust Google's email verification - auto-login users with matching verified email
+# This allows users who registered via email to also login via Google if emails match
+SOCIALACCOUNT_EMAIL_AUTHENTICATION = True
+SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
+
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
 

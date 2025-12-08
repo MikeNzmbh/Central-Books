@@ -4,7 +4,7 @@
 {% block content %}
 <!-- Companion strip container -->
 <div class="mb-4 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-  <div data-companion-context="bank"></div>
+  <div data-companion-context="bank" data-user-name="{{ user.first_name }}"></div>
 </div>
 
 <div id="banking-root" data-overview-url="{% url 'api_banking_overview' %}"

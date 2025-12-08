@@ -3,7 +3,7 @@
 
 {% block content %}
 <div id="reconciliation-root" data-bank-account-id="{{ bank_account_id }}"></div>
-<div data-companion-context="reconciliation"></div>
+<div data-companion-context="reconciliation" data-user-name="{{ user.first_name }}"></div>
 
 <!-- Fallback in case JS fails to load -->
 <div id="reconciliation-fallback" class="min-h-screen bg-slate-50 text-slate-900 px-4 py-10">

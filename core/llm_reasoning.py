@@ -9,6 +9,7 @@ from django.conf import settings
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from companion.llm import call_companion_llm
+from .llm_tone import build_companion_preamble
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,13 @@ class BankRankedTransaction(BaseModel):
     priority: str
     reason: str
 
+    @field_validator("transaction_id", mode="before")
+    @classmethod
+    def _coerce_tx_id(cls, value: Any):
+        if value is None:
+            raise ValueError("transaction_id is required")
+        return str(value)
+
     @field_validator("priority", mode="before")
     @classmethod
     def _normalize_priority(cls, value: str):
@@ -66,6 +74,13 @@ class RankedDocument(BaseModel):
     priority: str
     reason: str
 
+    @field_validator("document_id", mode="before")
+    @classmethod
+    def _coerce_doc_id(cls, value: Any):
+        if value is None:
+            raise ValueError("document_id is required")
+        return str(value)
+
     @field_validator("priority", mode="before")
     @classmethod
     def _normalize_priority(cls, value: str):
@@ -82,6 +97,13 @@ class SuggestedClassification(BaseModel):
     suggested_account_code: str | None = None
     confidence: float | None = None
     reason: str
+
+    @field_validator("document_id", mode="before")
+    @classmethod
+    def _coerce_doc_id(cls, value: Any):
+        if value is None:
+            raise ValueError("document_id is required")
+        return str(value)
 
     @field_validator("confidence", mode="before")
     @classmethod
@@ -102,6 +124,31 @@ class ReceiptsRunLLMResult(BaseModel):
     ranked_documents: list[RankedDocument] = Field(default_factory=list)
     suggested_classifications: list[SuggestedClassification] = Field(default_factory=list)
     suggested_followups: list[str] = Field(default_factory=list)
+
+
+class IssueLLMItem(BaseModel):
+    title: str
+    description: str
+    recommended_action: str | None = None
+    estimated_impact: str | None = None
+    severity: str | None = None
+    surface: str | None = None
+    run_type: str | None = None
+    run_id: str | int | None = None
+
+    @field_validator("severity", mode="before")
+    @classmethod
+    def _normalize_severity(cls, value: Any):
+        if value is None:
+            return None
+        sev = str(value).lower()
+        if sev not in {"low", "medium", "high"}:
+            raise ValueError("severity must be low|medium|high")
+        return sev
+
+
+class IssuesLLMResult(BaseModel):
+    issues: list[IssueLLMItem] = Field(default_factory=list)
 
 
 class InvoicesRunLLMResult(BaseModel):
@@ -160,11 +207,17 @@ def reason_about_books_review(
     metrics: dict,
     findings: list[dict],
     sample_journals: list[dict],
+    user_name: str | None = None,
+    risk_level: str = "medium",
     llm_client: LLMCallable | None = None,
     timeout_seconds: int | None = None,
 ) -> BooksReviewLLMResult | None:
     """
     Guardrailed LLM reasoning for books review runs. Returns None on failure/disabled.
+    
+    Args:
+        user_name: Optional first name for personalized messaging.
+        risk_level: One of 'low', 'medium', 'high', 'critical' for tone adjustment.
     """
     allowed_journal_ids = {int(j["id"]) for j in sample_journals if isinstance(j, dict) and j.get("id") is not None}
     allowed_accounts = set()
@@ -174,8 +227,9 @@ def reason_about_books_review(
             if code:
                 allowed_accounts.add(str(code))
 
-    system_prompt = (
-        "You are an accounting QA companion. Only reason about the JSON provided. "
+    preamble = build_companion_preamble(user_name, risk_level, "books")
+    system_prompt = preamble + (
+        "\nOnly reason about the JSON provided. "
         "Do not invent transactions, dates, or amounts. Do not change numbers. "
         "Only reference journal_entry_ids or account codes that appear in the input. "
         "Respond with JSON only and no extra text."
@@ -240,16 +294,23 @@ def reason_about_bank_review(
     *,
     metrics: dict,
     transactions: list[dict],
+    user_name: str | None = None,
+    risk_level: str = "medium",
     llm_client: LLMCallable | None = None,
     timeout_seconds: int | None = None,
 ) -> BankReviewLLMResult | None:
     """
     Guardrailed LLM reasoning for bank review runs. Returns None on failure/disabled.
+    
+    Args:
+        user_name: Optional first name for personalized messaging.
+        risk_level: One of 'low', 'medium', 'high', 'critical' for tone adjustment.
     """
     allowed_ids = {str(tx["transaction_id"]) for tx in transactions if isinstance(tx, dict) and tx.get("transaction_id") is not None}
 
-    system_prompt = (
-        "You are an audit-focused bank reconciliation assistant. Only reason about the JSON provided. "
+    preamble = build_companion_preamble(user_name, risk_level, "bank")
+    system_prompt = preamble + (
+        "\nOnly reason about the JSON provided. "
         "Do not invent transactions, IDs, dates, or amounts. "
         "Return ONLY JSON with explanations, ranked_transactions, and suggested_followups."
     )
@@ -304,13 +365,23 @@ def reason_about_receipts_run(
     *,
     metrics: dict,
     documents: list[dict],
+    user_name: str | None = None,
+    risk_level: str = "medium",
     llm_client: LLMCallable | None = None,
     timeout_seconds: int | None = None,
 ) -> ReceiptsRunLLMResult | None:
+    """
+    Guardrailed LLM reasoning for receipts runs.
+    
+    Args:
+        user_name: Optional first name for personalized messaging.
+        risk_level: One of 'low', 'medium', 'high', 'critical' for tone adjustment.
+    """
     allowed_ids = {str(doc["document_id"]) for doc in documents if isinstance(doc, dict) and doc.get("document_id") is not None}
 
-    system_prompt = (
-        "You are a receipts audit companion. Only reason about the JSON provided. "
+    preamble = build_companion_preamble(user_name, risk_level, "receipts")
+    system_prompt = preamble + (
+        "\nOnly reason about the JSON provided. "
         "Do not invent receipts, amounts, vendors, or account codes. "
         "Return ONLY JSON with explanations, ranked_documents, suggested_classifications, suggested_followups."
     )
@@ -366,13 +437,23 @@ def reason_about_invoices_run(
     *,
     metrics: dict,
     documents: list[dict],
+    user_name: str | None = None,
+    risk_level: str = "medium",
     llm_client: LLMCallable | None = None,
     timeout_seconds: int | None = None,
 ) -> InvoicesRunLLMResult | None:
+    """
+    Guardrailed LLM reasoning for invoices runs.
+    
+    Args:
+        user_name: Optional first name for personalized messaging.
+        risk_level: One of 'low', 'medium', 'high', 'critical' for tone adjustment.
+    """
     allowed_ids = {str(doc["document_id"]) for doc in documents if isinstance(doc, dict) and doc.get("document_id") is not None}
 
-    system_prompt = (
-        "You are an invoices audit companion. Only reason about the JSON provided. "
+    preamble = build_companion_preamble(user_name, risk_level, "invoices")
+    system_prompt = preamble + (
+        "\nOnly reason about the JSON provided. "
         "Do not invent invoices, amounts, vendors, or account codes. "
         "Return ONLY JSON with explanations, ranked_documents, suggested_classifications, suggested_followups."
     )
@@ -422,3 +503,59 @@ def reason_about_invoices_run(
     ranked = [item for item in result.ranked_documents if str(item.document_id) in allowed_ids]
     suggested = [item for item in result.suggested_classifications if str(item.document_id) in allowed_ids]
     return result.model_copy(update={"ranked_documents": ranked, "suggested_classifications": suggested})
+
+
+def refine_companion_issues(
+    issues: list[dict],
+    user_name: str | None = None,
+    risk_level: str = "medium",
+    llm_client: LLMCallable | None = None,
+    timeout_seconds: int | None = None,
+) -> list[dict] | None:
+    """
+    Best-effort refinement/ranking of issue candidates. Returns None on failure so callers can fall back to deterministic issues.
+    
+    Args:
+        user_name: Optional first name for personalized messaging.
+        risk_level: One of 'low', 'medium', 'high', 'critical' for tone adjustment.
+    """
+    if not issues:
+        return []
+
+    preamble = build_companion_preamble(user_name, risk_level, "issues")
+    system_prompt = preamble + (
+        "\nGiven issue candidates, improve titles/descriptions/recommended actions, and assign severity (low|medium|high). "
+        "Do NOT invent new data or suggest automatic postings or moving money. "
+        "Only reason over the provided JSON. Keep text concise and businesslike."
+    )
+    payload = {"issues": issues}
+    prompt = f"{system_prompt}\n\nDATA:\n{json.dumps(payload, default=str)}"
+    raw = _invoke_llm(prompt, llm_client=llm_client, timeout_seconds=timeout_seconds)
+    if not raw:
+        return None
+    try:
+        parsed = json.loads(_strip_markdown_json(raw))
+    except Exception:
+        logger.warning("Issues refinement LLM returned non-JSON response.")
+        return None
+    try:
+        result = IssuesLLMResult.model_validate(parsed)
+    except ValidationError as exc:
+        logger.warning("Issues refinement LLM validation failed: %s", exc)
+        return None
+    refined: list[dict] = []
+    for item in result.issues:
+        refined.append(
+            {
+                **{k: v for k, v in issues[0].items()},  # default keys if any
+                "title": item.title,
+                "description": item.description,
+                "recommended_action": item.recommended_action or "",
+                "estimated_impact": item.estimated_impact or "",
+                "severity": (item.severity or "").lower() if item.severity else issues[0].get("severity"),
+                "surface": item.surface or issues[0].get("surface"),
+                "run_type": item.run_type or issues[0].get("run_type"),
+                "run_id": item.run_id or issues[0].get("run_id"),
+            }
+        )
+    return refined or issues

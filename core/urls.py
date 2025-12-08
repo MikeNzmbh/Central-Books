@@ -5,6 +5,8 @@ from agentic.interfaces.api import urlpatterns as agentic_urlpatterns
 from taxes import views as tax_views
 from . import views_reconciliation
 from . import views_receipts, views_invoices, views_books_review, views_bank_review, views_companion
+from . import views_bank_audit  # Bank Audit Health Check API (Option B)
+from . import views_dashboard  # Dashboard API (Option B architecture)
 from . import views_monitoring  # Monitoring agent Slack endpoint
 from . import views_auth  # Auth API endpoints
 from .views import (
@@ -63,9 +65,13 @@ urlpatterns = [
     path("settings/account/", views.account_settings, name="account_settings"),
     path("dashboard/", views.dashboard, name="dashboard"),
     
+    # Dashboard API (Option B architecture)
+    path("api/dashboard/", views_dashboard.api_dashboard, name="api_dashboard"),
+    
     # Auth API
     path("api/auth/me", views_auth.current_user, name="api_current_user"),
     path("api/auth/login/", views_auth.api_login, name="api_auth_login"),
+    path("api/auth/config", views_auth.api_auth_config, name="api_auth_config"),
     # Customers
     path("customers/", CustomerListView.as_view(), name="customer_list"),
     path("customers/new/", views.customer_create, name="customer_create"),
@@ -294,8 +300,13 @@ urlpatterns = [
     path("api/agentic/bank-review/runs", views_bank_review.api_bank_review_runs, name="api_bank_review_runs"),
     path("api/agentic/bank-review/run/<int:run_id>", views_bank_review.api_bank_review_run_detail, name="api_bank_review_run_detail"),
     path("bank-review/", views_bank_review.bank_review_page, name="bank_review_page"),
+    # Bank Audit Health Check API (Option B)
+    path("api/agentic/bank-audit/summary", views_bank_audit.api_bank_audit_summary, name="api_bank_audit_summary"),
     path("api/agentic/companion/summary", views_companion.api_companion_summary, name="api_companion_summary"),
+    path("api/agentic/companion/issues", views_companion.api_companion_issues, name="api_companion_issues"),
+    path("api/agentic/companion/issues/<int:issue_id>", views_companion.api_companion_issue_patch, name="api_companion_issue_patch"),
     path("ai-companion/", companion_overview_page, name="companion_overview_page"),
+    path("ai-companion/issues", views_companion.companion_issues_page, name="companion_issues_page"),
     path("accounts/", views.chart_of_accounts_spa, name="account_list"),
     path("accounts/<int:account_id>/", account_detail_view, name="account_detail"),
     path(
