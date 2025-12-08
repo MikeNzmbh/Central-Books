@@ -274,14 +274,14 @@ export default function BankAuditHealthCheckPage() {
   }, [data, selectedBankId, filterText]);
 
   const totalUnreconciled = useMemo(() => {
-    if (!data) return 0;
-    return (data.banks ?? []).reduce((acc, curr) => acc + curr.unreconciledCount, 0);
-  }, [data]);
+    const banks = data?.banks ?? [];
+    return banks.reduce((acc, curr) => acc + (curr?.unreconciledCount ?? 0), 0);
+  }, [data?.banks]);
 
   const banksWithIssues = useMemo(() => {
-    if (!data) return 0;
-    return (data.banks ?? []).filter(b => b.status === "high").length;
-  }, [data]);
+    const banks = data?.banks ?? [];
+    return banks.filter(b => b.status === "high").length;
+  }, [data?.banks]);
 
   // Loading state
   if (loading) {
@@ -439,7 +439,8 @@ export default function BankAuditHealthCheckPage() {
             {/* History Section */}
             {(data.previousAudits ?? []).length > 0 && (
               <motion.div variants={itemAnimation} className="pt-4 border-t border-slate-200/60">
-                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Previous Audits</h4>
+                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Previous reviews</h4>
+                <p className="text-[11px] text-slate-500 mb-2">Previous runs · audit history</p>
                 <div className="space-y-2">
                   {(data.previousAudits ?? []).map((hist, i) => (
                     <div key={i} className="flex items-center justify-between px-3 py-2 bg-white rounded-lg border border-slate-100 text-xs">
@@ -503,11 +504,14 @@ export default function BankAuditHealthCheckPage() {
 
                     {insights.length > 0 ? (
                       <div className="grid gap-3 relative z-10">
-                        {insights.map((insight) => (
+                        {insights.map((insight, idx) => (
                           <div key={insight.id} className="flex gap-4 p-4 bg-white border border-slate-200 rounded-lg shadow-sm hover:border-blue-300 transition-colors group">
-                            <div className={`mt-1 h-2 w-2 rounded-full flex-shrink-0 ${insight.type === 'anomaly' ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.6)]' :
-                              insight.type === 'optimization' ? 'bg-amber-500' : 'bg-blue-500'
-                              }`} />
+                            <div className="flex flex-col items-center gap-1 flex-shrink-0">
+                              <div className={`mt-1 h-2 w-2 rounded-full ${insight.type === 'anomaly' ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.6)]' :
+                                insight.type === 'optimization' ? 'bg-amber-500' : 'bg-blue-500'
+                                }`} />
+                              <span className="text-[10px] font-semibold text-slate-400">#{idx + 1}</span>
+                            </div>
                             <div className="flex-1">
                               <h4 className="text-xs font-bold text-slate-900 mb-1">{insight.title}</h4>
                               <p className="text-xs font-medium text-slate-600 leading-relaxed">
@@ -523,12 +527,12 @@ export default function BankAuditHealthCheckPage() {
                         ))}
                       </div>
                     ) : (
-                      <div className="flex flex-col items-center justify-center p-8 border border-dashed border-slate-200 rounded-lg bg-slate-50/50 relative z-10">
+                      <div className="flex flex-col items-center justify-center p-8 border border-dashed border-slate-200 rounded-lg bg-slate-50/50 relative z-10 text-center">
                         <CheckCircle2 className="w-8 h-8 text-emerald-400 mb-2" />
-                        <p className="text-sm font-medium text-slate-900">No Anomalies Detected</p>
+                        <p className="text-sm font-medium text-slate-900">Everything looks good here</p>
                         <p className="text-xs text-slate-500">
                           {data.companionEnabled
-                            ? "Pattern matching algorithms found no issues with this account."
+                            ? "No anomalies detected. Pattern matching algorithms found no issues with this account."
                             : "Run a bank audit to generate AI insights."}
                         </p>
                       </div>
@@ -612,10 +616,10 @@ export default function BankAuditHealthCheckPage() {
                         </table>
                       </div>
                     ) : (
-                      <div className="flex flex-col items-center justify-center py-12 bg-slate-50/30">
+                      <div className="flex flex-col items-center justify-center py-12 bg-slate-50/30 text-center">
                         <CheckCircle2 className="w-10 h-10 text-emerald-200 mb-3" />
-                        <p className="text-sm font-medium text-slate-900">All Transactions Cleared</p>
-                        <p className="text-xs text-slate-500">No flags requiring attention.</p>
+                        <p className="text-sm font-medium text-slate-900">Everything looks good here</p>
+                        <p className="text-xs text-slate-500">All transactions cleared. No flags requiring attention.</p>
                       </div>
                     )}
 

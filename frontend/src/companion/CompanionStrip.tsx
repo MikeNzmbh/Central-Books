@@ -109,6 +109,7 @@ const CompanionStrip: React.FC<CompanionStripProps> = ({ context, className, use
 
   const sentimentLabel = getSentimentLabel(riskLevel, allClear);
   const toneSubtitle = getToneSubtitle(riskLevel, label, allClear);
+  const subtitleText = allClear ? `Everything looks good here. ${toneSubtitle}` : toneSubtitle;
 
   // Error state
   if (error) {
@@ -116,7 +117,7 @@ const CompanionStrip: React.FC<CompanionStripProps> = ({ context, className, use
       <div className={`companion-glow ${className || ""}`} data-testid="companion-strip-glow">
         <CompanionSuggestionBanner
           riskLevel="low"
-          sentimentLabel="Temporarily unavailable"
+          sentimentLabel="Companion temporarily unavailable"
           toneSubtitle="Companion will be back shortly."
           suggestions={[]}
           onViewMore={() => (window.location.href = "/dashboard/")}
@@ -131,7 +132,7 @@ const CompanionStrip: React.FC<CompanionStripProps> = ({ context, className, use
         userName={userName}
         riskLevel={allClear ? "low" : riskLevel}
         sentimentLabel={sentimentLabel}
-        toneSubtitle={toneSubtitle}
+        toneSubtitle={subtitleText}
         suggestions={allClear ? [] : suggestions}
         onViewMore={() => (window.location.href = "/dashboard/")}
         isLoading={isLoading}
