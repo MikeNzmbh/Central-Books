@@ -248,17 +248,17 @@ export default function BankAuditHealthCheckPage() {
 
   const selectedBank = useMemo(() => {
     if (!data || !selectedBankId) return null;
-    return data.banks.find(b => b.id === selectedBankId) || data.banks[0] || null;
+    return (data.banks ?? []).find(b => b.id === selectedBankId) || (data.banks ?? [])[0] || null;
   }, [data, selectedBankId]);
 
   const insights = useMemo(() => {
     if (!data || !selectedBankId) return [];
-    return data.insights[selectedBankId] || [];
+    return (data.insights ?? {})[selectedBankId] || [];
   }, [data, selectedBankId]);
 
   const flaggedTransactions = useMemo(() => {
     if (!data || !selectedBankId) return [];
-    let txs = data.flaggedTransactions[selectedBankId] || [];
+    let txs = (data.flaggedTransactions ?? {})[selectedBankId] || [];
 
     // Apply filter
     if (filterText.trim()) {
@@ -275,12 +275,12 @@ export default function BankAuditHealthCheckPage() {
 
   const totalUnreconciled = useMemo(() => {
     if (!data) return 0;
-    return data.banks.reduce((acc, curr) => acc + curr.unreconciledCount, 0);
+    return (data.banks ?? []).reduce((acc, curr) => acc + curr.unreconciledCount, 0);
   }, [data]);
 
   const banksWithIssues = useMemo(() => {
     if (!data) return 0;
-    return data.banks.filter(b => b.status === "high").length;
+    return (data.banks ?? []).filter(b => b.status === "high").length;
   }, [data]);
 
   // Loading state
@@ -294,7 +294,7 @@ export default function BankAuditHealthCheckPage() {
   }
 
   // Empty state - no banks
-  if (!data || data.banks.length === 0) {
+  if (!data || (data.banks ?? []).length === 0) {
     return <EmptyState />;
   }
 
@@ -380,7 +380,7 @@ export default function BankAuditHealthCheckPage() {
               </div>
 
               <div className="space-y-3">
-                {data.banks.map((bank) => (
+                {(data.banks ?? []).map((bank) => (
                   <div
                     key={bank.id}
                     onClick={() => setSelectedBankId(bank.id)}
@@ -437,11 +437,11 @@ export default function BankAuditHealthCheckPage() {
             </motion.div>
 
             {/* History Section */}
-            {data.previousAudits.length > 0 && (
+            {(data.previousAudits ?? []).length > 0 && (
               <motion.div variants={itemAnimation} className="pt-4 border-t border-slate-200/60">
                 <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Previous Audits</h4>
                 <div className="space-y-2">
-                  {data.previousAudits.map((hist, i) => (
+                  {(data.previousAudits ?? []).map((hist, i) => (
                     <div key={i} className="flex items-center justify-between px-3 py-2 bg-white rounded-lg border border-slate-100 text-xs">
                       <span className="text-slate-700 font-medium">{hist.date}</span>
                       <span className={`font-semibold ${hist.color}`}>{hist.status}</span>
