@@ -16,6 +16,7 @@ from .models import (
 )
 from .utils import get_current_business
 from .companion_issues import get_issue_counts
+from .companion_voice import build_voice_snapshot
 
 RISK_MEDIUM_THRESHOLD = Decimal("40.0")
 RISK_HIGH_THRESHOLD = Decimal("70.0")
@@ -239,6 +240,21 @@ def api_companion_summary(request):
         ).first()
         if hi:
             summary["surfaces"][surf]["headline_issue"] = {"id": hi.id, "title": hi.title, "severity": hi.severity}
+
+    # Build deterministic voice snapshot (NO LLM calls)
+    voice = build_voice_snapshot(
+        user_name=request.user.first_name,
+        issues=list(issues_qs),
+        severity_counts=issues_by_sev,
+    )
+    
+    # Add voice fields to response
+    summary["voice"] = {
+        "greeting": voice.greeting,
+        "focus_mode": voice.focus_mode,
+        "tone_tagline": voice.tone_tagline,
+        "primary_call_to_action": voice.primary_call_to_action,
+    }
 
     return JsonResponse(summary)
 

@@ -6,6 +6,7 @@ import { AlertTriangle, CheckCircle2, Sparkles } from "lucide-react";
 // -----------------------------------------------------------------------------
 
 export type RiskLevel = "low" | "medium" | "high" | "critical";
+export type FocusMode = "all_clear" | "watchlist" | "fire_drill";
 
 export interface CompanionSuggestion {
     id: string;
@@ -20,6 +21,10 @@ export interface CompanionSuggestionBannerProps {
     suggestions: CompanionSuggestion[];
     onViewMore?: () => void;
     isLoading?: boolean;
+    // New voice fields from backend
+    greeting?: string;          // Backend-provided greeting
+    focusMode?: FocusMode;      // Backend-provided focus mode
+    primaryCTA?: string | null; // Backend-provided call to action
 }
 
 // -----------------------------------------------------------------------------
@@ -55,6 +60,29 @@ const riskStyles: Record<RiskLevel, {
         badgeClass: "bg-rose-100 text-rose-800 border-rose-300",
         dotClass: "bg-rose-600",
         iconColor: "text-rose-600",
+    },
+};
+
+// Focus mode styles for the pill
+const focusModeStyles: Record<FocusMode, {
+    label: string;
+    badgeClass: string;
+    dotClass: string;
+}> = {
+    all_clear: {
+        label: "All clear",
+        badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200",
+        dotClass: "bg-emerald-500",
+    },
+    watchlist: {
+        label: "Worth reviewing",
+        badgeClass: "bg-amber-50 text-amber-700 border-amber-200",
+        dotClass: "bg-amber-500",
+    },
+    fire_drill: {
+        label: "Needs attention",
+        badgeClass: "bg-rose-50 text-rose-700 border-rose-200",
+        dotClass: "bg-rose-500",
     },
 };
 
@@ -105,13 +133,24 @@ export const CompanionSuggestionBanner: React.FC<CompanionSuggestionBannerProps>
     suggestions,
     onViewMore,
     isLoading = false,
+    // New voice fields
+    greeting: backendGreeting,
+    focusMode,
+    primaryCTA,
 }) => {
     if (isLoading) {
         return <LoadingSkeleton />;
     }
 
     const risk = riskStyles[riskLevel] || riskStyles.low;
-    const greeting = getGreeting(userName);
+    const focus = focusMode ? focusModeStyles[focusMode] : null;
+
+    // Prefer backend greeting, fallback to computed
+    const displayGreeting = backendGreeting || getGreeting(userName);
+
+    // Use focus mode styling if available, otherwise use risk styling
+    const badgeStyle = focus || risk;
+    const badgeLabel = focus?.label || sentimentLabel || risk.label;
 
     return (
         <section className="companion-glow-inner w-full overflow-hidden">
@@ -121,25 +160,32 @@ export const CompanionSuggestionBanner: React.FC<CompanionSuggestionBannerProps>
                     <div className="space-y-1 flex-1">
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                             <p className="text-sm font-medium text-slate-900">
-                                {greeting}, here's what your Companion suggests right now.
+                                {displayGreeting}
                             </p>
 
                             <span
-                                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium ${risk.badgeClass}`}
+                                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium ${badgeStyle.badgeClass}`}
                             >
-                                <span className={`h-1.5 w-1.5 rounded-full ${risk.dotClass}`} />
-                                {sentimentLabel || risk.label}
+                                <span className={`h-1.5 w-1.5 rounded-full ${badgeStyle.dotClass}`} />
+                                {badgeLabel}
                             </span>
                         </div>
 
                         <div className="text-xs text-slate-600 flex items-center gap-1.5">
-                            {riskLevel === "low" ? (
+                            {focusMode === "all_clear" || riskLevel === "low" ? (
                                 <CheckCircle2 className={`h-3.5 w-3.5 ${risk.iconColor}`} />
                             ) : (
                                 <AlertTriangle className={`h-3.5 w-3.5 ${risk.iconColor}`} />
                             )}
                             <span>{toneSubtitle}</span>
                         </div>
+
+                        {/* Primary CTA from backend */}
+                        {primaryCTA && (
+                            <div className="mt-2 text-sm text-slate-700 font-medium">
+                                • {primaryCTA}
+                            </div>
+                        )}
                     </div>
                 </div>
 

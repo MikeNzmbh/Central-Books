@@ -8,7 +8,7 @@ from typing import Any, Callable
 from django.conf import settings
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
-from companion.llm import call_companion_llm
+from companion.llm import call_companion_llm, LLMProfile
 from .llm_tone import build_companion_preamble
 
 logger = logging.getLogger(__name__)
@@ -169,8 +169,12 @@ def _call_with_timeout(func: Callable[[], str | None], timeout_seconds: int) -> 
 
 
 def _invoke_llm(prompt: str, *, llm_client: LLMCallable | None, timeout_seconds: int | None) -> str | None:
-    client = llm_client or call_companion_llm
-    timeout = timeout_seconds if timeout_seconds is not None else getattr(settings, "COMPANION_LLM_TIMEOUT_SECONDS", 15)
+    """
+    Invoke LLM for reasoning tasks using HEAVY_REASONING profile (deepseek-reasoner).
+    """
+    # Use HEAVY_REASONING profile for all analysis tasks
+    client = llm_client or (lambda p: call_companion_llm(p, profile=LLMProfile.HEAVY_REASONING))
+    timeout = timeout_seconds if timeout_seconds is not None else getattr(settings, "COMPANION_LLM_TIMEOUT_SECONDS", 30)
     try:
         if timeout and timeout > 0:
             return _call_with_timeout(lambda: client(prompt), timeout)

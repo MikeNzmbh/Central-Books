@@ -124,6 +124,18 @@ export interface CompanionOverview {
   context_reasons?: string[];
   context_severity?: string | null;
   focus_items?: string[];
+  voice?: CompanionVoice;
+}
+
+// Focus modes for the Companion voice layer
+export type FocusMode = "all_clear" | "watchlist" | "fire_drill";
+
+// Deterministic voice snapshot (no LLM calls)
+export interface CompanionVoice {
+  greeting: string;              // "Good morning, Mike — you're in good shape today. 👌"
+  focus_mode: FocusMode;         // "all_clear" | "watchlist" | "fire_drill"
+  tone_tagline: string;          // "A few small things to tidy up."
+  primary_call_to_action: string | null;  // "Review 3 unreconciled transactions in Banking."
 }
 
 const apiFetch = async <T>(path: string, options: RequestOptions = {}): Promise<T> => {

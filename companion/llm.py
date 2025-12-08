@@ -55,13 +55,42 @@ def _is_llm_enabled() -> bool:
     )
 
 
-def call_deepseek_reasoning(prompt: str, *, temperature: float = 0.1) -> str | None:
+# --- LLM Profile for model routing ---
+
+from enum import Enum
+
+
+class LLMProfile(str, Enum):
+    """
+    Model profiles for different DeepSeek use cases.
+    
+    HEAVY_REASONING: Use deepseek-reasoner (R1) for complex analysis tasks.
+                     Better accuracy, slower (~10-30s), more expensive.
+    LIGHT_CHAT: Use deepseek-chat for quick responses.
+                Faster (~2-5s), cheaper, good for simple tasks.
+    """
+    HEAVY_REASONING = "deepseek-reasoner"
+    LIGHT_CHAT = "deepseek-chat"
+
+
+def call_deepseek_reasoning(
+    prompt: str, 
+    *, 
+    temperature: float = 0.1,
+    profile: LLMProfile | None = None,
+) -> str | None:
     """
     Call DeepSeek LLM for text-based reasoning tasks.
     
     PROVIDER: DeepSeek (via COMPANION_LLM_API_KEY)
     USE FOR: Narratives, insights, rankings, summaries, reasoning
     DO NOT USE FOR: Image/vision/OCR tasks
+    
+    Args:
+        prompt: The prompt to send to the LLM.
+        temperature: Sampling temperature (default 0.1 for deterministic output).
+        profile: LLMProfile to use. Default is HEAVY_REASONING (deepseek-reasoner).
+                 Use LIGHT_CHAT for quick, simple responses.
     
     Returns the raw text content or None on failure/disabled.
     """
@@ -71,9 +100,21 @@ def call_deepseek_reasoning(prompt: str, *, temperature: float = 0.1) -> str | N
 
     api_base = getattr(settings, "COMPANION_LLM_API_BASE", "")
     api_key = getattr(settings, "COMPANION_LLM_API_KEY", "")
-    model = getattr(settings, "COMPANION_LLM_MODEL", "deepseek-v3.2")
-    timeout = getattr(settings, "COMPANION_LLM_TIMEOUT_SECONDS", 15)
-    max_tokens = getattr(settings, "COMPANION_LLM_MAX_TOKENS", 512)
+    
+    # Use profile-based model selection, default to HEAVY_REASONING
+    if profile is not None:
+        model = profile.value
+    else:
+        # Default to reasoner for heavy analysis, fallback to settings
+        model = getattr(settings, "COMPANION_LLM_MODEL", LLMProfile.HEAVY_REASONING.value)
+    
+    # Reasoner needs more time and tokens
+    if model == LLMProfile.HEAVY_REASONING.value:
+        timeout = getattr(settings, "COMPANION_LLM_TIMEOUT_SECONDS", 30)  # Longer for reasoner
+        max_tokens = getattr(settings, "COMPANION_LLM_MAX_TOKENS", 1024)  # More tokens
+    else:
+        timeout = getattr(settings, "COMPANION_LLM_TIMEOUT_SECONDS", 15)
+        max_tokens = getattr(settings, "COMPANION_LLM_MAX_TOKENS", 512)
 
     logger.info("[PROVIDER: DeepSeek] Calling %s model for text reasoning", model)
     
@@ -108,7 +149,7 @@ def call_deepseek_reasoning(prompt: str, *, temperature: float = 0.1) -> str | N
         message = choices[0].get("message") or {}
         content = message.get("content")
         if content:
-            logger.info("[PROVIDER: DeepSeek] Reasoning call succeeded")
+            logger.info("[PROVIDER: DeepSeek] Reasoning call succeeded (model=%s)", model)
         return content
     except requests.exceptions.HTTPError as exc:
         logger.error("[PROVIDER: DeepSeek] HTTP error: status=%s response=%s", 
@@ -116,7 +157,7 @@ def call_deepseek_reasoning(prompt: str, *, temperature: float = 0.1) -> str | N
                     exc.response.text[:500] if exc.response else "no response")
         return None
     except requests.exceptions.Timeout:
-        logger.warning("[PROVIDER: DeepSeek] Request timed out after %ds", timeout)
+        logger.warning("[PROVIDER: DeepSeek] Request timed out after %ds (model=%s)", timeout, model)
         return None
     except Exception as exc:  # pragma: no cover - defensive network wrapper
         logger.warning("[PROVIDER: DeepSeek] Call failed: %s", exc)
