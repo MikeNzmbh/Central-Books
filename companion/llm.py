@@ -77,9 +77,14 @@ def call_deepseek_reasoning(prompt: str, *, temperature: float = 0.1) -> str | N
 
     logger.info("[PROVIDER: DeepSeek] Calling %s model for text reasoning", model)
     
+    # Ensure API URL ends with /chat/completions
+    api_url = api_base.rstrip("/")
+    if not api_url.endswith("/chat/completions"):
+        api_url = f"{api_url}/chat/completions"
+    
     try:
         response = requests.post(
-            api_base,
+            api_url,
             headers={
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
@@ -105,6 +110,14 @@ def call_deepseek_reasoning(prompt: str, *, temperature: float = 0.1) -> str | N
         if content:
             logger.info("[PROVIDER: DeepSeek] Reasoning call succeeded")
         return content
+    except requests.exceptions.HTTPError as exc:
+        logger.error("[PROVIDER: DeepSeek] HTTP error: status=%s response=%s", 
+                    exc.response.status_code if exc.response else "unknown",
+                    exc.response.text[:500] if exc.response else "no response")
+        return None
+    except requests.exceptions.Timeout:
+        logger.warning("[PROVIDER: DeepSeek] Request timed out after %ds", timeout)
+        return None
     except Exception as exc:  # pragma: no cover - defensive network wrapper
         logger.warning("[PROVIDER: DeepSeek] Call failed: %s", exc)
         return None
