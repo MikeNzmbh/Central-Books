@@ -15,8 +15,9 @@ from .models import (
     CompanionIssue,
 )
 from .utils import get_current_business
-from .companion_issues import get_issue_counts
+from .companion_issues import get_issue_counts, build_companion_radar
 from .companion_voice import build_voice_snapshot
+from .llm_reasoning import generate_companion_story
 
 RISK_MEDIUM_THRESHOLD = Decimal("40.0")
 RISK_HIGH_THRESHOLD = Decimal("70.0")
@@ -255,6 +256,33 @@ def api_companion_summary(request):
         "tone_tagline": voice.tone_tagline,
         "primary_call_to_action": voice.primary_call_to_action,
     }
+    
+    # Build 4-axis risk radar (deterministic, no LLM)
+    radar = build_companion_radar(business)
+    summary["radar"] = radar
+    
+    # Generate story narrative (DeepSeek Reasoner, only if AI enabled)
+    story = None
+    if business.ai_companion_enabled:
+        story = generate_companion_story(
+            first_name=request.user.first_name,
+            radar=radar,
+            recent_metrics=summary.get("global", {}),
+            recent_issues=list(issues_qs[:10]),
+            focus_mode=voice.focus_mode,
+        )
+    
+    # Add story to response with graceful fallback
+    if story:
+        summary["story"] = {
+            "overall_summary": story.overall_summary,
+            "timeline_bullets": story.timeline_bullets,
+        }
+    else:
+        summary["story"] = {
+            "overall_summary": "Companion story is temporarily unavailable.",
+            "timeline_bullets": [],
+        }
 
     return JsonResponse(summary)
 

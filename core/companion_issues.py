@@ -254,3 +254,93 @@ def get_issue_counts(business, days: int = 30):
     by_severity = {sev: qs.filter(severity=sev).count() for sev, _ in CompanionIssue.Severity.choices}
     by_surface = {surf: qs.filter(surface=surf).count() for surf, _ in CompanionIssue.Surface.choices}
     return total, by_severity, by_surface, qs
+
+
+# ---------------------------------------------------------------------------
+# COMPANION RISK RADAR - 4-axis stability scoring (deterministic, no LLM)
+# ---------------------------------------------------------------------------
+
+# Map surfaces to radar axes (themes)
+SURFACE_TO_THEME = {
+    "bank": "cash_reconciliation",
+    "invoices": "revenue_invoices",
+    "receipts": "expenses_receipts",
+    "books": "tax_compliance",
+}
+
+# Point deductions per severity
+SEVERITY_DEDUCTION = {
+    "high": 15,
+    "medium": 8,
+    "low": 3,
+}
+
+# Age penalty: extra points per 7 days old
+AGE_PENALTY_PER_WEEK = 2
+
+
+def build_companion_radar(business) -> dict:
+    """
+    Build a 4-axis stability score (0–100) for the AI Companion.
+    
+    Axes:
+      - cash_reconciliation: Bank account reconciliation health
+      - revenue_invoices: Invoice/AR health
+      - expenses_receipts: Expense/receipt classification health
+      - tax_compliance: Books/GL compliance health
+    
+    Scoring heuristic:
+      - Each axis starts at 100
+      - Subtract points per open issue based on severity:
+        - high: -15 points
+        - medium: -8 points
+        - low: -3 points
+      - Age penalty: subtract additional 2 points per 7 days the issue is open
+      - Floor at 0, cap at 100
+    
+    Returns:
+        dict with 4 axes, each containing {"score": int, "open_issues": int}
+    """
+    now = timezone.now()
+    since = now - timedelta(days=30)
+    
+    # Initialize all axes
+    axes = {
+        "cash_reconciliation": {"score": 100, "open_issues": 0},
+        "revenue_invoices": {"score": 100, "open_issues": 0},
+        "expenses_receipts": {"score": 100, "open_issues": 0},
+        "tax_compliance": {"score": 100, "open_issues": 0},
+    }
+    
+    # Get open issues for this business
+    open_issues = CompanionIssue.objects.filter(
+        business=business,
+        status=CompanionIssue.Status.OPEN,
+        created_at__gte=since,
+    )
+    
+    for issue in open_issues:
+        # Determine which axis this issue affects
+        theme = SURFACE_TO_THEME.get(issue.surface)
+        if not theme or theme not in axes:
+            continue
+        
+        # Count the issue
+        axes[theme]["open_issues"] += 1
+        
+        # Calculate base deduction from severity
+        severity = issue.severity.lower() if issue.severity else "low"
+        base_deduction = SEVERITY_DEDUCTION.get(severity, 3)
+        
+        # Calculate age penalty (extra points per week old)
+        days_old = (now - issue.created_at).days
+        age_penalty = (days_old // 7) * AGE_PENALTY_PER_WEEK
+        
+        # Total deduction
+        total_deduction = base_deduction + age_penalty
+        
+        # Apply deduction (floor at 0)
+        axes[theme]["score"] = max(0, axes[theme]["score"] - total_deduction)
+    
+    return axes
+

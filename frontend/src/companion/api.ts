@@ -125,6 +125,8 @@ export interface CompanionOverview {
   context_severity?: string | null;
   focus_items?: string[];
   voice?: CompanionVoice;
+  radar?: CompanionRadar;
+  story?: CompanionStory;
 }
 
 // Focus modes for the Companion voice layer
@@ -136,6 +138,25 @@ export interface CompanionVoice {
   focus_mode: FocusMode;         // "all_clear" | "watchlist" | "fire_drill"
   tone_tagline: string;          // "A few small things to tidy up."
   primary_call_to_action: string | null;  // "Review 3 unreconciled transactions in Banking."
+}
+
+// Risk Radar - 4-axis stability scoring
+export interface CompanionRadarAxis {
+  score: number;       // 0-100 stability score
+  open_issues: number; // Count of open issues for this axis
+}
+
+export interface CompanionRadar {
+  cash_reconciliation: CompanionRadarAxis;
+  revenue_invoices: CompanionRadarAxis;
+  expenses_receipts: CompanionRadarAxis;
+  tax_compliance: CompanionRadarAxis;
+}
+
+// Story Mode - Weekly narrative from DeepSeek Reasoner
+export interface CompanionStory {
+  overall_summary: string;
+  timeline_bullets: string[];
 }
 
 const apiFetch = async <T>(path: string, options: RequestOptions = {}): Promise<T> => {

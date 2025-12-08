@@ -44,6 +44,26 @@ interface SurfaceSummary {
   headline_issue?: { id: number; title: string; severity: string } | null;
 }
 
+// Radar axis type
+interface RadarAxis {
+  score: number;
+  open_issues: number;
+}
+
+// Radar type
+interface CompanionRadar {
+  cash_reconciliation: RadarAxis;
+  revenue_invoices: RadarAxis;
+  expenses_receipts: RadarAxis;
+  tax_compliance: RadarAxis;
+}
+
+// Story type
+interface CompanionStory {
+  overall_summary: string;
+  timeline_bullets: string[];
+}
+
 interface CompanionSummary {
   ai_companion_enabled: boolean;
   surfaces: {
@@ -68,6 +88,8 @@ interface CompanionSummary {
     high_risk_items_30d: Record<string, number>;
     agent_retries_30d: number;
   };
+  radar?: CompanionRadar;
+  story?: CompanionStory;
 }
 
 interface SurfaceConfig {
@@ -415,6 +437,84 @@ const CompanionOverviewPage: React.FC = () => {
             AI Companion is disabled in Settings.{" "}
             <a className="underline font-semibold" href="/settings/account">Go to settings</a>
           </div>
+        )}
+
+        {/* --- Risk Radar Section --- */}
+        {summary?.radar && (
+          <motion.section
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6"
+          >
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Risk Radar
+            </h3>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {Object.entries(summary.radar).map(([key, axis]) => {
+                const labels: Record<string, string> = {
+                  cash_reconciliation: "Cash & Reconciliation",
+                  revenue_invoices: "Revenue & Invoices",
+                  expenses_receipts: "Expenses & Receipts",
+                  tax_compliance: "Tax & Compliance",
+                };
+                const scoreColor = axis.score >= 80 ? "text-emerald-600" :
+                  axis.score >= 50 ? "text-amber-600" : "text-rose-600";
+                return (
+                  <div
+                    key={key}
+                    className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm"
+                  >
+                    <div className="text-xs font-medium text-slate-500">
+                      {labels[key] || key}
+                    </div>
+                    <div className="mt-1.5 flex items-baseline justify-between">
+                      <span className={`text-2xl font-bold ${scoreColor}`}>
+                        {axis.score}
+                      </span>
+                      <span className="text-xs text-slate-400">
+                        {axis.open_issues === 0 ? "✓ Clear" : `${axis.open_issues} open`}
+                      </span>
+                    </div>
+                    <div className="mt-2 h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${axis.score >= 80 ? "bg-emerald-500" :
+                            axis.score >= 50 ? "bg-amber-500" : "bg-rose-500"
+                          }`}
+                        style={{ width: `${axis.score}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </motion.section>
+        )}
+
+        {/* --- Story Section --- */}
+        {summary?.story && summary.story.overall_summary && (
+          <motion.section
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="mb-6 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm"
+          >
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              This Week's Story
+            </h3>
+            <p className="mt-2 text-sm text-slate-800 leading-relaxed">
+              {summary.story.overall_summary}
+            </p>
+            {summary.story.timeline_bullets?.length > 0 && (
+              <ul className="mt-3 space-y-2">
+                {summary.story.timeline_bullets.map((item, idx) => (
+                  <li key={idx} className="flex gap-3 text-sm text-slate-700">
+                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-400" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </motion.section>
         )}
 
         <motion.div
