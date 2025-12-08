@@ -64,6 +64,36 @@ interface CompanionStory {
   timeline_bullets: string[];
 }
 
+// Coverage axis type
+interface CoverageAxis {
+  coverage_percent: number;
+  total_items: number;
+  covered_items: number;
+}
+
+// Coverage type
+interface CompanionCoverage {
+  receipts: CoverageAxis;
+  invoices: CoverageAxis;
+  banking: CoverageAxis;
+  books: CoverageAxis;
+}
+
+// Close-readiness type
+interface CloseReadiness {
+  status: "ready" | "not_ready";
+  blocking_reasons: string[];
+}
+
+// Playbook step type
+interface PlaybookStep {
+  label: string;
+  surface: "receipts" | "invoices" | "bank" | "books";
+  severity: "low" | "medium" | "high";
+  url: string;
+  issue_id?: number | null;
+}
+
 interface CompanionSummary {
   ai_companion_enabled: boolean;
   surfaces: {
@@ -90,6 +120,9 @@ interface CompanionSummary {
   };
   radar?: CompanionRadar;
   story?: CompanionStory;
+  coverage?: CompanionCoverage;
+  close_readiness?: CloseReadiness;
+  playbook?: PlaybookStep[];
 }
 
 interface SurfaceConfig {
@@ -478,7 +511,7 @@ const CompanionOverviewPage: React.FC = () => {
                     <div className="mt-2 h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
                       <div
                         className={`h-full rounded-full ${axis.score >= 80 ? "bg-emerald-500" :
-                            axis.score >= 50 ? "bg-amber-500" : "bg-rose-500"
+                          axis.score >= 50 ? "bg-amber-500" : "bg-rose-500"
                           }`}
                         style={{ width: `${axis.score}%` }}
                       />
@@ -516,6 +549,134 @@ const CompanionOverviewPage: React.FC = () => {
             )}
           </motion.section>
         )}
+
+        {/* --- Coverage Section --- */}
+        {summary?.coverage && (
+          <motion.section
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+            className="mb-6"
+          >
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Coverage
+            </h3>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {Object.entries(summary.coverage).map(([key, axis]) => {
+                const labels: Record<string, string> = {
+                  receipts: "Receipts",
+                  invoices: "Invoices",
+                  banking: "Banking",
+                  books: "Books",
+                };
+                const pctColor = axis.coverage_percent >= 80 ? "text-emerald-600" :
+                  axis.coverage_percent >= 50 ? "text-amber-600" : "text-rose-600";
+                return (
+                  <div
+                    key={key}
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2.5"
+                  >
+                    <div className="text-xs font-medium text-slate-500">
+                      {labels[key] || key}
+                    </div>
+                    <div className="mt-1 flex items-baseline justify-between">
+                      <span className={`text-xl font-semibold ${pctColor}`}>
+                        {axis.coverage_percent.toFixed(0)}%
+                      </span>
+                      <span className="text-[0.7rem] text-slate-500">
+                        {axis.covered_items}/{axis.total_items}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </motion.section>
+        )}
+
+        {/* --- Close-Readiness + Playbook Row --- */}
+        <div className="grid gap-4 mb-6 lg:grid-cols-2">
+          {/* Close-Readiness Pill */}
+          {summary?.close_readiness && (
+            <motion.section
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm"
+            >
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Close Readiness
+              </h3>
+              <div className="mt-2 flex items-center gap-2">
+                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${summary.close_readiness.status === "ready"
+                    ? "bg-emerald-100 text-emerald-800"
+                    : "bg-amber-100 text-amber-800"
+                  }`}>
+                  <span className={`h-1.5 w-1.5 rounded-full ${summary.close_readiness.status === "ready" ? "bg-emerald-500" : "bg-amber-500"
+                    }`} />
+                  {summary.close_readiness.status === "ready" ? "Close-ready" : "Not close-ready"}
+                </span>
+                {summary.close_readiness.blocking_reasons.length > 0 && (
+                  <span className="text-xs text-slate-500">
+                    ({summary.close_readiness.blocking_reasons.length} blocker{summary.close_readiness.blocking_reasons.length > 1 ? "s" : ""})
+                  </span>
+                )}
+              </div>
+              {summary.close_readiness.blocking_reasons.length > 0 && (
+                <ul className="mt-2 space-y-1 text-xs text-slate-600">
+                  {summary.close_readiness.blocking_reasons.slice(0, 3).map((reason, idx) => (
+                    <li key={idx} className="flex gap-2">
+                      <span className="text-amber-500">•</span>
+                      <span>{reason}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </motion.section>
+          )}
+
+          {/* Today's Playbook */}
+          {summary?.playbook && summary.playbook.length > 0 && (
+            <motion.section
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.25 }}
+              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm"
+            >
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Today's Playbook
+              </h3>
+              <ul className="mt-2 space-y-1.5 text-sm text-slate-800">
+                {summary.playbook.map((step, idx) => {
+                  const badgeColor = step.severity === "high"
+                    ? "bg-rose-100 text-rose-700"
+                    : step.severity === "medium"
+                      ? "bg-amber-100 text-amber-700"
+                      : "bg-slate-100 text-slate-700";
+                  return (
+                    <li key={idx} className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className={`shrink-0 h-5 w-5 rounded-full flex items-center justify-center text-[0.65rem] font-bold ${badgeColor}`}>
+                          {idx + 1}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => (window.location.href = step.url)}
+                          className="text-left truncate hover:underline"
+                        >
+                          {step.label}
+                        </button>
+                      </div>
+                      <span className="shrink-0 text-[0.65rem] uppercase tracking-wide text-slate-500">
+                        {step.surface}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </motion.section>
+          )}
+        </div>
 
         <motion.div
           variants={container}

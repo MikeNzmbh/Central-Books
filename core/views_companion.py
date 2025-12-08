@@ -15,7 +15,13 @@ from .models import (
     CompanionIssue,
 )
 from .utils import get_current_business
-from .companion_issues import get_issue_counts, build_companion_radar
+from .companion_issues import (
+    get_issue_counts,
+    build_companion_radar,
+    build_companion_coverage,
+    evaluate_period_close_readiness,
+    build_companion_playbook,
+)
 from .companion_voice import build_voice_snapshot
 from .llm_reasoning import generate_companion_story
 
@@ -283,6 +289,18 @@ def api_companion_summary(request):
             "overall_summary": "Companion story is temporarily unavailable.",
             "timeline_bullets": [],
         }
+    
+    # Build coverage metrics (deterministic, no LLM)
+    coverage = build_companion_coverage(business)
+    summary["coverage"] = coverage
+    
+    # Evaluate close-readiness (deterministic, no LLM)
+    close_readiness = evaluate_period_close_readiness(business)
+    summary["close_readiness"] = close_readiness
+    
+    # Build today's playbook (deterministic, no LLM)
+    playbook = build_companion_playbook(business)
+    summary["playbook"] = playbook
 
     return JsonResponse(summary)
 
