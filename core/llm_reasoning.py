@@ -161,6 +161,10 @@ class CompanionStoryResult(BaseModel):
     timeline_bullets: list[str] = Field(default_factory=list)
 
 
+# Story generation has its own shorter timeout since we have a quick fallback
+STORY_TIMEOUT_SECONDS = 5
+
+
 class InvoicesRunLLMResult(BaseModel):
     explanations: list[str] = Field(default_factory=list)
     ranked_documents: list[RankedDocument] = Field(default_factory=list)
@@ -625,6 +629,10 @@ def generate_companion_story(
     """
     Generate a weekly story narrative using DeepSeek Reasoner.
     
+    This function has its own SHORT timeout (STORY_TIMEOUT_SECONDS = 5s by default)
+    to ensure the companion summary API returns quickly. On timeout or error,
+    the caller should use a deterministic fallback.
+    
     Args:
         first_name: User's first name for personalization.
         radar: 4-axis stability scores from build_companion_radar().
@@ -632,37 +640,41 @@ def generate_companion_story(
         recent_issues: List of recent CompanionIssue dicts with severity/title.
         focus_mode: One of "all_clear", "watchlist", "fire_drill".
         llm_client: Optional override for the LLM client (for testing).
-        timeout_seconds: Optional timeout override.
+        timeout_seconds: Optional timeout override (defaults to STORY_TIMEOUT_SECONDS).
     
     Returns:
-        CompanionStoryResult with overall_summary and timeline_bullets, or None on failure.
+        CompanionStoryResult with overall_summary and timeline_bullets, or None on failure/timeout.
     """
+    # Use story-specific short timeout by default
+    effective_timeout = timeout_seconds if timeout_seconds is not None else STORY_TIMEOUT_SECONDS
+    
     name = first_name.strip().split()[0] if first_name and first_name.strip() else "there"
     
-    # Build the system prompt with personalization
-    system_prompt = STORY_SYSTEM_PROMPT.format(
-        first_name=name,
-        focus_mode=focus_mode,
-    )
-    
-    # Prepare simplified issue data for the prompt
-    issues_for_prompt = []
-    for issue in recent_issues[:10]:  # Limit to 10 most recent
-        if hasattr(issue, "title"):
-            issues_for_prompt.append({
-                "title": issue.title,
-                "severity": issue.severity,
-                "surface": issue.surface,
-            })
-        elif isinstance(issue, dict):
-            issues_for_prompt.append({
-                "title": issue.get("title", ""),
-                "severity": issue.get("severity", "low"),
-                "surface": issue.get("surface", ""),
-            })
-    
-    # Build the user prompt with data
-    user_prompt = f"""{system_prompt}
+    try:
+        # Build the system prompt with personalization
+        system_prompt = STORY_SYSTEM_PROMPT.format(
+            first_name=name,
+            focus_mode=focus_mode,
+        )
+        
+        # Prepare simplified issue data for the prompt
+        issues_for_prompt = []
+        for issue in recent_issues[:10]:  # Limit to 10 most recent
+            if hasattr(issue, "title"):
+                issues_for_prompt.append({
+                    "title": issue.title,
+                    "severity": issue.severity,
+                    "surface": issue.surface,
+                })
+            elif isinstance(issue, dict):
+                issues_for_prompt.append({
+                    "title": issue.get("title", ""),
+                    "severity": issue.get("severity", "low"),
+                    "surface": issue.get("surface", ""),
+                })
+        
+        # Build the user prompt with data
+        user_prompt = f"""{system_prompt}
 
 Here is the current data:
 
@@ -677,24 +689,27 @@ RECENT ISSUES:
 
 Please write the story narrative for {name}."""
 
-    # Call DeepSeek Reasoner
-    raw = _invoke_llm(user_prompt, llm_client=llm_client, timeout_seconds=timeout_seconds)
-    if not raw:
-        logger.warning("Story generation LLM returned no response.")
-        return None
-    
-    # Parse and validate
-    try:
-        parsed = json.loads(_strip_markdown_json(raw))
-    except Exception:
-        logger.warning("Story generation LLM returned non-JSON response.")
-        return None
-    
-    try:
+        # Call DeepSeek Reasoner with short timeout
+        raw = _invoke_llm(user_prompt, llm_client=llm_client, timeout_seconds=effective_timeout)
+        if not raw:
+            logger.warning("Story generation LLM returned no response (timeout or empty).")
+            return None
+        
+        # Parse and validate
+        try:
+            parsed = json.loads(_strip_markdown_json(raw))
+        except Exception:
+            logger.warning("Story generation LLM returned non-JSON response.")
+            return None
+        
         result = CompanionStoryResult.model_validate(parsed)
         logger.info("Story generation succeeded for user '%s'", name)
         return result
+        
     except ValidationError as exc:
         logger.warning("Story generation validation failed: %s", exc)
         return None
-
+    except Exception as exc:
+        # Catch-all for any unexpected errors - log and return None so fallback is used
+        logger.warning("Story generation failed unexpectedly: %s", exc)
+        return None

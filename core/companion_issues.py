@@ -283,8 +283,11 @@ SEVERITY_DEDUCTION = {
     "low": 3,
 }
 
-# Age penalty: extra points per 7 days old
-AGE_PENALTY_PER_WEEK = 2
+# Age penalty: extra points per 7 days old (softened from 2 to 1)
+AGE_PENALTY_PER_WEEK = 1
+
+# Maximum age penalty per issue to avoid old low-severity issues tanking the score
+MAX_AGE_PENALTY = 5
 
 
 def build_companion_radar(business) -> dict:
@@ -340,9 +343,9 @@ def build_companion_radar(business) -> dict:
         severity = issue.severity.lower() if issue.severity else "low"
         base_deduction = SEVERITY_DEDUCTION.get(severity, 3)
         
-        # Calculate age penalty (extra points per week old)
+        # Calculate age penalty (extra points per week old, capped)
         days_old = (now - issue.created_at).days
-        age_penalty = (days_old // 7) * AGE_PENALTY_PER_WEEK
+        age_penalty = min((days_old // 7) * AGE_PENALTY_PER_WEEK, MAX_AGE_PENALTY)
         
         # Total deduction
         total_deduction = base_deduction + age_penalty
@@ -370,8 +373,10 @@ def build_companion_coverage(business) -> dict[str, CoverageAxis]:
     Domains:
       - receipts: ReceiptDocuments that are POSTED or PROCESSED
       - invoices: Invoices that are PAID, PARTIAL, or SENT
-      - banking: BankTransactions that are not NEW status
-      - books: placeholder (journal entries reconciled)
+      - banking: BankTransactions that are POSTED, MATCHED, RECONCILED, or EXCLUDED
+    
+    Note: "books" coverage is intentionally omitted until we have real journal
+    reconciliation metrics. The frontend handles books being absent gracefully.
     
     Returns:
         Dict with coverage_percent, total_items, covered_items per domain.
@@ -422,28 +427,24 @@ def build_companion_coverage(business) -> dict[str, CoverageAxis]:
         date__gte=since.date(),
     ).count()
     
-    # Covered = anything not NEW
+    # Covered = POSTED, MATCHED, RECONCILED, or EXCLUDED (anything but NEW)
+    # NEW = not yet reviewed, so not covered
+    # EXCLUDED = intentionally excluded from reconciliation, counts as covered decision
     banking_covered = BankTransaction.objects.filter(
         bank_account_id__in=bank_account_ids,
         date__gte=since.date(),
-    ).exclude(status=BankTransaction.TransactionStatus.NEW).count()
+        status__in=[
+            BankTransaction.TransactionStatus.POSTED,
+            BankTransaction.TransactionStatus.MATCHED,
+            BankTransaction.TransactionStatus.RECONCILED,
+            BankTransaction.TransactionStatus.EXCLUDED,
+        ],
+    ).count()
     
     banking_pct = (banking_covered / max(1, banking_total)) * 100
     
-    # --- Books Coverage ---
-    # Simplified: use journal line reconciliation rate or CompanionIssue count
-    # For now, estimate based on absence of books-related issues
-    books_issues = CompanionIssue.objects.filter(
-        business=business,
-        surface="books",
-        status=CompanionIssue.Status.OPEN,
-        created_at__gte=since,
-    ).count()
-    
-    # Start at 100%, subtract 10% per open books issue, floor at 0
-    books_pct = max(0, 100 - (books_issues * 10))
-    books_total = max(1, books_issues + 5)  # Rough estimate
-    books_covered = int(books_total * (books_pct / 100))
+    # Note: "books" domain is omitted until we have real journal reconciliation metrics.
+    # The frontend handles this gracefully by checking if books key exists.
     
     return {
         "receipts": {
@@ -461,17 +462,19 @@ def build_companion_coverage(business) -> dict[str, CoverageAxis]:
             "total_items": banking_total,
             "covered_items": banking_covered,
         },
-        "books": {
-            "coverage_percent": round(books_pct, 1),
-            "total_items": books_total,
-            "covered_items": books_covered,
-        },
     }
 
 
 # ---------------------------------------------------------------------------
 # CLOSE-READINESS - "Should I close this period?"
 # ---------------------------------------------------------------------------
+
+# Close-readiness thresholds (documented):
+# - Don't block for trivial unreconciled counts (<5)
+# - Don't block if unreconciled rate is <2% of total transactions
+UNRECONCILED_ABSOLUTE_THRESHOLD = 5
+UNRECONCILED_RATIO_THRESHOLD = 0.02
+
 
 class CloseReadinessResult(TypedDict):
     status: Literal["ready", "not_ready"]
@@ -483,8 +486,8 @@ def evaluate_period_close_readiness(business) -> CloseReadinessResult:
     Evaluate whether the most recent accounting period looks safe to close.
     
     Uses deterministic checks only:
-      - unreconciled bank items
-      - suspicious account balances (suspense, negative tax payables)
+      - unreconciled bank items (only if material: >=5 OR >=2% of total)
+      - suspicious account balances (suspense accounts with non-zero balance)
       - open high/critical CompanionIssues in books/bank themes
     
     Returns:
@@ -493,26 +496,60 @@ def evaluate_period_close_readiness(business) -> CloseReadinessResult:
     blocking_reasons: list[str] = []
     since = timezone.now() - timedelta(days=30)
     
-    # Check 1: Unreconciled bank transactions
+    # Check 1: Unreconciled bank transactions (with thresholds)
     bank_account_ids = BankAccount.objects.filter(business=business).values_list('id', flat=True)
+    
+    total_bank_txns = BankTransaction.objects.filter(
+        bank_account_id__in=bank_account_ids,
+        date__gte=since.date(),
+    ).count()
+    
     unreconciled_count = BankTransaction.objects.filter(
         bank_account_id__in=bank_account_ids,
         date__gte=since.date(),
         status=BankTransaction.TransactionStatus.NEW,
     ).count()
     
-    if unreconciled_count > 0:
-        blocking_reasons.append(f"{unreconciled_count} unreconciled bank transactions in the last 30 days.")
+    # Only block if unreconciled count is material:
+    # - At least UNRECONCILED_ABSOLUTE_THRESHOLD (5) unreconciled items, OR
+    # - Unreconciled ratio >= UNRECONCILED_RATIO_THRESHOLD (2%)
+    if total_bank_txns > 0:
+        unreconciled_ratio = unreconciled_count / total_bank_txns
+        if unreconciled_count >= UNRECONCILED_ABSOLUTE_THRESHOLD or unreconciled_ratio >= UNRECONCILED_RATIO_THRESHOLD:
+            blocking_reasons.append(f"{unreconciled_count} unreconciled bank transactions ({unreconciled_ratio:.1%} of total).")
     
     # Check 2: Suspense/clearing account balance
+    # Priority 1: Look for accounts with is_suspense=True (business-scoped)
+    # Priority 2: Fall back to common suspense codes if none marked
     suspense_accounts = Account.objects.filter(
         business=business,
-        code__in=["9999", "2999", "3999"],  # Common suspense codes
+        is_suspense=True,
     )
-    for acct in suspense_accounts:
-        balance = acct.balance()
-        if balance and abs(balance) > 0.01:
-            blocking_reasons.append(f"{acct.name} has a balance of ${balance:,.2f}.")
+    if not suspense_accounts.exists():
+        # Fallback: use heuristic codes (9999, 2999, 3999) if no accounts are marked as suspense
+        suspense_accounts = Account.objects.filter(
+            business=business,
+            code__in=["9999", "2999", "3999"],
+        )
+    
+    # Avoid N+1 queries: compute all suspense balances in a single query
+    # by annotating with the sum of journal line amounts
+    if suspense_accounts.exists():
+        from django.db.models import Sum, F, Value
+        from django.db.models.functions import Coalesce
+        
+        # Get balances via annotation to avoid N+1 .balance() calls
+        suspense_with_balance = suspense_accounts.annotate(
+            computed_balance=Coalesce(
+                Sum('journal_lines__amount'),
+                Value(0),
+            )
+        ).exclude(computed_balance=0)  # Only accounts with non-zero balance
+        
+        for acct in suspense_with_balance:
+            bal = float(acct.computed_balance or 0)
+            if abs(bal) > 0.01:
+                blocking_reasons.append(f"{acct.name} has a balance of ${bal:,.2f}.")
     
     # Check 3: High/Critical CompanionIssues in books or bank
     critical_issues = CompanionIssue.objects.filter(
@@ -555,6 +592,69 @@ SURFACE_URL_MAP = {
 }
 
 
+def _build_action_label(issue) -> str:
+    """
+    Build an action-oriented label for a playbook step.
+    
+    Uses issue context (surface, data, title) to create specific,
+    actionable labels like:
+      - "Reconcile 9 unmatched transactions in Scotia Business Checking"
+      - "Follow up on 3 overdue invoices"
+      - "Clear $3,200 from suspense account"
+    
+    Keeps labels under ~80 characters for readability.
+    This is deterministic - no LLM calls.
+    """
+    data = issue.data or {}
+    surface = issue.surface
+    title = issue.title or ""
+    
+    # Bank-related issues
+    if surface == "bank":
+        if data.get("unreconciled"):
+            return f"Reconcile {data['unreconciled']} unmatched bank transactions"
+        if data.get("high_risk"):
+            return f"Review {data['high_risk']} high-risk bank lines"
+        if data.get("duplicates"):
+            return f"Resolve {data['duplicates']} possible duplicate bank entries"
+        if "unreconciled" in title.lower():
+            return "Match unreconciled bank transactions"
+    
+    # Invoice-related issues
+    if surface == "invoices":
+        if data.get("overdue_count"):
+            total = data.get("overdue_total", 0)
+            if total:
+                return f"Follow up on {data['overdue_count']} overdue invoices (${total:,.0f})"
+            return f"Follow up on {data['overdue_count']} overdue invoices"
+        if data.get("high_risk"):
+            return f"Review {data['high_risk']} high-risk invoices"
+        if data.get("errors"):
+            return f"Fix {data['errors']} failed invoice processing errors"
+    
+    # Receipt-related issues
+    if surface == "receipts":
+        if data.get("high_risk"):
+            return f"Classify {data['high_risk']} high-risk receipts"
+        if data.get("errors"):
+            return f"Resolve {data['errors']} receipt processing errors"
+        if data.get("warnings"):
+            return f"Review {data['warnings']} receipts with warnings"
+    
+    # Books-related issues
+    if surface == "books":
+        if data.get("suspense_balance"):
+            bal = data["suspense_balance"]
+            return f"Clear ${abs(bal):,.0f} from suspense account"
+        if data.get("journals_high_risk"):
+            return f"Review {data['journals_high_risk']} high-risk journal entries"
+        if data.get("findings"):
+            return f"Address {data['findings']} findings in books review"
+    
+    # Fallback: use the issue title, trimmed
+    return title[:80] if title else "Review open issue"
+
+
 def build_companion_playbook(business, max_steps: int = 4) -> List[PlaybookStep]:
     """
     Build a short, ordered list of 2-4 actions for the user to take today.
@@ -563,6 +663,8 @@ def build_companion_playbook(business, max_steps: int = 4) -> List[PlaybookStep]
       - Ranked CompanionIssues (severity + age)
       - Coverage gaps
       - Close-readiness blocking reasons
+    
+    Labels are action-oriented and derived deterministically from issue context.
     
     Returns:
         List of PlaybookStep dicts with label, surface, severity, url, issue_id.
@@ -588,7 +690,7 @@ def build_companion_playbook(business, max_steps: int = 4) -> List[PlaybookStep]
     
     for issue in open_issues[:max_steps]:
         playbook.append({
-            "label": issue.title[:100],  # Trim if too long
+            "label": _build_action_label(issue),  # Action-oriented label
             "surface": issue.surface,
             "severity": issue.severity,
             "url": SURFACE_URL_MAP.get(issue.surface, "/companion/"),
@@ -598,30 +700,29 @@ def build_companion_playbook(business, max_steps: int = 4) -> List[PlaybookStep]
     # Priority 2: Add coverage gap action if we have room
     if len(playbook) < max_steps:
         coverage = build_companion_coverage(business)
-        lowest_coverage = min(coverage.items(), key=lambda x: x[1]["coverage_percent"])
-        domain, axis = lowest_coverage
-        
-        if axis["coverage_percent"] < 80:
-            uncovered = axis["total_items"] - axis["covered_items"]
-            label_map = {
-                "receipts": f"Process {uncovered} pending receipts",
-                "invoices": f"Follow up on {uncovered} draft/unpaid invoices",
-                "banking": f"Match {uncovered} unmatched bank transactions",
-                "books": f"Review {uncovered} open books items",
-            }
-            surface_map = {
-                "receipts": "receipts",
-                "invoices": "invoices",
-                "banking": "bank",
-                "books": "books",
-            }
+        if coverage:  # May be empty if no data
+            lowest_coverage = min(coverage.items(), key=lambda x: x[1]["coverage_percent"])
+            domain, axis = lowest_coverage
             
-            playbook.append({
-                "label": label_map.get(domain, f"Review {domain}"),
-                "surface": surface_map.get(domain, domain),
-                "severity": "medium",
-                "url": SURFACE_URL_MAP.get(surface_map.get(domain, domain), "/companion/"),
-                "issue_id": None,
-            })
+            if axis["coverage_percent"] < 80:
+                uncovered = axis["total_items"] - axis["covered_items"]
+                label_map = {
+                    "receipts": f"Process {uncovered} pending receipts",
+                    "invoices": f"Follow up on {uncovered} draft/unpaid invoices",
+                    "banking": f"Match {uncovered} unmatched bank transactions",
+                }
+                surface_map = {
+                    "receipts": "receipts",
+                    "invoices": "invoices",
+                    "banking": "bank",
+                }
+                
+                playbook.append({
+                    "label": label_map.get(domain, f"Review {domain}"),
+                    "surface": surface_map.get(domain, domain),
+                    "severity": "medium",
+                    "url": SURFACE_URL_MAP.get(surface_map.get(domain, domain), "/companion/"),
+                    "issue_id": None,
+                })
     
     return playbook[:max_steps]

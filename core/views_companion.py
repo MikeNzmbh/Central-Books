@@ -1,11 +1,18 @@
 import json
+import logging
 from datetime import timedelta
 from decimal import Decimal
 
 from django.contrib.auth.decorators import login_required
+from django.core.cache import cache
 from django.db import models
 from django.http import JsonResponse, HttpResponseBadRequest
 from django.utils import timezone
+
+logger = logging.getLogger(__name__)
+
+# Cache TTL for companion summary (short-lived to ensure fresh data while reducing load)
+COMPANION_SUMMARY_CACHE_TTL = 45  # seconds
 
 from .models import (
     ReceiptRun,
@@ -72,6 +79,13 @@ def api_companion_summary(request):
     business = get_current_business(request.user)
     if business is None:
         return HttpResponseBadRequest("No business context")
+
+    # Check cache first (scoped by business ID to prevent data leakage)
+    cache_key = f"companion_summary_{business.id}"
+    cached_summary = cache.get(cache_key)
+    if cached_summary is not None:
+        logger.debug("Returning cached companion summary for business %s", business.id)
+        return JsonResponse(cached_summary)
 
     now = timezone.now()
     since = now - timedelta(days=30)
@@ -301,6 +315,11 @@ def api_companion_summary(request):
     # Build today's playbook (deterministic, no LLM)
     playbook = build_companion_playbook(business)
     summary["playbook"] = playbook
+
+    # Cache successful summary (short TTL to balance freshness vs. performance)
+    # Only cache on success - errors/exceptions should not be cached
+    cache.set(cache_key, summary, COMPANION_SUMMARY_CACHE_TTL)
+    logger.debug("Cached companion summary for business %s (TTL=%ss)", business.id, COMPANION_SUMMARY_CACHE_TTL)
 
     return JsonResponse(summary)
 

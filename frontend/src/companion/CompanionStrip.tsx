@@ -1,7 +1,8 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useMemo } from "react";
 import type { CompanionContext } from "./api";
 import { useCompanionContext } from "./useCompanionContext";
-import { CompanionSuggestionBanner, type RiskLevel, type CompanionSuggestion } from "./CompanionSuggestionBanner";
+import { useCompanionSummary, type CompanionSummary } from "./useCompanionSummary";
+import { CompanionSuggestionBanner, type RiskLevel, type CompanionSuggestion, type FocusMode } from "./CompanionSuggestionBanner";
 
 type CompanionStripProps = {
   context: CompanionContext;
@@ -19,123 +20,243 @@ const friendlyLabels: Record<CompanionContext, string> = {
   dashboard: "workspace",
 };
 
+// Map context to radar axis
+const CONTEXT_TO_RADAR_AXIS: Record<CompanionContext, keyof NonNullable<CompanionSummary["radar"]>> = {
+  bank: "cash_reconciliation",
+  reconciliation: "cash_reconciliation",
+  invoices: "revenue_invoices",
+  expenses: "expenses_receipts",
+  reports: "tax_compliance",
+  tax_fx: "tax_compliance",
+  dashboard: "cash_reconciliation",
+};
+
+// Map context to coverage domain
+const CONTEXT_TO_COVERAGE: Record<CompanionContext, keyof NonNullable<CompanionSummary["coverage"]>> = {
+  bank: "banking",
+  reconciliation: "banking",
+  invoices: "invoices",
+  expenses: "receipts",
+  reports: "books",
+  tax_fx: "books",
+  dashboard: "banking",
+};
+
 /**
- * Maps context severity to RiskLevel for the new banner design.
+ * Get time-based greeting prefix
  */
-function mapSeverityToRiskLevel(severity: string | null | undefined): RiskLevel {
-  const sev = (severity || "").toLowerCase();
-  if (sev === "critical") return "critical";
-  if (sev === "high") return "high";
-  if (sev === "medium") return "medium";
-  return "low";
+function getGreetingPrefix(): string {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 12) return "Good morning";
+  if (hour >= 12 && hour < 18) return "Good afternoon";
+  return "Good evening";
 }
 
 /**
- * Get a user-friendly sentiment label based on risk level.
+ * Build greeting with optional name
  */
-function getSentimentLabel(riskLevel: RiskLevel, allClear: boolean): string {
-  if (allClear) return "All systems nominal";
-  switch (riskLevel) {
-    case "critical":
-      return "Immediate Action Required";
-    case "high":
-      return "High risk";
-    case "medium":
-      return "Needs attention";
-    default:
-      return "All good";
+function buildGreeting(userName?: string): string {
+  const prefix = getGreetingPrefix();
+  if (userName && userName.trim()) {
+    return `${prefix}, ${userName.trim().split(" ")[0]}`;
   }
+  return prefix;
 }
 
 /**
- * Get a tone subtitle based on context and risk level.
+ * Determine focus mode from radar score
  */
-function getToneSubtitle(riskLevel: RiskLevel, context: string, allClear: boolean): string {
-  if (allClear) {
-    return `Your ${context} area is in great shape.`;
+function determineFocusMode(
+  score: number | undefined,
+  hasHighIssues: boolean
+): FocusMode {
+  if (score === undefined) return "watchlist";
+  if (score >= 80 && !hasHighIssues) return "all_clear";
+  if (score >= 50) return "watchlist";
+  return "fire_drill";
+}
+
+/**
+ * Get headline for surface based on focus mode
+ */
+function getHeadline(context: CompanionContext, focusMode: FocusMode): string {
+  const headlines: Record<string, Record<FocusMode, string>> = {
+    bank: {
+      all_clear: "Your bank feeds look calm — cash and books are lining up well.",
+      watchlist: "Some bank transactions still need review — your cash picture isn't fully locked in.",
+      fire_drill: "Your cash view is fuzzy — unreconciled bank items are piling up.",
+    },
+    reconciliation: {
+      all_clear: "Reconciliation is on track — everything is lining up nicely.",
+      watchlist: "A few items need matching — worth a quick look before month-end.",
+      fire_drill: "Several unmatched items need your attention to close this period.",
+    },
+    invoices: {
+      all_clear: "Your invoices look steady — most of your billed revenue is on track.",
+      watchlist: "You've got a few invoices to keep an eye on — some are drifting past due.",
+      fire_drill: "There are invoices that need your attention — overdue items are building up.",
+    },
+    expenses: {
+      all_clear: "Your recent receipts look tidy — nothing high-risk is showing up.",
+      watchlist: "A few receipts need a second look — mostly about categories.",
+      fire_drill: "Several receipts are blocking clean books — let's clear those next.",
+    },
+    reports: {
+      all_clear: "Your books for this period look solid — nothing critical is standing out.",
+      watchlist: "Your books are mostly fine, but there are a few items worth reviewing.",
+      fire_drill: "There are issues in your books that could affect tax or reporting.",
+    },
+    tax_fx: {
+      all_clear: "Tax and FX look healthy — no surprises here.",
+      watchlist: "A few tax-related items need review before filing.",
+      fire_drill: "Tax or FX issues need attention — let's sort these soon.",
+    },
+    dashboard: {
+      all_clear: "Your workspace is looking great — all systems nominal.",
+      watchlist: "A few items across your workspace need attention.",
+      fire_drill: "Multiple areas need your focus to get back on track.",
+    },
+  };
+  return headlines[context]?.[focusMode] || headlines.dashboard[focusMode];
+}
+
+/**
+ * Get subtitle from coverage and playbook
+ */
+function getSubtitle(
+  context: CompanionContext,
+  summary: CompanionSummary | null,
+  focusMode: FocusMode
+): string {
+  if (!summary) {
+    return "Companion will be back shortly with suggestions.";
   }
-  switch (riskLevel) {
-    case "critical":
-      return "Multiple issues require your immediate attention.";
-    case "high":
-      return "There are urgent items that need to be addressed soon.";
-    case "medium":
-      return "Steady, just keep an eye on a few items.";
-    default:
-      return `Everything looks healthy in your ${context} workspace.`;
+
+  // Check for playbook step for this context
+  const surfaceMap: Record<CompanionContext, string> = {
+    bank: "bank",
+    reconciliation: "bank",
+    invoices: "invoices",
+    expenses: "receipts",
+    reports: "books",
+    tax_fx: "books",
+    dashboard: "bank",
+  };
+  const targetSurface = surfaceMap[context];
+
+  const playbookStep = summary.playbook?.find(s => s.surface === targetSurface);
+  if (playbookStep && (playbookStep.severity === "high" || playbookStep.severity === "medium")) {
+    return `Top next step: ${playbookStep.label}`;
   }
+
+  // Fall back to coverage
+  const coverageKey = CONTEXT_TO_COVERAGE[context];
+  const coverage = summary.coverage?.[coverageKey];
+  if (coverage) {
+    const pct = Math.round(coverage.coverage_percent);
+    if (pct >= 90) return `You've covered about ${pct}% of this area right now.`;
+    if (pct >= 60) return `You're about ${pct}% of the way through — a bit more attention here will close the loop.`;
+    return `Coverage is still light here (~${pct}%). Spending a few minutes will make this much more reliable.`;
+  }
+
+  return `Everything looks healthy in your ${friendlyLabels[context]} workspace.`;
+}
+
+/**
+ * Map focus mode to risk level for backward compatibility
+ */
+function focusModeToRiskLevel(focusMode: FocusMode): RiskLevel {
+  if (focusMode === "all_clear") return "low";
+  if (focusMode === "watchlist") return "medium";
+  return "high";
 }
 
 const CompanionStrip: React.FC<CompanionStripProps> = ({ context, className, userName }) => {
   const {
-    isLoading,
-    error,
-    contextInsights,
+    isLoading: contextLoading,
+    error: contextError,
     contextActions,
-    contextAllClear,
-    contextSeverity,
     markContextSeen,
   } = useCompanionContext(context);
 
+  const { summary, isLoading: summaryLoading, error: summaryError } = useCompanionSummary();
+
   const didMarkSeenRef = useRef(false);
   const label = friendlyLabels[context] || "workspace";
+  const isLoading = contextLoading || summaryLoading;
+  const hasError = !!contextError || !!summaryError;
 
   useEffect(() => {
     if (didMarkSeenRef.current) return;
-    if (!isLoading && !error) {
+    if (!isLoading && !hasError) {
       didMarkSeenRef.current = true;
       markContextSeen().catch(() => {
         didMarkSeenRef.current = false;
       });
     }
-  }, [isLoading, error, markContextSeen]);
+  }, [isLoading, hasError, markContextSeen]);
 
-  // Calculate risk level and suggestions
-  const riskLevel = mapSeverityToRiskLevel(contextSeverity);
-  const hasSignals = contextInsights.length > 0 || contextActions.length > 0;
-  const allClear = contextAllClear || !hasSignals;
+  // Build view model from summary data
+  const viewModel = useMemo(() => {
+    const greeting = buildGreeting(userName);
 
-  // Build suggestions from insights and actions
-  const suggestions: CompanionSuggestion[] = [
-    ...contextInsights.slice(0, 2).map((insight, idx) => ({
-      id: `insight-${idx}`,
-      label: insight.title || insight.body || "Review insight",
-    })),
-    ...contextActions.slice(0, 2).map((action, idx) => ({
-      id: `action-${idx}`,
-      label: action.summary || action.short_title || action.action_type || "Take action",
-    })),
-  ].slice(0, 4); // Max 4 suggestions
+    if (hasError || !summary) {
+      return {
+        greeting,
+        headline: "Here's what your Companion will suggest as soon as it's back online.",
+        subtitle: "Companion is temporarily unavailable for this area.",
+        focusMode: "watchlist" as FocusMode,
+        riskLevel: "low" as RiskLevel,
+        statusLabel: "Companion temporarily unavailable",
+      };
+    }
 
-  const sentimentLabel = getSentimentLabel(riskLevel, allClear);
-  const toneSubtitle = getToneSubtitle(riskLevel, label, allClear);
-  const subtitleText = allClear ? `Everything looks good here. ${toneSubtitle}` : toneSubtitle;
+    // Get radar data for this context
+    const radarKey = CONTEXT_TO_RADAR_AXIS[context];
+    const axisData = summary.radar?.[radarKey];
+    const score = axisData?.score;
+    const hasHighIssues = (summary.global?.open_issues_by_severity?.high || 0) > 0;
 
-  // Error state
-  if (error) {
-    return (
-      <div className={`companion-glow ${className || ""}`} data-testid="companion-strip-glow">
-        <CompanionSuggestionBanner
-          riskLevel="low"
-          sentimentLabel="Companion temporarily unavailable"
-          toneSubtitle="Companion will be back shortly."
-          suggestions={[]}
-          onViewMore={() => (window.location.href = "/dashboard/")}
-        />
-      </div>
-    );
-  }
+    const focusMode = determineFocusMode(score, hasHighIssues);
+    const headline = getHeadline(context, focusMode);
+    const subtitle = getSubtitle(context, summary, focusMode);
+    const riskLevel = focusModeToRiskLevel(focusMode);
+
+    const statusLabels: Record<FocusMode, string> = {
+      all_clear: "On track",
+      watchlist: "Needs attention",
+      fire_drill: "Action required",
+    };
+
+    return {
+      greeting,
+      headline,
+      subtitle,
+      focusMode,
+      riskLevel,
+      statusLabel: statusLabels[focusMode],
+    };
+  }, [userName, hasError, summary, context]);
+
+  // Build suggestions from actions
+  const suggestions: CompanionSuggestion[] = contextActions.slice(0, 3).map((action, idx) => ({
+    id: `action-${idx}`,
+    label: action.summary || action.short_title || action.action_type || "Take action",
+  }));
 
   return (
     <div className={`companion-glow ${className || ""}`} data-testid="companion-strip-glow">
       <CompanionSuggestionBanner
         userName={userName}
-        riskLevel={allClear ? "low" : riskLevel}
-        sentimentLabel={sentimentLabel}
-        toneSubtitle={subtitleText}
-        suggestions={allClear ? [] : suggestions}
+        riskLevel={viewModel.riskLevel}
+        sentimentLabel={viewModel.statusLabel}
+        toneSubtitle={viewModel.subtitle}
+        suggestions={viewModel.focusMode === "all_clear" ? [] : suggestions}
         onViewMore={() => (window.location.href = "/dashboard/")}
         isLoading={isLoading}
+        greeting={viewModel.greeting}
+        focusMode={viewModel.focusMode}
+        primaryCTA={null}
       />
     </div>
   );

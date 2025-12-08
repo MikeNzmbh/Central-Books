@@ -283,6 +283,10 @@ class Account(models.Model):
     is_active = models.BooleanField(default=True)
     description = models.TextField(blank=True)
     is_favorite = models.BooleanField(default=False)
+    is_suspense = models.BooleanField(
+        default=False,
+        help_text="Mark as a suspense/clearing account for close-readiness checks.",
+    )
 
     class Meta:
         verbose_name = "Account"
