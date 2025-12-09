@@ -88,7 +88,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                         Receipts
                     </NavItem>
                     <NavItem
-                        href="/companion/"
+                        href="/ai-companion/"
                         active={
                             activeRoute === "companion_overview_page" ||
                             activeRoute === "invoices_ai_page" ||
