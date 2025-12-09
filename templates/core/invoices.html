@@ -148,11 +148,11 @@
             style="display:flex; gap:12px; align-items:center;">
             {% csrf_token %}
             <input type="hidden" name="redirect_url" value="{{ request.get_full_path }}">
-            <select name="status" style="
-                        border-radius:999px;
-                        border:1px solid #cdd9ff;
-                        background:#f8faff;
-                        padding:6px 32px 6px 14px;
+              <select name="status" style="
+                          border-radius:999px;
+                          border:1px solid #cdd9ff;
+                          background:#f8faff;
+                          padding:6px 32px 6px 14px;
                         font-size:13px;
                         font-weight:600;
                         color:#0f172a;
@@ -161,10 +161,10 @@
                         background-image:url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2210%22 height=%227%22 viewBox=%220 0 10 7%22><path fill=%22%236273b3%22 d=%22M1 1l4 4 4-4%22 stroke=%22%236273b3%22 stroke-width=%221.2%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22/></svg>');
                         background-repeat:no-repeat;
                         background-position:right 12px center;
-                        background-size:12px;
-                      ">
+                          background-size:12px;
+                        ">
               {% for value, label in invoice_status_choices %}
-              <option value="{{ value }}" {% if selected_invoice.status==value %}selected{% endif %}>
+              <option value="{{ value }}" {% if selected_invoice.status == value %}selected{% endif %}>
                 {{ label }}
               </option>
               {% endfor %}
