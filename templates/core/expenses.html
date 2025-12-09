@@ -133,8 +133,7 @@
             {% endfor %}
             <tr>
               <td colspan="5" class="text-right cell-meta">Total (current view)</td>
-              <td class="text-right"><strong>{{ total_filtered|floatformat:2 }} {{ business.currency|default:""
-                  }}</strong></td>
+              <td class="text-right"><strong>{{ total_filtered|floatformat:2 }} {{ business.currency|default:"" }}</strong></td>
               <td></td>
             </tr>
             {% else %}
