@@ -2535,6 +2535,12 @@ def invoice_status_update(request, pk):
         messages.error(request, "Invalid status value.")
     else:
         invoice.status = new_status
+        # Reset payment state when marking as unpaid statuses
+        if new_status in (Invoice.Status.SENT, Invoice.Status.DRAFT):
+            invoice.amount_paid = Decimal("0.00")
+        elif new_status == Invoice.Status.PAID:
+            # Ensure full payment when marking as paid
+            invoice.amount_paid = invoice.grand_total or invoice.total_amount
         invoice.save()
         messages.success(
             request,
