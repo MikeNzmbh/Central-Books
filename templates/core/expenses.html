@@ -78,9 +78,7 @@
         class="input-select">
         <option value="" {% if not category_filter %}selected{% endif %}>All categories</option>
         {% for cat in categories %}
-        <option value="{{ cat.id }}" {% if category_filter|stringformat:"s"==cat.id|stringformat:"s" %}selected{% endif
-          %}>{{ cat.name }}</option>
-        %}>{{ cat.name }}</option>
+        <option value="{{ cat.id }}" {% if category_filter == cat.id %}selected{% endif %}>{{ cat.name }}</option>
         {% endfor %}
       </select>
       <div class="input-search-pill">
@@ -135,8 +133,7 @@
             {% endfor %}
             <tr>
               <td colspan="5" class="text-right cell-meta">Total (current view)</td>
-              <td class="text-right"><strong>{{ total_filtered|floatformat:2 }} {{ business.currency|default:""
-                  }}</strong></td>
+              <td class="text-right"><strong>{{ total_filtered|floatformat:2 }} {{ business.currency|default:"" }}</strong></td>
               <td></td>
             </tr>
             {% else %}
