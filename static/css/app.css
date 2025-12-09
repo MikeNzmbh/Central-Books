@@ -13,17 +13,91 @@
   --radius-xl: 22px;
   --shadow-soft: 0 20px 40px rgba(15, 23, 42, 0.12);
   --shadow-card: 0 16px 30px rgba(15, 23, 42, 0.06);
+  /* View transitions */
+  view-transition-name: root;
+}
+
+/* --- View Transitions API for smoother page navigation --- */
+@view-transition {
+  navigation: auto;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.2s;
+  animation-timing-function: ease-out;
+}
+
+::view-transition-old(root) {
+  animation-name: fade-out;
+}
+
+::view-transition-new(root) {
+  animation-name: fade-in;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+/* --- Page Load Animation --- */
+.app-main {
+  animation: page-enter 0.25s ease-out;
+}
+
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Sidebar should not animate on page load */
+.app-sidebar,
+#sidebar-root {
+  view-transition-name: sidebar;
+}
+
+::view-transition-old(sidebar),
+::view-transition-new(sidebar) {
+  animation: none;
 }
 
 /* --- Global --- */
-html, body {
+html,
+body {
   margin: 0;
   padding: 0;
   width: 100%;
   height: 100%;
   overflow-x: hidden;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, -system-ui,
-               "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 body {
@@ -584,9 +658,17 @@ body {
   margin-right: 6px;
 }
 
-.chip-dot-revenue { background: #2563eb; }
-.chip-dot-subscriptions { background: #6366f1; }
-.chip-dot-taxes { background: #f97316; }
+.chip-dot-revenue {
+  background: #2563eb;
+}
+
+.chip-dot-subscriptions {
+  background: #6366f1;
+}
+
+.chip-dot-taxes {
+  background: #f97316;
+}
 
 .chip-text {
   display: flex;
@@ -626,9 +708,17 @@ body {
   border-radius: 999px;
 }
 
-.mix-dot--revenue { background: #22c55e; }
-.mix-dot--subs { background: #4c6fff; }
-.mix-dot--taxes { background: #8e44ad; }
+.mix-dot--revenue {
+  background: #22c55e;
+}
+
+.mix-dot--subs {
+  background: #4c6fff;
+}
+
+.mix-dot--taxes {
+  background: #8e44ad;
+}
 
 .mix-label {
   font-weight: 600;
@@ -817,6 +907,7 @@ body {
   font-size: 14px;
   color: #6b7280;
 }
+
 .card-donut .donut-chart-wrapper {
   position: relative;
   width: 260px;
@@ -846,9 +937,17 @@ body {
   display: inline-block;
 }
 
-.chip-revenue .chip-dot-indicator { background: #2563eb; }
-.chip-subscriptions .chip-dot-indicator { background: #6366f1; }
-.chip-taxes .chip-dot-indicator { background: #f97316; }
+.chip-revenue .chip-dot-indicator {
+  background: #2563eb;
+}
+
+.chip-subscriptions .chip-dot-indicator {
+  background: #6366f1;
+}
+
+.chip-taxes .chip-dot-indicator {
+  background: #f97316;
+}
 
 .card-body.chart-grid {
   display: flex;
@@ -2999,6 +3098,7 @@ body {
   .kpi-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
   .pnl-main-grid {
     grid-template-columns: minmax(0, 1fr);
   }
