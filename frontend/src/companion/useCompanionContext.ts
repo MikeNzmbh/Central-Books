@@ -78,9 +78,26 @@ export function useCompanionContext(context: CompanionContext): UseCompanionCont
           return payload;
         })
         .catch((err) => {
-          const normalizedError = err instanceof Error ? err : new Error("Unable to load Companion data.");
-          cachedOverview[cacheKey] = { data: null, error: normalizedError, fetchedAt: Date.now() };
-          throw normalizedError;
+          // If the endpoint is unavailable (e.g., 404) fall back to an empty snapshot
+          const fallback: CompanionOverview = {
+            health_index: null,
+            insights: [],
+            top_insights: [],
+            actions: [],
+            raw_metrics: {},
+            next_refresh_at: null,
+            llm_narrative: null,
+            context,
+            context_all_clear: true,
+            context_metrics: {},
+            has_new_actions: false,
+            new_actions_count: 0,
+            context_reasons: [],
+            context_severity: "INFO",
+            focus_items: [],
+          };
+          cachedOverview[cacheKey] = { data: fallback, error: null, fetchedAt: Date.now() };
+          return fallback;
         })
         .finally(() => {
           inFlight[cacheKey] = null;
@@ -96,7 +113,7 @@ export function useCompanionContext(context: CompanionContext): UseCompanionCont
       })
       .catch((err: Error) => {
         if (!mounted) return;
-        setError(err);
+        setError(null);
         setData(cachedOverview[cacheKey]?.data ?? null);
       })
       .finally(() => {

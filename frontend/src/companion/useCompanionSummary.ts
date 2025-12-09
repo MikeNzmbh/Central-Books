@@ -35,7 +35,7 @@ export interface CompanionCoverage {
     receipts: CompanionCoverageAxis;
     invoices: CompanionCoverageAxis;
     banking: CompanionCoverageAxis;
-    books: CompanionCoverageAxis;
+    books?: CompanionCoverageAxis; // Optional - backend may not return this
 }
 
 export interface CompanionCloseReadiness {

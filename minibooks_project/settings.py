@@ -258,7 +258,7 @@ COMPANION_LLM_ENABLED = env.bool("COMPANION_LLM_ENABLED", default=False)
 COMPANION_LLM_API_BASE = env.str("COMPANION_LLM_API_BASE", default="")
 COMPANION_LLM_API_KEY = env.str("COMPANION_LLM_API_KEY", default="")
 COMPANION_LLM_MODEL = env.str("COMPANION_LLM_MODEL", default="deepseek-chat")
-COMPANION_LLM_TIMEOUT_SECONDS = env.int("COMPANION_LLM_TIMEOUT_SECONDS", default=12)
+COMPANION_LLM_TIMEOUT_SECONDS = env.int("COMPANION_LLM_TIMEOUT_SECONDS", default=60)
 COMPANION_LLM_MAX_TOKENS = env.int("COMPANION_LLM_MAX_TOKENS", default=512)
 
 # OpenAI API (for vision OCR with gpt-4o-mini, falls back when DeepSeek doesn't support vision)

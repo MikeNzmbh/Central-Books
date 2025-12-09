@@ -2,7 +2,13 @@
 {% load static mb_extras %}
 
 {% block content %}
-<div id="companion-overview-root"></div>
+<div id="companion-overview-root">
+  <!-- Fallback so the page isn't blank if JS fails to load -->
+  <div style="padding:16px; color:#64748b; font-size:14px;">Loading AI Companion…</div>
+  <noscript>
+    <div style="padding:16px; color:#b91c1c; font-size:14px;">Enable JavaScript to view AI Companion.</div>
+  </noscript>
+</div>
 
 {% vite_asset 'companion-overview' as js_path %}
 {% if js_path %}

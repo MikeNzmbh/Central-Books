@@ -1753,3 +1753,58 @@ class BankRule(models.Model):
 
     def __str__(self):
         return f"{self.merchant_name} ({self.business_id})"
+
+
+# -----------------------------------------------------------------------------
+# Companion Story (event-driven, cached)
+# -----------------------------------------------------------------------------
+
+class CompanionStory(models.Model):
+    """
+    Stores the last-generated AI Companion story for a business.
+    Generated in the background, never on page load.
+    """
+    business = models.OneToOneField(
+        Business,
+        on_delete=models.CASCADE,
+        related_name="companion_story",
+    )
+    story_json = models.JSONField(
+        default=dict,
+        help_text="Shape: {overall_summary: str, timeline_bullets: list[str]}"
+    )
+    generated_at = models.DateTimeField(auto_now=True)
+    data_fingerprint = models.CharField(
+        max_length=64,
+        blank=True,
+        help_text="Hash of input data used to generate this story"
+    )
+
+    class Meta:
+        verbose_name = "Companion Story"
+        verbose_name_plural = "Companion Stories"
+
+    def __str__(self):
+        return f"Story for {self.business.name}"
+
+
+class CompanionStoryState(models.Model):
+    """
+    Tracks whether a business needs its Companion story regenerated.
+    Django signals mark this dirty; a periodic job processes dirty records.
+    """
+    business = models.OneToOneField(
+        Business,
+        on_delete=models.CASCADE,
+        related_name="companion_story_state",
+    )
+    needs_regeneration = models.BooleanField(default=False)
+    last_requested_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Companion Story State"
+        verbose_name_plural = "Companion Story States"
+
+    def __str__(self):
+        status = "dirty" if self.needs_regeneration else "clean"
+        return f"{self.business.name} ({status})"

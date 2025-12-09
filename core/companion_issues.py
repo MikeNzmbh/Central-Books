@@ -306,7 +306,7 @@ def build_companion_radar(business) -> dict:
         - high: -15 points
         - medium: -8 points
         - low: -3 points
-      - Age penalty: subtract additional 2 points per 7 days the issue is open
+      - Age penalty: subtract additional 1 point per 7 days (capped at 5 points per issue)
       - Floor at 0, cap at 100
     
     Returns:
@@ -427,15 +427,16 @@ def build_companion_coverage(business) -> dict[str, CoverageAxis]:
         date__gte=since.date(),
     ).count()
     
-    # Covered = POSTED, MATCHED, RECONCILED, or EXCLUDED (anything but NEW)
-    # NEW = not yet reviewed, so not covered
+    # Covered = MATCHED, MATCHED_SINGLE, MATCHED_MULTI, RECONCILED, or EXCLUDED
+    # NEW/SUGGESTED/PARTIAL = not fully reviewed, so not covered
     # EXCLUDED = intentionally excluded from reconciliation, counts as covered decision
     banking_covered = BankTransaction.objects.filter(
         bank_account_id__in=bank_account_ids,
         date__gte=since.date(),
         status__in=[
-            BankTransaction.TransactionStatus.POSTED,
             BankTransaction.TransactionStatus.MATCHED,
+            BankTransaction.TransactionStatus.MATCHED_SINGLE,
+            BankTransaction.TransactionStatus.MATCHED_MULTI,
             BankTransaction.TransactionStatus.RECONCILED,
             BankTransaction.TransactionStatus.EXCLUDED,
         ],
@@ -533,17 +534,28 @@ def evaluate_period_close_readiness(business) -> CloseReadinessResult:
         )
     
     # Avoid N+1 queries: compute all suspense balances in a single query
-    # by annotating with the sum of journal line amounts
+    # by annotating with the sum of journal line debits - credits
     if suspense_accounts.exists():
-        from django.db.models import Sum, F, Value
+        from decimal import Decimal as D
+        from django.db.models import Sum, F, Value, DecimalField
         from django.db.models.functions import Coalesce
         
         # Get balances via annotation to avoid N+1 .balance() calls
+        # JournalLine has debit/credit fields, not amount - balance = debits - credits
+        # Use DecimalField output_field to avoid mixed type errors
         suspense_with_balance = suspense_accounts.annotate(
-            computed_balance=Coalesce(
-                Sum('journal_lines__amount'),
-                Value(0),
-            )
+            total_debits=Coalesce(
+                Sum('journal_lines__debit'),
+                Value(D('0')),
+                output_field=DecimalField()
+            ),
+            total_credits=Coalesce(
+                Sum('journal_lines__credit'),
+                Value(D('0')),
+                output_field=DecimalField()
+            ),
+        ).annotate(
+            computed_balance=F('total_debits') - F('total_credits')
         ).exclude(computed_balance=0)  # Only accounts with non-zero balance
         
         for acct in suspense_with_balance:

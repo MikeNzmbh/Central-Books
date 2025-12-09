@@ -161,8 +161,9 @@ class CompanionStoryResult(BaseModel):
     timeline_bullets: list[str] = Field(default_factory=list)
 
 
-# Story generation has its own shorter timeout since we have a quick fallback
-STORY_TIMEOUT_SECONDS = 5
+# Story generation has its own timeout since we have a quick fallback
+# Reasoner model needs 10-30 seconds for chain-of-thought, so 15s is reasonable
+STORY_TIMEOUT_SECONDS = 15
 
 
 class InvoicesRunLLMResult(BaseModel):
@@ -184,10 +185,10 @@ def _call_with_timeout(func: Callable[[], str | None], timeout_seconds: int) -> 
 
 def _invoke_llm(prompt: str, *, llm_client: LLMCallable | None, timeout_seconds: int | None) -> str | None:
     """
-    Invoke LLM for reasoning tasks using HEAVY_REASONING profile (deepseek-reasoner).
+    Invoke LLM for reasoning tasks using LIGHT_CHAT profile (deepseek-chat).
     """
-    # Use HEAVY_REASONING profile for all analysis tasks
-    client = llm_client or (lambda p: call_companion_llm(p, profile=LLMProfile.HEAVY_REASONING))
+    # Use LIGHT_CHAT for faster responses (2-10s vs 30-60s for reasoner)
+    client = llm_client or (lambda p: call_companion_llm(p, profile=LLMProfile.LIGHT_CHAT))
     timeout = timeout_seconds if timeout_seconds is not None else getattr(settings, "COMPANION_LLM_TIMEOUT_SECONDS", 30)
     try:
         if timeout and timeout > 0:
@@ -286,9 +287,11 @@ def reason_about_books_review(
         return None
 
     try:
-        parsed_json = json.loads(_strip_markdown_json(raw))
-    except Exception:
-        logger.warning("Books review LLM returned non-JSON response.")
+        stripped = _strip_markdown_json(raw)
+        logger.debug("Books review LLM stripped response (first 200): %s", stripped[:200] if stripped else "EMPTY")
+        parsed_json = json.loads(stripped)
+    except Exception as e:
+        logger.warning("Books review LLM returned non-JSON response. Error: %s, Raw (first 500 chars): %s", e, raw[:500] if raw else "EMPTY")
         return None
 
     try:

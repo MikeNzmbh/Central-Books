@@ -85,8 +85,11 @@ describe("useCompanionContext", () => {
 
     const { result } = renderHook(() => useCompanionContext("bank"));
     await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(result.current.error).toBeTruthy();
-    expect(result.current.contextAllClear).toBe(false);
+    // Should fall back to an empty snapshot without surfacing an error
+    expect(result.current.error).toBeNull();
+    expect(result.current.contextAllClear).toBe(true);
+    expect(result.current.contextActions).toHaveLength(0);
+    expect(result.current.contextInsights).toHaveLength(0);
   });
 
   it("marks context seen and clears new flags", async () => {

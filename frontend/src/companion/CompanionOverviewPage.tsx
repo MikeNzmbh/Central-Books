@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Activity,
@@ -71,12 +72,12 @@ interface CoverageAxis {
   covered_items: number;
 }
 
-// Coverage type
+// Coverage type (books is optional - may be omitted until we have real metrics)
 interface CompanionCoverage {
   receipts: CoverageAxis;
   invoices: CoverageAxis;
   banking: CoverageAxis;
-  books: CoverageAxis;
+  books?: CoverageAxis;  // Optional: omitted when no real books metrics available
 }
 
 // Close-readiness type
@@ -317,10 +318,10 @@ const CompanionOverviewPage: React.FC = () => {
     loadSummary();
   }, []);
 
-  // Compute derived values from API data
-  const highRiskCounts = summary?.global.high_risk_items_30d || { receipts: 0, invoices: 0, bank_transactions: 0 };
+  // Compute derived values from API data (with defensive null checks)
+  const highRiskCounts = summary?.global?.high_risk_items_30d || { receipts: 0, invoices: 0, bank_transactions: 0 };
   const totalHighRisk = (highRiskCounts.receipts || 0) + (highRiskCounts.invoices || 0) + (highRiskCounts.bank_transactions || 0);
-  const agentRetries = summary?.global.agent_retries_30d || 0;
+  const agentRetries = summary?.global?.agent_retries_30d || 0;
 
   // Use backend health score if available, otherwise compute fallback
   const displayHealthScore = healthScore ?? Math.max(0, Math.min(100, 100 - totalHighRisk * 2 - Math.floor(agentRetries / 2)));
@@ -332,8 +333,8 @@ const CompanionOverviewPage: React.FC = () => {
   const getSurfaceData = (key: string) => {
     if (!summary) return { lastRun: "No runs", health: 0, highRisk: 0, statusMessage: "Loading...", openIssues: 0, highRiskIssues: 0, headline: null as any };
 
-    const surfaceKey = key as keyof typeof summary.surfaces;
-    const surface = summary.surfaces[surfaceKey];
+    const surfaceKey = key as keyof CompanionSummary["surfaces"];
+    const surface = summary.surfaces?.[surfaceKey];
     const latest = surface?.recent_runs?.[0];
 
     if (!latest) return { lastRun: "No runs yet", health: 100, highRisk: 0, statusMessage: "Ready to start", openIssues: surface?.open_issues_count || 0, highRiskIssues: surface?.high_risk_issues_count || 0, headline: surface?.headline_issue || null };
@@ -359,33 +360,41 @@ const CompanionOverviewPage: React.FC = () => {
     };
   };
 
-  // Build activity log from recent runs
-  const activityLog = summary ? [
-    ...(summary.surfaces.receipts.recent_runs.slice(0, 1).map(r => ({
-      id: `r-${r.id}`,
-      timestamp: new Date(r.created_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }),
-      surface: "Receipts",
-      action: `Run #${r.id}`,
-      details: `${r.documents_total || 0} docs processed`,
-      status: (r.high_risk_count || 0) > 0 ? "warning" : "success",
-    }))),
-    ...(summary.surfaces.invoices.recent_runs.slice(0, 1).map(r => ({
-      id: `i-${r.id}`,
-      timestamp: new Date(r.created_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }),
-      surface: "Invoices",
-      action: `Run #${r.id}`,
-      details: `${r.documents_total || 0} docs processed`,
-      status: (r.high_risk_count || 0) > 0 ? "warning" : "success",
-    }))),
-    ...(summary.surfaces.bank_review.recent_runs.slice(0, 1).map(r => ({
-      id: `b-${r.id}`,
-      timestamp: new Date(r.created_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }),
-      surface: "Bank Review",
-      action: `Run #${r.id}`,
-      details: `${r.transactions_total || 0} transactions`,
-      status: (r.unreconciled || 0) > 0 ? "warning" : "success",
-    }))),
-  ].slice(0, 4) : [];
+  // Build activity log from recent runs (with defensive null checks)
+  let activityLog: { id: string; timestamp: string; surface: string; action: string; details: string; status: string }[] = [];
+  try {
+    if (summary?.surfaces) {
+      activityLog = [
+        ...(summary.surfaces.receipts?.recent_runs?.slice(0, 1).map(r => ({
+          id: `r-${r.id}`,
+          timestamp: r.created_at ? new Date(r.created_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }) : "--:--",
+          surface: "Receipts",
+          action: `Run #${r.id}`,
+          details: `${r.documents_total || 0} docs processed`,
+          status: (r.high_risk_count || 0) > 0 ? "warning" : "success",
+        })) || []),
+        ...(summary.surfaces.invoices?.recent_runs?.slice(0, 1).map(r => ({
+          id: `i-${r.id}`,
+          timestamp: r.created_at ? new Date(r.created_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }) : "--:--",
+          surface: "Invoices",
+          action: `Run #${r.id}`,
+          details: `${r.documents_total || 0} docs processed`,
+          status: (r.high_risk_count || 0) > 0 ? "warning" : "success",
+        })) || []),
+        ...(summary.surfaces.bank_review?.recent_runs?.slice(0, 1).map(r => ({
+          id: `b-${r.id}`,
+          timestamp: r.created_at ? new Date(r.created_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }) : "--:--",
+          surface: "Bank Review",
+          action: `Run #${r.id}`,
+          details: `${r.transactions_total || 0} transactions`,
+          status: (r.unreconciled || 0) > 0 ? "warning" : "success",
+        })) || []),
+      ].slice(0, 4);
+    }
+  } catch (e) {
+    console.error("Error building activityLog:", e);
+    activityLog = [];
+  }
 
   // Issues from high-risk items (for fallback display)
   const highRiskIssues = (highRiskCounts.receipts || 0) > 0 ? [{
@@ -404,6 +413,17 @@ const CompanionOverviewPage: React.FC = () => {
     hidden: { opacity: 0, y: 10 },
     show: { opacity: 1, y: 0, transition: { duration: 0.4 } }
   };
+
+  if (loading && !summary) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-500 border-t-transparent mx-auto mb-3" />
+          <p className="text-sm text-slate-500">Loading Companion data...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (error) {
     return (
@@ -609,8 +629,8 @@ const CompanionOverviewPage: React.FC = () => {
               </h3>
               <div className="mt-2 flex items-center gap-2">
                 <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${summary.close_readiness.status === "ready"
-                    ? "bg-emerald-100 text-emerald-800"
-                    : "bg-amber-100 text-amber-800"
+                  ? "bg-emerald-100 text-emerald-800"
+                  : "bg-amber-100 text-amber-800"
                   }`}>
                   <span className={`h-1.5 w-1.5 rounded-full ${summary.close_readiness.status === "ready" ? "bg-emerald-500" : "bg-amber-500"
                     }`} />
@@ -659,13 +679,12 @@ const CompanionOverviewPage: React.FC = () => {
                         <span className={`shrink-0 h-5 w-5 rounded-full flex items-center justify-center text-[0.65rem] font-bold ${badgeColor}`}>
                           {idx + 1}
                         </span>
-                        <button
-                          type="button"
-                          onClick={() => (window.location.href = step.url)}
+                        <Link
+                          to={step.url}
                           className="text-left truncate hover:underline"
                         >
                           {step.label}
-                        </button>
+                        </Link>
                       </div>
                       <span className="shrink-0 text-[0.65rem] uppercase tracking-wide text-slate-500">
                         {step.surface}

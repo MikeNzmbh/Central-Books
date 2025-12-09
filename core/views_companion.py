@@ -281,28 +281,9 @@ def api_companion_summary(request):
     radar = build_companion_radar(business)
     summary["radar"] = radar
     
-    # Generate story narrative (DeepSeek Reasoner, only if AI enabled)
-    story = None
-    if business.ai_companion_enabled:
-        story = generate_companion_story(
-            first_name=request.user.first_name,
-            radar=radar,
-            recent_metrics=summary.get("global", {}),
-            recent_issues=list(issues_qs[:10]),
-            focus_mode=voice.focus_mode,
-        )
-    
-    # Add story to response with graceful fallback
-    if story:
-        summary["story"] = {
-            "overall_summary": story.overall_summary,
-            "timeline_bullets": story.timeline_bullets,
-        }
-    else:
-        summary["story"] = {
-            "overall_summary": "Companion story is temporarily unavailable.",
-            "timeline_bullets": [],
-        }
+    # Get cached story (instant, no LLM call - generated in background)
+    from .companion_story import get_cached_story
+    summary["story"] = get_cached_story(business)
     
     # Build coverage metrics (deterministic, no LLM)
     coverage = build_companion_coverage(business)
@@ -399,3 +380,28 @@ def api_companion_issue_patch(request, issue_id: int):
         issue.status = new_status
         issue.save(update_fields=["status", "updated_at"])
     return JsonResponse({"id": issue.id, "status": issue.status})
+
+
+@login_required
+def api_companion_story_refresh(request):
+    """
+    POST /api/agentic/companion/story/refresh
+    
+    Marks the business's story as needing regeneration.
+    The actual regeneration happens in the background via cron/Celery.
+    Returns 202 Accepted immediately.
+    """
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+    
+    business = get_current_business(request.user)
+    if business is None:
+        return HttpResponseBadRequest("No business context")
+    
+    from .companion_story import mark_story_dirty
+    mark_story_dirty(business)
+    
+    return JsonResponse(
+        {"message": "Story regeneration requested. Check back in a few minutes."},
+        status=202
+    )

@@ -228,13 +228,17 @@ def run_books_review_workflow(
                 sample_journals=sample_journals,
                 user_name=user_name,
                 risk_level=risk_level,
+                timeout_seconds=60,  # DeepSeek Reasoner needs generous timeout for chain-of-thought
             )
             if llm_result:
                 llm_explanations = llm_result.explanations
                 llm_ranked_issues = [issue.model_dump() for issue in llm_result.ranked_issues]
                 llm_suggested_checks = llm_result.suggested_checks
-        except Exception:
+        except Exception as exc:
             # LLM is a best-effort reasoning layer; failures must not block deterministic results.
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error("Books Review LLM failed: %s", exc, exc_info=True)
             llm_explanations = []
             llm_ranked_issues = []
             llm_suggested_checks = []

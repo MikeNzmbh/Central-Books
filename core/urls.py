@@ -305,6 +305,7 @@ urlpatterns = [
     path("api/agentic/companion/summary", views_companion.api_companion_summary, name="api_companion_summary"),
     path("api/agentic/companion/issues", views_companion.api_companion_issues, name="api_companion_issues"),
     path("api/agentic/companion/issues/<int:issue_id>", views_companion.api_companion_issue_patch, name="api_companion_issue_patch"),
+    path("api/agentic/companion/story/refresh", views_companion.api_companion_story_refresh, name="api_companion_story_refresh"),
     path("ai-companion/", companion_overview_page, name="companion_overview_page"),
     path("ai-companion/issues", views_companion.companion_issues_page, name="companion_issues_page"),
     path("accounts/", views.chart_of_accounts_spa, name="account_list"),
