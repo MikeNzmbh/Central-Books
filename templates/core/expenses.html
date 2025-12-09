@@ -183,7 +183,7 @@
                         background-size:12px;
                       ">
               {% for value, label in expense_status_choices %}
-              <option value="{{ value }}" {% if selected_expense.status==value %}selected{% endif %}>
+              <option value="{{ value }}" {% if selected_expense.status == value %}selected{% endif %}>
                 {{ label }}
               </option>
               {% endfor %}
