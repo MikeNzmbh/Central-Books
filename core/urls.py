@@ -1,4 +1,5 @@
 from django.urls import path, include
+from django.views.generic import RedirectView
 
 from . import views
 from agentic.interfaces.api import urlpatterns as agentic_urlpatterns
@@ -58,6 +59,7 @@ from .views_reconciliation import (
 
 urlpatterns = [
     path("", views.dashboard, name="home"),
+    path("companion/", RedirectView.as_view(pattern_name="companion_overview_page", permanent=False)),
     path("signup/", views.signup_view, name="signup"),
     path("login/", views.login_view, name="login"),
     path("logout/", views.logout_view, name="logout"),
