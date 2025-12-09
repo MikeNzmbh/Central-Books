@@ -71,6 +71,12 @@ export interface CompanionSummary {
     playbook?: CompanionPlaybookStep[];
     story?: CompanionStory;
     voice?: CompanionVoice;
+    llm_subtitles?: {
+        receipts: string;
+        invoices: string;
+        books: string;
+        bank: string;
+    } | null;
     global?: {
         open_issues_total?: number;
         open_issues_by_severity?: Record<string, number>;

@@ -716,3 +716,98 @@ Please write the story narrative for {name}."""
         # Catch-all for any unexpected errors - log and return None so fallback is used
         logger.warning("Story generation failed unexpectedly: %s", exc)
         return None
+
+
+# ---------------------------------------------------------------------------
+# Surface Subtitles Generation (DeepSeek-powered)
+# ---------------------------------------------------------------------------
+
+class SurfaceSubtitlesResult(BaseModel):
+    """Result of surface subtitle generation."""
+    receipts: str = Field(default="")
+    invoices: str = Field(default="")
+    books: str = Field(default="")
+    bank: str = Field(default="")
+
+
+def generate_surface_subtitles(
+    *,
+    user_name: str | None = None,
+    surfaces_data: dict,
+    llm_client: LLMCallable | None = None,
+    timeout_seconds: int | None = None,
+) -> SurfaceSubtitlesResult | None:
+    """
+    Generate personalized subtitles for each Companion surface via DeepSeek.
+    
+    Args:
+        user_name: User's first name for personalization.
+        surfaces_data: Dict with keys like 'receipts', 'invoices', 'books', 'bank'
+                       containing coverage, issue counts, and recent run data.
+        llm_client: Optional override for testing.
+        timeout_seconds: Override for LLM timeout (default: 30s for fast response).
+    
+    Returns:
+        SurfaceSubtitlesResult with short, personalized subtitles for each surface,
+        or None if LLM fails.
+    """
+    effective_timeout = timeout_seconds if timeout_seconds is not None else 30
+    name = user_name or "there"
+    
+    # Build a prompt that asks for all subtitles at once (more efficient)
+    system_prompt = f"""You are a financial companion assistant. Generate SHORT, friendly subtitles (1-2 sentences max) for each surface.
+
+RULES:
+- Be warm and personal - address {name} directly
+- Be specific about what you see in the data
+- Each subtitle should be under 120 characters
+- Don't use generic phrases - reference actual numbers when possible
+- ONLY return valid JSON, no extra text
+
+TONE EXAMPLES:
+- "You've got 3 receipts waiting - quick categorization will keep things tidy."
+- "Two invoices are overdue - a gentle nudge to clients might help."
+- "Your books look balanced this week - nice work keeping it clean."
+- "12 bank transactions need matching - 10 minutes should clear them."
+"""
+
+    user_prompt = f"""Generate personalized subtitles for {name}'s dashboard surfaces.
+
+DATA:
+{json.dumps(surfaces_data, indent=2, default=str)}
+
+Return ONLY this JSON format:
+{{
+    "receipts": "<subtitle for receipts/expenses surface>",
+    "invoices": "<subtitle for invoices surface>",
+    "books": "<subtitle for books review surface>",
+    "bank": "<subtitle for bank/cash surface>"
+}}"""
+
+    try:
+        raw = _invoke_llm(
+            f"{system_prompt}\n\n{user_prompt}",
+            llm_client=llm_client,
+            timeout_seconds=effective_timeout,
+        )
+        if not raw:
+            logger.warning("Surface subtitles LLM returned no response.")
+            return None
+        
+        try:
+            parsed = json.loads(_strip_markdown_json(raw))
+        except Exception:
+            logger.warning("Surface subtitles LLM returned non-JSON: %s", raw[:200] if raw else "EMPTY")
+            return None
+        
+        result = SurfaceSubtitlesResult.model_validate(parsed)
+        logger.info("Surface subtitles generated successfully for '%s'", name)
+        return result
+        
+    except ValidationError as exc:
+        logger.warning("Surface subtitles validation failed: %s", exc)
+        return None
+    except Exception as exc:
+        logger.warning("Surface subtitles generation failed: %s", exc)
+        return None
+

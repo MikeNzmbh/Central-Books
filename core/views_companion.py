@@ -30,7 +30,7 @@ from .companion_issues import (
     build_companion_playbook,
 )
 from .companion_voice import build_voice_snapshot
-from .llm_reasoning import generate_companion_story
+from .llm_reasoning import generate_companion_story, generate_surface_subtitles
 
 RISK_MEDIUM_THRESHOLD = Decimal("40.0")
 RISK_HIGH_THRESHOLD = Decimal("70.0")
@@ -296,6 +296,71 @@ def api_companion_summary(request):
     # Build today's playbook (deterministic, no LLM)
     playbook = build_companion_playbook(business)
     summary["playbook"] = playbook
+    
+    # Generate DeepSeek-powered subtitles for each surface
+    # This is the PRIMARY AI insight - deterministic is fallback only
+    if business.ai_companion_enabled:
+        # Get actual invoice metrics for more accurate AI insights
+        from .models import Invoice
+        from decimal import Decimal
+        today = timezone.now().date()
+        invoices_qs = Invoice.objects.filter(business=business)
+        overdue_invoices = invoices_qs.filter(
+            status__in=['SENT', 'sent'],
+            due_date__lt=today
+        )
+        overdue_count = overdue_invoices.count()
+        overdue_amount = sum(inv.total_amount or Decimal('0') for inv in overdue_invoices)
+        unpaid_invoices = invoices_qs.filter(status__in=['SENT', 'sent', 'DRAFT', 'draft'])
+        unpaid_count = unpaid_invoices.count()
+        unpaid_amount = sum(inv.total_amount or Decimal('0') for inv in unpaid_invoices)
+        
+        surfaces_data = {
+            "receipts": {
+                "open_issues": summary["surfaces"]["receipts"]["open_issues_count"],
+                "recent_runs": len(summary["surfaces"]["receipts"]["recent_runs"]),
+                "coverage_percent": coverage.get("receipts", {}).get("coverage_percent", 0) if coverage else 0,
+            },
+            "invoices": {
+                "open_issues": summary["surfaces"]["invoices"]["open_issues_count"],
+                "recent_runs": len(summary["surfaces"]["invoices"]["recent_runs"]),
+                "coverage_percent": coverage.get("invoices", {}).get("coverage_percent", 0) if coverage else 0,
+                "overdue_count": overdue_count,
+                "overdue_amount": float(overdue_amount),
+                "unpaid_count": unpaid_count,
+                "unpaid_amount": float(unpaid_amount),
+            },
+            "books": {
+                "open_issues": summary["surfaces"]["books_review"]["open_issues_count"],
+                "recent_runs": len(summary["surfaces"]["books_review"]["recent_runs"]),
+                "coverage_percent": coverage.get("books", {}).get("coverage_percent", 0) if coverage else 0,
+            },
+            "bank": {
+                "open_issues": summary["surfaces"]["bank_review"]["open_issues_count"],
+                "recent_runs": len(summary["surfaces"]["bank_review"]["recent_runs"]),
+                "coverage_percent": coverage.get("banking", {}).get("coverage_percent", 0) if coverage else 0,
+            },
+        }
+        
+        user_name = request.user.first_name if request.user.first_name else None
+        subtitles_result = generate_surface_subtitles(
+            user_name=user_name,
+            surfaces_data=surfaces_data,
+            timeout_seconds=30,  # Fast enough to not block page load
+        )
+        
+        if subtitles_result:
+            summary["llm_subtitles"] = {
+                "receipts": subtitles_result.receipts,
+                "invoices": subtitles_result.invoices,
+                "books": subtitles_result.books,
+                "bank": subtitles_result.bank,
+            }
+        else:
+            # LLM failed - frontend will use deterministic fallback
+            summary["llm_subtitles"] = None
+    else:
+        summary["llm_subtitles"] = None
 
     # Cache successful summary (short TTL to balance freshness vs. performance)
     # Only cache on success - errors/exceptions should not be cached

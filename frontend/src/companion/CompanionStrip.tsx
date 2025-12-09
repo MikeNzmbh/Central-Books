@@ -121,17 +121,37 @@ function getHeadline(context: CompanionContext, focusMode: FocusMode): string {
 }
 
 /**
- * Get subtitle from coverage and playbook
+ * Get subtitle from LLM (primary) or coverage/playbook fallback
+ * Returns both the subtitle text and whether it came from LLM
  */
 function getSubtitle(
   context: CompanionContext,
   summary: CompanionSummary | null,
   focusMode: FocusMode
-): string {
+): { text: string; isLlm: boolean } {
   if (!summary) {
-    return "Companion will be back shortly with suggestions.";
+    return { text: "Companion will be back shortly with suggestions.", isLlm: false };
   }
 
+  // Map context to llm_subtitles key
+  const llmSubtitleMap: Record<CompanionContext, keyof NonNullable<CompanionSummary["llm_subtitles"]>> = {
+    bank: "bank",
+    reconciliation: "bank",
+    invoices: "invoices",
+    expenses: "receipts",
+    reports: "books",
+    tax_fx: "books",
+    dashboard: "bank",
+  };
+
+  // PRIMARY: Use DeepSeek-generated subtitle if available
+  const llmKey = llmSubtitleMap[context];
+  const llmSubtitle = summary.llm_subtitles?.[llmKey];
+  if (llmSubtitle && llmSubtitle.trim()) {
+    return { text: llmSubtitle, isLlm: true };
+  }
+
+  // FALLBACK: Deterministic subtitle (only when LLM failed)
   // Check for playbook step for this context
   const surfaceMap: Record<CompanionContext, string> = {
     bank: "bank",
@@ -146,7 +166,7 @@ function getSubtitle(
 
   const playbookStep = summary.playbook?.find(s => s.surface === targetSurface);
   if (playbookStep && (playbookStep.severity === "high" || playbookStep.severity === "medium")) {
-    return `Top next step: ${playbookStep.label}`;
+    return { text: `Top next step: ${playbookStep.label}`, isLlm: false };
   }
 
   // Fall back to coverage
@@ -154,12 +174,12 @@ function getSubtitle(
   const coverage = summary.coverage?.[coverageKey];
   if (coverage) {
     const pct = Math.round(coverage.coverage_percent);
-    if (pct >= 90) return `You've covered about ${pct}% of this area right now.`;
-    if (pct >= 60) return `You're about ${pct}% of the way through — a bit more attention here will close the loop.`;
-    return `Coverage is still light here (~${pct}%). Spending a few minutes will make this much more reliable.`;
+    if (pct >= 90) return { text: `You've covered about ${pct}% of this area right now.`, isLlm: false };
+    if (pct >= 60) return { text: `You're about ${pct}% of the way through — a bit more attention here will close the loop.`, isLlm: false };
+    return { text: `Coverage is still light here (~${pct}%). Spending a few minutes will make this much more reliable.`, isLlm: false };
   }
 
-  return `Everything looks healthy in your ${friendlyLabels[context]} workspace.`;
+  return { text: `Everything looks healthy in your ${friendlyLabels[context]} workspace.`, isLlm: false };
 }
 
 /**
@@ -205,6 +225,7 @@ const CompanionStrip: React.FC<CompanionStripProps> = ({ context, className, use
         greeting,
         headline: "Here's what your Companion will suggest as soon as it's back online.",
         subtitle: "Companion is temporarily unavailable for this area.",
+        isLlmSubtitle: false,
         focusMode: "watchlist" as FocusMode,
         riskLevel: "low" as RiskLevel,
         statusLabel: "Companion temporarily unavailable",
@@ -219,7 +240,7 @@ const CompanionStrip: React.FC<CompanionStripProps> = ({ context, className, use
 
     const focusMode = determineFocusMode(score, hasHighIssues);
     const headline = getHeadline(context, focusMode);
-    const subtitle = getSubtitle(context, summary, focusMode);
+    const subtitleResult = getSubtitle(context, summary, focusMode);
     const riskLevel = focusModeToRiskLevel(focusMode);
 
     const statusLabels: Record<FocusMode, string> = {
@@ -231,7 +252,8 @@ const CompanionStrip: React.FC<CompanionStripProps> = ({ context, className, use
     return {
       greeting,
       headline,
-      subtitle,
+      subtitle: subtitleResult.text,
+      isLlmSubtitle: subtitleResult.isLlm,
       focusMode,
       riskLevel,
       statusLabel: statusLabels[focusMode],
@@ -251,6 +273,7 @@ const CompanionStrip: React.FC<CompanionStripProps> = ({ context, className, use
         riskLevel={viewModel.riskLevel}
         sentimentLabel={viewModel.statusLabel}
         toneSubtitle={viewModel.subtitle}
+        isLlmSubtitle={viewModel.isLlmSubtitle}
         suggestions={viewModel.focusMode === "all_clear" ? [] : suggestions}
         onViewMore={() => (window.location.href = "/dashboard/")}
         isLoading={isLoading}
