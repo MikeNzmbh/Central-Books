@@ -2437,6 +2437,18 @@ def invoice_create(request):
         if form.is_valid():
             invoice = form.save(commit=False)
             invoice.business = business
+            # Auto-generate unique invoice number if empty or duplicate
+            if not invoice.invoice_number or Invoice.objects.filter(
+                business=business, invoice_number=invoice.invoice_number
+            ).exists():
+                # Generate next sequential number
+                last_invoice = Invoice.objects.filter(business=business).order_by('-pk').first()
+                next_num = (last_invoice.pk + 1) if last_invoice else 1
+                invoice.invoice_number = f"INV-{next_num:05d}"
+                # Ensure uniqueness
+                while Invoice.objects.filter(business=business, invoice_number=invoice.invoice_number).exists():
+                    next_num += 1
+                    invoice.invoice_number = f"INV-{next_num:05d}"
             invoice.save()
             return redirect("invoice_list")
     else:
