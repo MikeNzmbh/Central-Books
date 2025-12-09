@@ -78,7 +78,7 @@
         class="input-select">
         <option value="" {% if not category_filter %}selected{% endif %}>All categories</option>
         {% for cat in categories %}
-        <option value="{{ cat.id }}" {% if category_filter|stringformat:"s"==cat.id|stringformat:"s" %}selected{% endif
+        <option value="{{ cat.id }}" {% if category_filter|stringformat:"s" == cat.id|stringformat:"s" %}selected{% endif %}>{{ cat.name }}</option>
           %}>{{ cat.name }}</option>
         {% endfor %}
       </select>
