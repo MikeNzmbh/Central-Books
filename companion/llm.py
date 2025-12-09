@@ -74,10 +74,11 @@ class LLMProfile(str, Enum):
 
 
 def call_deepseek_reasoning(
-    prompt: str, 
-    *, 
+    prompt: str,
+    *,
     temperature: float = 0.1,
     profile: LLMProfile | None = None,
+    context_tag: str | None = None,
 ) -> str | None:
     """
     Call DeepSeek LLM for text-based reasoning tasks.
@@ -89,8 +90,8 @@ def call_deepseek_reasoning(
     Args:
         prompt: The prompt to send to the LLM.
         temperature: Sampling temperature (default 0.1 for deterministic output).
-        profile: LLMProfile to use. Default is HEAVY_REASONING (deepseek-reasoner).
-                 Use LIGHT_CHAT for quick, simple responses.
+        profile: LLMProfile to use. Defaults to env COMPANION_LLM_MODEL or deepseek-chat when None.
+        context_tag: Optional short identifier for logging context.
     
     Returns the raw text content or None on failure/disabled.
     """
@@ -101,12 +102,16 @@ def call_deepseek_reasoning(
     api_base = getattr(settings, "COMPANION_LLM_API_BASE", "")
     api_key = getattr(settings, "COMPANION_LLM_API_KEY", "")
     
-    # Use profile-based model selection, default to HEAVY_REASONING
+    # Use profile-based model selection first; fall back to env/default
+    default_model = LLMProfile.LIGHT_CHAT.value
     if profile is not None:
         model = profile.value
     else:
-        # Default to reasoner for heavy analysis, fallback to settings
-        model = getattr(settings, "COMPANION_LLM_MODEL", LLMProfile.HEAVY_REASONING.value)
+        model = getattr(settings, "COMPANION_LLM_MODEL", None) or default_model
+
+    if not model:
+        logger.warning("[Companion LLM] No model resolved (profile=%s context=%s)", profile, context_tag)
+        return None
     
     # Reasoner needs more time and tokens
     if model == LLMProfile.HEAVY_REASONING.value:
@@ -116,6 +121,14 @@ def call_deepseek_reasoning(
         timeout = getattr(settings, "COMPANION_LLM_TIMEOUT_SECONDS", 15)
         max_tokens = getattr(settings, "COMPANION_LLM_MAX_TOKENS", 512)
 
+    logger.debug(
+        "[Companion LLM] model=%s profile=%s timeout=%s max_tokens=%s context=%s",
+        model,
+        profile.name if profile else None,
+        timeout,
+        max_tokens,
+        context_tag,
+    )
     logger.info("[PROVIDER: DeepSeek] Calling %s model for text reasoning", model)
     
     # Ensure API URL ends with /chat/completions
@@ -422,7 +435,11 @@ def generate_companion_narrative(
     )
 
     try:
-        raw_reply = call_companion_llm(f"{system_prompt}\n\nDATA:\n{prompt}")
+        raw_reply = call_companion_llm(
+            f"{system_prompt}\n\nDATA:\n{prompt}",
+            profile=LLMProfile.HEAVY_REASONING,
+            context_tag="companion_narrative",
+        )
     except Exception as exc:  # pragma: no cover - defensive
         logger.warning("Companion LLM call raised: %s", exc)
         return default

@@ -183,12 +183,18 @@ def _call_with_timeout(func: Callable[[], str | None], timeout_seconds: int) -> 
             return None
 
 
-def _invoke_llm(prompt: str, *, llm_client: LLMCallable | None, timeout_seconds: int | None) -> str | None:
+def _invoke_llm(
+    prompt: str,
+    *,
+    llm_client: LLMCallable | None,
+    timeout_seconds: int | None,
+    profile: LLMProfile = LLMProfile.LIGHT_CHAT,
+    context_tag: str | None = None,
+) -> str | None:
     """
-    Invoke LLM for reasoning tasks using LIGHT_CHAT profile (deepseek-chat).
+    Invoke LLM for reasoning tasks with a configurable profile.
     """
-    # Use LIGHT_CHAT for faster responses (2-10s vs 30-60s for reasoner)
-    client = llm_client or (lambda p: call_companion_llm(p, profile=LLMProfile.LIGHT_CHAT))
+    client = llm_client or (lambda p: call_companion_llm(p, profile=profile, context_tag=context_tag))
     timeout = timeout_seconds if timeout_seconds is not None else getattr(settings, "COMPANION_LLM_TIMEOUT_SECONDS", 30)
     try:
         if timeout and timeout > 0:
@@ -282,7 +288,13 @@ def reason_about_books_review(
     }
 
     prompt = f"{system_prompt}\n\nDATA:\n{json.dumps(payload, default=str)}"
-    raw = _invoke_llm(prompt, llm_client=llm_client, timeout_seconds=timeout_seconds)
+    raw = _invoke_llm(
+        prompt,
+        llm_client=llm_client,
+        timeout_seconds=timeout_seconds,
+        profile=LLMProfile.HEAVY_REASONING,
+        context_tag="books_review",
+    )
     if not raw:
         return None
 
@@ -357,7 +369,13 @@ def reason_about_bank_review(
     }
 
     prompt = f"{system_prompt}\n\nDATA:\n{json.dumps(payload, default=str)}"
-    raw = _invoke_llm(prompt, llm_client=llm_client, timeout_seconds=timeout_seconds)
+    raw = _invoke_llm(
+        prompt,
+        llm_client=llm_client,
+        timeout_seconds=timeout_seconds,
+        profile=LLMProfile.HEAVY_REASONING,
+        context_tag="bank_review",
+    )
     if not raw:
         return None
 
@@ -433,7 +451,13 @@ def reason_about_receipts_run(
         ],
     }
     prompt = f"{system_prompt}\n\nDATA:\n{json.dumps(payload, default=str)}"
-    raw = _invoke_llm(prompt, llm_client=llm_client, timeout_seconds=timeout_seconds)
+    raw = _invoke_llm(
+        prompt,
+        llm_client=llm_client,
+        timeout_seconds=timeout_seconds,
+        profile=LLMProfile.LIGHT_CHAT,
+        context_tag="receipts_run",
+    )
     if not raw:
         return None
 
@@ -505,7 +529,13 @@ def reason_about_invoices_run(
         ],
     }
     prompt = f"{system_prompt}\n\nDATA:\n{json.dumps(payload, default=str)}"
-    raw = _invoke_llm(prompt, llm_client=llm_client, timeout_seconds=timeout_seconds)
+    raw = _invoke_llm(
+        prompt,
+        llm_client=llm_client,
+        timeout_seconds=timeout_seconds,
+        profile=LLMProfile.LIGHT_CHAT,
+        context_tag="invoices_run",
+    )
     if not raw:
         return None
 
@@ -551,7 +581,13 @@ def refine_companion_issues(
     )
     payload = {"issues": issues}
     prompt = f"{system_prompt}\n\nDATA:\n{json.dumps(payload, default=str)}"
-    raw = _invoke_llm(prompt, llm_client=llm_client, timeout_seconds=timeout_seconds)
+    raw = _invoke_llm(
+        prompt,
+        llm_client=llm_client,
+        timeout_seconds=timeout_seconds,
+        profile=LLMProfile.LIGHT_CHAT,
+        context_tag="companion_issues",
+    )
     if not raw:
         return None
     try:
@@ -693,7 +729,13 @@ RECENT ISSUES:
 Please write the story narrative for {name}."""
 
         # Call DeepSeek Reasoner with short timeout
-        raw = _invoke_llm(user_prompt, llm_client=llm_client, timeout_seconds=effective_timeout)
+        raw = _invoke_llm(
+            user_prompt,
+            llm_client=llm_client,
+            timeout_seconds=effective_timeout,
+            profile=LLMProfile.HEAVY_REASONING,
+            context_tag="companion_story",
+        )
         if not raw:
             logger.warning("Story generation LLM returned no response (timeout or empty).")
             return None
@@ -789,6 +831,8 @@ Return ONLY this JSON format:
             f"{system_prompt}\n\n{user_prompt}",
             llm_client=llm_client,
             timeout_seconds=effective_timeout,
+            profile=LLMProfile.LIGHT_CHAT,
+            context_tag="surface_subtitles",
         )
         if not raw:
             logger.warning("Surface subtitles LLM returned no response.")
@@ -810,4 +854,3 @@ Return ONLY this JSON format:
     except Exception as exc:
         logger.warning("Surface subtitles generation failed: %s", exc)
         return None
-
