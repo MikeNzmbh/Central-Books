@@ -104,6 +104,7 @@ urlpatterns = [
     path("expenses/<int:pk>/edit/", views.expense_update, name="expense_update"),
     path("expenses/<int:pk>/delete/", views.expense_delete, name="expense_delete"),
     path("expenses/<int:pk>/status/", views.expense_status_update, name="expense_status_update"),
+    path("expenses/<int:pk>/pdf/", views.expense_pdf_view, name="expense_pdf"),
     # Products & Services
     path("products/", ProductServiceListView.as_view(), name="product_list"),
     path("items/new/", ItemCreateView.as_view(), name="item_create"),

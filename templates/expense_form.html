@@ -285,7 +285,7 @@
               <div class="mb-field">
                 <label class="mb-label">Tax amount</label>
                 {{ form.tax_amount }}
-                <p class="mb-hint">If this expense includes tax, enter just the tax portion here.</p>
+                <p class="mb-hint">If this expense includes tax, enter just the tax portion here or pick a tax rate to auto-calc.</p>
                 {% for error in form.tax_amount.errors %}<p class="mb-error">{{ error }}</p>{% endfor %}
               </div>
               <div class="mb-field">
@@ -361,19 +361,19 @@
               <dl>
                 <div class="mb-side-row">
                   <dt>Amount (excl. tax)</dt>
-                  <dd class="amount">
+                  <dd class="amount" id="summary-amount" data-currency="{{ business.currency|default:'USD' }}">
                     {{ summary.amount|floatformat:2 }} {{ business.currency|default:"USD" }}
                   </dd>
                 </div>
                 <div class="mb-side-row">
                   <dt>Tax</dt>
-                  <dd>
+                  <dd id="summary-tax" data-currency="{{ business.currency|default:'USD' }}">
                     {{ summary.tax|floatformat:2 }} {{ business.currency|default:"USD" }}
                   </dd>
                 </div>
                 <div class="mb-side-row">
                   <dt>Total</dt>
-                  <dd class="amount">
+                  <dd class="amount" id="summary-total" data-currency="{{ business.currency|default:'USD' }}">
                     {{ summary.total|floatformat:2 }} {{ business.currency|default:"USD" }}
                   </dd>
                 </div>
@@ -397,4 +397,69 @@
     </form>
   </div>
 </div>
+{{ tax_rates|json_script:"tax-rates-data" }}
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const amountInput = document.getElementById("id_amount");
+    const taxSelect = document.getElementById("id_tax_rate");
+    const taxAmountInput = document.getElementById("id_tax_amount");
+
+    const summaryAmount = document.getElementById("summary-amount");
+    const summaryTax = document.getElementById("summary-tax");
+    const summaryTotal = document.getElementById("summary-total");
+
+    let taxRates = [];
+    const taxDataEl = document.getElementById("tax-rates-data");
+    if (taxDataEl) {
+      try {
+        taxRates = JSON.parse(taxDataEl.textContent || "[]");
+      } catch (e) {
+        console.warn("Could not parse tax rates data", e);
+      }
+    }
+
+    function formatMoney(value, currency) {
+      const num = Number.isFinite(value) ? value : 0;
+      return `${num.toFixed(2)} ${currency || ""}`.trim();
+    }
+
+    function computeTax(amount) {
+      const selectedId = taxSelect?.value || "";
+      const rate = taxRates.find((r) => String(r.id) === String(selectedId));
+      if (!rate) return null;
+      const tax = amount * (Number(rate.percentage) / 100);
+      return Number.isFinite(tax) ? Number(tax.toFixed(2)) : 0;
+    }
+
+    function renderSummary(amount, tax) {
+      const currency = summaryAmount?.dataset?.currency || "";
+      if (summaryAmount) summaryAmount.textContent = formatMoney(amount, currency);
+      if (summaryTax) summaryTax.textContent = formatMoney(tax, currency);
+      if (summaryTotal) summaryTotal.textContent = formatMoney(amount + tax, currency);
+    }
+
+    function updateFromAmountOrRate() {
+      const amount = parseFloat(amountInput?.value || "0") || 0;
+      const existingTax = parseFloat(taxAmountInput?.value || "0") || 0;
+      const computedTax = computeTax(amount);
+      const taxToUse = computedTax !== null ? computedTax : existingTax;
+      if (computedTax !== null && taxAmountInput) {
+        taxAmountInput.value = computedTax.toFixed(2);
+      }
+      renderSummary(amount, taxToUse);
+    }
+
+    function updateFromTaxAmount() {
+      const amount = parseFloat(amountInput?.value || "0") || 0;
+      const tax = parseFloat(taxAmountInput?.value || "0") || 0;
+      renderSummary(amount, tax);
+    }
+
+    if (amountInput) amountInput.addEventListener("input", updateFromAmountOrRate);
+    if (taxSelect) taxSelect.addEventListener("change", updateFromAmountOrRate);
+    if (taxAmountInput) taxAmountInput.addEventListener("input", updateFromTaxAmount);
+
+    updateFromAmountOrRate();
+  });
+</script>
 {% endblock %}

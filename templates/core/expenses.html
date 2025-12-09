@@ -78,7 +78,8 @@
         class="input-select">
         <option value="" {% if not category_filter %}selected{% endif %}>All categories</option>
         {% for cat in categories %}
-        <option value="{{ cat.id }}" {% if category_filter==cat.id %}selected{% endif %}>{{ cat.name }}</option>
+        <option value="{{ cat.id }}" {% if category_filter|stringformat:"s"==cat.id|stringformat:"s" %}selected{% endif
+          %}>{{ cat.name }}</option>
         {% endfor %}
       </select>
       <div class="input-search-pill">
@@ -108,7 +109,8 @@
             {% for expense in expenses %}
             <tr
               class="table-row {% if selected_expense and expense.pk == selected_expense.pk %}table-row-selected{% endif %}"
-              onclick="window.location='{% url 'expense_list' %}?period={{ period }}{% if category_filter %}&category={{ category_filter }}{% endif %}&expense={{ expense.pk }}'">
+              onclick="window.location='{% url 'expense_list' %}?period={{ period }}{% if category_filter %}&category={{ category_filter }}{% endif %}&expense={{ expense.pk }}'"
+              ondblclick="window.location='{% url 'expense_update' expense.pk %}'; event.stopPropagation();">
               <td>{{ expense.date|date:"M j, Y" }}</td>
               <td>{{ expense.description }}</td>
               <td class="hidden-sm">{% if expense.supplier %}{{ expense.supplier.name }}{% else %}—{% endif %}</td>
@@ -200,6 +202,30 @@
               Save
             </button>
           </form>
+          <a href="{% url 'expense_pdf' selected_expense.pk %}" style="
+                      display:inline-flex;
+                      align-items:center;
+                      gap:6px;
+                      border:1px solid #e5e7eb;
+                      border-radius:999px;
+                      padding:8px 16px;
+                      font-size:13px;
+                      font-weight:600;
+                      color:#374151;
+                      background:#fff;
+                      text-decoration:none;
+                      cursor:pointer;
+                      transition:all 0.15s ease;
+                    " onmouseover="this.style.borderColor='#2563eb';this.style.color='#2563eb';"
+            onmouseout="this.style.borderColor='#e5e7eb';this.style.color='#374151';">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            PDF
+          </a>
         </div>
       </div>
 

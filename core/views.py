@@ -541,6 +541,25 @@ def _invoice_preview(form, business=None) -> dict:
 def _expense_preview(form) -> dict:
     amount = _decimal_from_form(form, "amount")
     tax = _decimal_from_form(form, "tax_amount")
+
+    tax_rate_id = None
+    try:
+        if form and "tax_rate" in form.fields:
+            if form.is_bound:
+                tax_rate_id = form.data.get("tax_rate") or form.data.get("tax_rate_id")
+            else:
+                tax_rate_id = form.initial.get("tax_rate")
+    except Exception:
+        tax_rate_id = None
+
+    if tax_rate_id:
+        try:
+            tax_qs = form.fields["tax_rate"].queryset
+            rate = tax_qs.get(pk=tax_rate_id)
+            tax = (amount * (rate.percentage / Decimal("100"))).quantize(Decimal("0.01"))
+        except Exception:
+            pass
+
     return {
         "amount": amount,
         "tax": tax,
@@ -2754,6 +2773,7 @@ def expense_create(request):
             return redirect("expense_list")
     else:
         form = ExpenseForm(business=business)
+    tax_rate_field = cast(ModelChoiceField, form.fields["tax_rate"])
     return render(
         request,
         "expense_form.html",
@@ -2762,6 +2782,9 @@ def expense_create(request):
             "form": form,
             "expense": None,
             "expense_preview": _expense_preview(form),
+            "tax_rates": list(
+                tax_rate_field.queryset.values("id", "name", "percentage")
+            ),
         },
     )
 
@@ -2780,6 +2803,7 @@ def expense_update(request, pk):
             return redirect("expense_list")
     else:
         form = ExpenseForm(instance=expense, business=business)
+    tax_rate_field = cast(ModelChoiceField, form.fields["tax_rate"])
     return render(
         request,
         "expense_form.html",
@@ -2788,6 +2812,9 @@ def expense_update(request, pk):
             "form": form,
             "expense": expense,
             "expense_preview": _expense_preview(form),
+            "tax_rates": list(
+                tax_rate_field.queryset.values("id", "name", "percentage")
+            ),
         },
     )
 
@@ -2812,6 +2839,43 @@ def expense_delete(request, pk):
             "cancel_url": "expense_list",
         },
     )
+
+
+@login_required
+def expense_pdf_view(request, pk):
+    """Secure PDF download view for expenses, scoped to user's business."""
+    business = get_current_business(request.user)
+    if business is None:
+        return HttpResponseBadRequest("No business context")
+    
+    # Scope by business to prevent unauthorized access
+    expense = get_object_or_404(
+        Expense.objects.select_related("business", "supplier", "category", "tax_rate", "account"),
+        pk=pk,
+        business=business,
+    )
+    
+    # Render PDF using the expense template
+    html_content = render_to_string(
+        "expenses/expense_pdf.html",
+        {"expense": expense},
+        request=request,
+    )
+    
+    pdf_io = io.BytesIO()
+    if HTML:
+        try:
+            HTML(string=html_content, base_url=request.build_absolute_uri("/")).write_pdf(pdf_io)
+            pdf_io.seek(0)
+            safe_desc = slugify(expense.description or "expense")[:30] or "expense"
+            response = HttpResponse(pdf_io.read(), content_type="application/pdf")
+            response["Content-Disposition"] = f'attachment; filename="Expense-{expense.pk}-{safe_desc}.pdf"'
+            return response
+        except Exception as exc:
+            # If PDF generation fails, return a helpful error
+            return HttpResponseBadRequest(f"PDF generation failed: {str(exc)}")
+    else:
+        return HttpResponseBadRequest("PDF generation unavailable: WeasyPrint not installed")
 
 
 @login_required
