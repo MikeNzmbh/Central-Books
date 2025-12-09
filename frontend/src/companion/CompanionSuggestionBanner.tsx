@@ -1,5 +1,6 @@
 import React from "react";
 import { AlertTriangle, CheckCircle2, Sparkles } from "lucide-react";
+import CompanionThinkingScreen from "./CompanionThinkingScreen";
 
 // -----------------------------------------------------------------------------
 // TYPES
@@ -26,6 +27,7 @@ export interface CompanionSuggestionBannerProps {
     greeting?: string;          // Backend-provided greeting
     focusMode?: FocusMode;      // Backend-provided focus mode
     primaryCTA?: string | null; // Backend-provided call to action
+    context?: string;           // Surface context (e.g., "invoices", "bank")
 }
 
 // -----------------------------------------------------------------------------
@@ -139,9 +141,21 @@ export const CompanionSuggestionBanner: React.FC<CompanionSuggestionBannerProps>
     greeting: backendGreeting,
     focusMode,
     primaryCTA,
+    context,
 }) => {
     if (isLoading) {
-        return <LoadingSkeleton />;
+        // Map context to display label
+        const contextLabels: Record<string, string> = {
+            invoices: "Invoices",
+            bank: "Banking",
+            expenses: "Expenses",
+            reconciliation: "Reconciliation",
+            reports: "Reports",
+            dashboard: "Dashboard",
+        };
+        const surfaceLabel = context ? contextLabels[context] || "Workspace" : "Workspace";
+        const firstName = userName?.trim().split(" ")[0] || "there";
+        return <CompanionThinkingScreen surfaceLabel={surfaceLabel} firstName={firstName} />;
     }
 
     const risk = riskStyles[riskLevel] || riskStyles.low;

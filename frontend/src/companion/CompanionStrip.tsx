@@ -280,6 +280,7 @@ const CompanionStrip: React.FC<CompanionStripProps> = ({ context, className, use
         greeting={viewModel.greeting}
         focusMode={viewModel.focusMode}
         primaryCTA={null}
+        context={context}
       />
     </div>
   );

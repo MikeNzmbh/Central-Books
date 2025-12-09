@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 
 import type { CompanionOverview, CompanionInsight, CompanionAction } from "./api";
 import { applyCompanionAction, dismissCompanionAction, fetchCompanionOverview, getPrimaryButtonLabel, ACTION_BEHAVIOR_MAP } from "./api";
+import CompanionThinkingScreen from "./CompanionThinkingScreen";
 
 const severityStyles: Record<CompanionInsight["severity"], string> = {
   info: "bg-sky-50 text-sky-700 border border-sky-100",
@@ -32,10 +33,12 @@ const CompanionPanel: React.FC = () => {
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [narrative, setNarrative] = useState<{
     summary: string | null;
+    context_summary?: string | null;
     insight_explanations: Record<string, string>;
     action_explanations?: Record<string, string>;
   }>({
     summary: null,
+    context_summary: null,
     insight_explanations: {},
     action_explanations: {},
   });
@@ -186,11 +189,11 @@ const CompanionPanel: React.FC = () => {
         </div>
 
         {loading && (
-          <div className="space-y-3 text-sm text-slate-500">
-            <div className="h-3 w-28 animate-pulse rounded-full bg-slate-100" />
-            <div className="h-2 w-full animate-pulse rounded-full bg-slate-100" />
-            <div className="h-2 w-5/6 animate-pulse rounded-full bg-slate-100" />
-          </div>
+          <CompanionThinkingScreen
+            surfaceLabel="Dashboard"
+            firstName="there"
+            headline="I'm checking in on your business right now…"
+          />
         )}
 
         {error && !loading && (
