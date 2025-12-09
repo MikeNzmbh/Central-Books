@@ -2850,7 +2850,7 @@ def expense_pdf_view(request, pk):
     
     # Scope by business to prevent unauthorized access
     expense = get_object_or_404(
-        Expense.objects.select_related("business", "supplier", "category", "tax_rate", "account"),
+        Expense.objects.select_related("business", "supplier", "category", "tax_rate", "tax_group"),
         pk=pk,
         business=business,
     )
