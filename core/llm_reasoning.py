@@ -292,7 +292,7 @@ def reason_about_books_review(
         prompt,
         llm_client=llm_client,
         timeout_seconds=timeout_seconds,
-        profile=LLMProfile.HEAVY_REASONING,
+        profile=LLMProfile.LIGHT_CHAT,  # Reasoner ignores JSON formatting; use chat model
         context_tag="books_review",
     )
     if not raw:
@@ -373,7 +373,7 @@ def reason_about_bank_review(
         prompt,
         llm_client=llm_client,
         timeout_seconds=timeout_seconds,
-        profile=LLMProfile.HEAVY_REASONING,
+        profile=LLMProfile.LIGHT_CHAT,  # Reasoner ignores JSON formatting; use chat model
         context_tag="bank_review",
     )
     if not raw:
@@ -733,7 +733,7 @@ Please write the story narrative for {name}."""
             user_prompt,
             llm_client=llm_client,
             timeout_seconds=effective_timeout,
-            profile=LLMProfile.HEAVY_REASONING,
+            profile=LLMProfile.LIGHT_CHAT,  # Reasoner ignores JSON formatting; use chat model
             context_tag="companion_story",
         )
         if not raw:

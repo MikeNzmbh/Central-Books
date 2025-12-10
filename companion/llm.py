@@ -160,7 +160,8 @@ def call_deepseek_reasoning(
             logger.warning("[PROVIDER: DeepSeek] Empty choices in response")
             return None
         message = choices[0].get("message") or {}
-        content = message.get("content")
+        # DeepSeek Reasoner (R1) returns content in 'reasoning_content', not 'content'
+        content = message.get("content") or message.get("reasoning_content")
         if content:
             logger.info("[PROVIDER: DeepSeek] Reasoning call succeeded (model=%s)", model)
         return content

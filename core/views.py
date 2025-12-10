@@ -672,9 +672,22 @@ def login_view(request):
 
 @require_http_methods(["GET", "POST"])
 def logout_view(request):
-    logout(request)
+    """
+    Logout that is resilient to host/redirect parsing issues (e.g., DisallowedHost behind proxies).
+    """
+    try:
+        logout(request)
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning("Logout failed but continuing redirect: %s", exc)
+
     candidate_next = request.GET.get("next") or request.POST.get("next")
-    if candidate_next and url_has_allowed_host_and_scheme(candidate_next, allowed_hosts={request.get_host()}):
+    try:
+        host = request.get_host()
+    except Exception:
+        host = None
+
+    allowed_hosts = {host} if host else set(settings.ALLOWED_HOSTS or [])
+    if candidate_next and url_has_allowed_host_and_scheme(candidate_next, allowed_hosts=allowed_hosts):
         redirect_to = candidate_next
     else:
         redirect_to = reverse("login")
