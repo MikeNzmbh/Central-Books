@@ -671,7 +671,6 @@ def login_view(request):
 
 
 @require_http_methods(["GET", "POST"])
-@login_required
 def logout_view(request):
     logout(request)
     candidate_next = request.GET.get("next") or request.POST.get("next")
