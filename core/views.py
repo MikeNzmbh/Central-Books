@@ -2571,6 +2571,8 @@ def invoice_email_open_view(request, token):
 @login_required
 def invoice_pdf_view(request, pk):
     """Secure PDF download view for internal users, scoped to their business."""
+    from .pdf_utils import generate_invoice_pdf
+    
     business = get_current_business(request.user)
     if business is None:
         return HttpResponseBadRequest("No business context")
@@ -2582,27 +2584,14 @@ def invoice_pdf_view(request, pk):
         business=business,
     )
     
-    # Render PDF using the same template as email attachments
-    html_content = render_to_string(
-        "invoices/public_invoice_pdf.html",
-        {"invoice": invoice},
-        request=request,
-    )
-    
-    pdf_io = io.BytesIO()
-    if HTML:
-        try:
-            HTML(string=html_content, base_url=request.build_absolute_uri("/")).write_pdf(pdf_io)
-            pdf_io.seek(0)
-            safe_number = getattr(invoice, "invoice_number", None) or f"{invoice.pk}"
-            response = HttpResponse(pdf_io.read(), content_type="application/pdf")
-            response["Content-Disposition"] = f'attachment; filename="Invoice-{safe_number}.pdf"'
-            return response
-        except Exception as exc:
-            # If PDF generation fails, return a helpful error
-            return HttpResponseBadRequest(f"PDF generation failed: {str(exc)}")
-    else:
-        return HttpResponseBadRequest("PDF generation unavailable: WeasyPrint not installed")
+    try:
+        pdf_buffer = generate_invoice_pdf(invoice)
+        safe_number = getattr(invoice, "invoice_number", None) or f"{invoice.pk}"
+        response = HttpResponse(pdf_buffer.read(), content_type="application/pdf")
+        response["Content-Disposition"] = f'attachment; filename="Invoice-{safe_number}.pdf"'
+        return response
+    except Exception as exc:
+        return HttpResponseBadRequest(f"PDF generation failed: {str(exc)}")
 
 
 @login_required
@@ -2862,6 +2851,8 @@ def expense_delete(request, pk):
 @login_required
 def expense_pdf_view(request, pk):
     """Secure PDF download view for expenses, scoped to user's business."""
+    from .pdf_utils import generate_expense_pdf
+    
     business = get_current_business(request.user)
     if business is None:
         return HttpResponseBadRequest("No business context")
@@ -2873,27 +2864,14 @@ def expense_pdf_view(request, pk):
         business=business,
     )
     
-    # Render PDF using the expense template
-    html_content = render_to_string(
-        "expenses/expense_pdf.html",
-        {"expense": expense},
-        request=request,
-    )
-    
-    pdf_io = io.BytesIO()
-    if HTML:
-        try:
-            HTML(string=html_content, base_url=request.build_absolute_uri("/")).write_pdf(pdf_io)
-            pdf_io.seek(0)
-            safe_desc = slugify(expense.description or "expense")[:30] or "expense"
-            response = HttpResponse(pdf_io.read(), content_type="application/pdf")
-            response["Content-Disposition"] = f'attachment; filename="Expense-{expense.pk}-{safe_desc}.pdf"'
-            return response
-        except Exception as exc:
-            # If PDF generation fails, return a helpful error
-            return HttpResponseBadRequest(f"PDF generation failed: {str(exc)}")
-    else:
-        return HttpResponseBadRequest("PDF generation unavailable: WeasyPrint not installed")
+    try:
+        pdf_buffer = generate_expense_pdf(expense)
+        safe_desc = slugify(expense.description or "expense")[:30] or "expense"
+        response = HttpResponse(pdf_buffer.read(), content_type="application/pdf")
+        response["Content-Disposition"] = f'attachment; filename="Expense-{expense.pk}-{safe_desc}.pdf"'
+        return response
+    except Exception as exc:
+        return HttpResponseBadRequest(f"PDF generation failed: {str(exc)}")
 
 
 @login_required
