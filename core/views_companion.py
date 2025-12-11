@@ -78,7 +78,7 @@ def _serialize_run(run, high_risk_key: str, total_key: str, error_key: str | Non
 def api_companion_summary(request):
     business = get_current_business(request.user)
     if business is None:
-        return HttpResponseBadRequest("No business context")
+        return JsonResponse({"error": "No business context"}, status=400)
 
     # Check cache first (scoped by business ID to prevent data leakage)
     cache_key = f"companion_summary_{business.id}"
@@ -461,7 +461,7 @@ def api_companion_story_refresh(request):
     
     business = get_current_business(request.user)
     if business is None:
-        return HttpResponseBadRequest("No business context")
+        return JsonResponse({"error": "No business context"}, status=400)
     
     from .companion_story import mark_story_dirty
     mark_story_dirty(business)

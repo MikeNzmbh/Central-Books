@@ -2587,7 +2587,7 @@ def invoice_pdf_view(request, pk):
     
     business = get_current_business(request.user)
     if business is None:
-        return HttpResponseBadRequest("No business context")
+        return JsonResponse({"error": "No business context"}, status=400)
     
     # Scope by business to prevent unauthorized access
     invoice = get_object_or_404(
@@ -2603,7 +2603,7 @@ def invoice_pdf_view(request, pk):
         response["Content-Disposition"] = f'attachment; filename="Invoice-{safe_number}.pdf"'
         return response
     except Exception as exc:
-        return HttpResponseBadRequest(f"PDF generation failed: {str(exc)}")
+        return JsonResponse({"error": f"PDF generation failed: {str(exc)}"}, status=400)
 
 
 @login_required
@@ -2613,13 +2613,13 @@ def invoice_send_email_view(request, pk):
     
     business = get_current_business(request.user)
     if business is None:
-        return HttpResponseBadRequest("No business context")
+        return JsonResponse({"error": "No business context"}, status=400)
 
     invoice = get_object_or_404(Invoice.objects.select_related("business", "customer"), pk=pk, business=business)
 
     to_email = request.POST.get("to_email") or getattr(invoice.customer, "email", None)
     if not to_email:
-        return HttpResponseBadRequest("No email address provided")
+        return JsonResponse({"error": "No email address provided"}, status=400)
     
     # Require a configured sender email on the business
     if not business.email_from:
@@ -2867,7 +2867,7 @@ def expense_pdf_view(request, pk):
     
     business = get_current_business(request.user)
     if business is None:
-        return HttpResponseBadRequest("No business context")
+        return JsonResponse({"error": "No business context"}, status=400)
     
     # Scope by business to prevent unauthorized access
     expense = get_object_or_404(
@@ -2883,7 +2883,7 @@ def expense_pdf_view(request, pk):
         response["Content-Disposition"] = f'attachment; filename="Expense-{expense.pk}-{safe_desc}.pdf"'
         return response
     except Exception as exc:
-        return HttpResponseBadRequest(f"PDF generation failed: {str(exc)}")
+        return JsonResponse({"error": f"PDF generation failed: {str(exc)}"}, status=400)
 
 
 @login_required

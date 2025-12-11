@@ -82,7 +82,7 @@ def _serialize_doc(doc: InvoiceDocument) -> dict:
 def api_invoices_run(request):
     business = get_current_business(request.user)
     if business is None:
-        return HttpResponseBadRequest("No business context")
+        return JsonResponse({"error": "No business context"}, status=400)
 
     files = request.FILES.getlist("files") or request.FILES.getlist("documents")
     error = _validate_files(files)
@@ -227,7 +227,7 @@ def api_invoices_run(request):
 def api_invoices_runs(request):
     business = get_current_business(request.user)
     if business is None:
-        return HttpResponseBadRequest("No business context")
+        return JsonResponse({"error": "No business context"}, status=400)
     runs = InvoiceRun.objects.filter(business=business).order_by("-created_at")[:50]
     data = [
         {
@@ -251,7 +251,7 @@ def api_invoices_runs(request):
 def api_invoices_run_detail(request, run_id: int):
     business = get_current_business(request.user)
     if business is None:
-        return HttpResponseBadRequest("No business context")
+        return JsonResponse({"error": "No business context"}, status=400)
     run = InvoiceRun.objects.filter(business=business, pk=run_id).first()
     if not run:
         return JsonResponse({"error": "Run not found"}, status=404)
@@ -281,7 +281,7 @@ def api_invoices_run_detail(request, run_id: int):
 def api_invoice_detail(request, invoice_id: int):
     business = get_current_business(request.user)
     if business is None:
-        return HttpResponseBadRequest("No business context")
+        return JsonResponse({"error": "No business context"}, status=400)
     doc = InvoiceDocument.objects.filter(business=business, pk=invoice_id).first()
     if not doc:
         return JsonResponse({"error": "Invoice not found"}, status=404)
@@ -305,7 +305,7 @@ def api_invoice_approve(request, invoice_id: int):
     
     business = get_current_business(request.user)
     if business is None:
-        return HttpResponseBadRequest("No business context")
+        return JsonResponse({"error": "No business context"}, status=400)
     doc = InvoiceDocument.objects.select_related("run").filter(business=business, pk=invoice_id).first()
     if not doc:
         return JsonResponse({"error": "Invoice not found"}, status=404)
@@ -406,7 +406,7 @@ def api_invoice_approve(request, invoice_id: int):
 def api_invoice_discard(request, invoice_id: int):
     business = get_current_business(request.user)
     if business is None:
-        return HttpResponseBadRequest("No business context")
+        return JsonResponse({"error": "No business context"}, status=400)
     doc = InvoiceDocument.objects.filter(business=business, pk=invoice_id).first()
     if not doc:
         return JsonResponse({"error": "Invoice not found"}, status=404)

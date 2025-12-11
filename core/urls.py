@@ -10,6 +10,7 @@ from . import views_bank_audit  # Bank Audit Health Check API (Option B)
 from . import views_dashboard  # Dashboard API (Option B architecture)
 from . import views_monitoring  # Monitoring agent Slack endpoint
 from . import views_auth  # Auth API endpoints
+from . import views_list_apis  # Invoice/Expense list APIs (Option B)
 from .views import (
     CustomerListView,
     InvoiceListView,
@@ -91,8 +92,8 @@ urlpatterns = [
     path("categories/<int:pk>/archive/", views.category_archive, name="category_archive"),
     path("categories/<int:pk>/restore/", views.category_restore, name="category_restore"),
     path("categories/<int:pk>/delete/", views.category_delete, name="category_delete"),
-    # Invoices
-    path("invoices/", InvoiceListView.as_view(), name="invoice_list"),
+    # Invoices (Option B - React)
+    path("invoices/", views_list_apis.invoices_list_page, name="invoice_list"),
     path("invoices/new/", views.invoice_create, name="invoice_create"),
     path("invoices/<int:pk>/edit/", views.invoice_update, name="invoice_update"),
     path("invoices/<int:pk>/delete/", views.invoice_delete, name="invoice_delete"),
@@ -100,13 +101,20 @@ urlpatterns = [
     path("invoices/<int:pk>/pdf/", views.invoice_pdf_view, name="invoice_pdf"),
     path("invoices/public/<uuid:token>/", views.invoice_public_view, name="invoice_public_view"),
     path("invoices/email/open/<uuid:token>.gif", views.invoice_email_open_view, name="invoice_email_open"),
-    # Expenses
-    path("expenses/", ExpenseListView.as_view(), name="expense_list"),
+    # Invoice List API (Option B)
+    path("api/invoices/list/", views_list_apis.api_invoice_list, name="api_invoice_list"),
+    # Expenses (Option B - React)
+    path("expenses/", views_list_apis.expenses_list_page, name="expense_list"),
     path("expenses/new/", views.expense_create, name="expense_create"),
     path("expenses/<int:pk>/edit/", views.expense_update, name="expense_update"),
     path("expenses/<int:pk>/delete/", views.expense_delete, name="expense_delete"),
     path("expenses/<int:pk>/status/", views.expense_status_update, name="expense_status_update"),
     path("expenses/<int:pk>/pdf/", views.expense_pdf_view, name="expense_pdf"),
+    # Expense List API (Option B)
+    path("api/expenses/list/", views_list_apis.api_expense_list, name="api_expense_list"),
+    # React List Pages (backwards-compatible redirects to main routes)
+    path("invoices/react/", RedirectView.as_view(pattern_name="invoice_list", permanent=False)),
+    path("expenses/react/", RedirectView.as_view(pattern_name="expense_list", permanent=False)),
     # Products & Services
     path("products/", ProductServiceListView.as_view(), name="product_list"),
     path("items/new/", ItemCreateView.as_view(), name="item_create"),
