@@ -7,6 +7,7 @@ import {
     useLocation,
 } from "react-router-dom";
 import { useTransactions, TransactionRow as ApiTransactionRow } from "./useTransactions";
+import CompanionStrip from "../companion/CompanionStrip";
 import {
     ArrowRight,
     ArrowUpRight,
@@ -181,41 +182,7 @@ const StatusPill: React.FC<{ status: string }> = ({ status }) => {
     );
 };
 
-const CompanionPanel: React.FC<{ kind: "invoice" | "expense"; count: number }> = ({ kind, count }) => (
-    <div className="relative overflow-hidden rounded-[2rem] border border-white/60 bg-gradient-to-br from-white via-slate-50 to-slate-100 p-8 shadow-sm ring-1 ring-black/5">
-        <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-indigo-50/50 blur-3xl pointer-events-none" />
-        <div className="relative z-10 flex flex-col justify-between gap-6 md:flex-row">
-            <div className="flex gap-5">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-slate-900 text-white shadow-md">
-                    <span className="text-xs font-bold tracking-wider">AI</span>
-                </div>
-                <div className="space-y-2 max-w-xl">
-                    <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400">
-                        {kind === "invoice" ? "Receivables Companion" : "Payables Companion"}
-                    </h3>
-                    <h2 className="text-xl font-semibold text-slate-900">
-                        {kind === "invoice" ? "Your cash flow looks healthy." : "Spending is trending normal."}
-                    </h2>
-                    <p className="text-sm leading-relaxed text-slate-600">
-                        {kind === "invoice"
-                            ? `I'm monitoring ${count} active invoices. Two high-value payments are expected next week.`
-                            : `I've categorized ${count} recent expenses. You have one upcoming renewal for AWS.`}
-                    </p>
-                </div>
-            </div>
-            <div className="flex flex-col items-end gap-3">
-                <div className="flex items-center gap-2 rounded-full bg-white/80 px-3 py-1 text-[10px] font-medium text-slate-500 shadow-sm ring-1 ring-slate-200 backdrop-blur-md">
-                    <Sparkles className="h-3 w-3 text-indigo-500" />
-                    <span>Monitoring active</span>
-                </div>
-                <button className="group relative inline-flex items-center justify-center gap-2 rounded-full bg-slate-900 px-6 py-2.5 text-sm font-medium text-white shadow-lg shadow-slate-900/10 transition-all hover:bg-slate-800 hover:scale-[1.02] active:scale-[0.98]">
-                    <span>View Insights</span>
-                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-                </button>
-            </div>
-        </div>
-    </div>
-);
+// CompanionPanel removed - now using shared CompanionStrip component
 
 const TransactionDrawer: React.FC<{
     transaction: TransactionRow | null;
@@ -494,7 +461,7 @@ export const TransactionsPageContent: React.FC<{ kind: TransactionKind }> = ({ k
                     {/* Top Section: Companion + Metrics */}
                     <div className="grid gap-6 lg:grid-cols-3">
                         <div className="lg:col-span-2">
-                            <CompanionPanel kind={kind} count={rows.length} />
+                            <CompanionStrip context={kind === "invoice" ? "invoices" : "expenses"} />
                         </div>
                         <div className="flex flex-col justify-between gap-4">
                             {/* Metrics */}
