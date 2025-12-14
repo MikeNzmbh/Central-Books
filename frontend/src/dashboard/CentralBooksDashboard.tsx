@@ -1,6 +1,9 @@
 import React, { useMemo } from "react";
 import CompanionPanel from "../companion/CompanionPanel";
 import { useAuth } from "../contexts/AuthContext";
+import { AICommandStrip } from "./AICommandStrip";
+import { SuppliersDonutCard } from "./SuppliersDonutCard";
+import { PLSnapshotCard } from "./PLSnapshotCard";
 
 type PLMonthOption = {
   value: string;
@@ -515,159 +518,33 @@ const CentralBooksDashboard: React.FC<CentralBooksDashboardProps> = ({
           </div>
         </section>
 
-        <section className="grid gap-4 xl:grid-cols-[1.05fr,1.05fr]">
-          <div className="rounded-3xl border border-slate-100 bg-white/90 p-4 sm:p-5 shadow-sm flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-slate-500">Suppliers</p>
-                <p className="mt-1 text-sm text-slate-500">
-                  Who you&apos;re paying most frequently.
-                </p>
-              </div>
-              <a
-                href={safeUrl(urls?.suppliers)}
-                className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-white"
-              >
-                Manage suppliers
-              </a>
-            </div>
-            <div className="space-y-1.5 text-xs">
-              {topSuppliers.slice(0, 4).map((supplier) => (
-                <div key={`supplier - ${supplier.name} `} className="flex items-center justify-between rounded-2xl bg-slate-50 px-3 py-2">
-                  <div className="flex flex-col">
-                    <span className="font-medium text-slate-900">{supplier.name}</span>
-                    <span className="text-[11px] text-slate-500">
-                      {supplier.category ? supplier.category : "Uncategorized"}
-                    </span>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-semibold text-slate-900">
-                      {formatMoney(supplier.mtdSpend)}
-                    </p>
-                    <p className="text-[11px] text-slate-500">
-                      {supplier.paymentCount || 0} payment{(supplier.paymentCount || 0) === 1 ? "" : "s"}
-                    </p>
-                  </div>
-                </div>
-              ))}
-              {!topSuppliers.length && (
-                <div className="text-slate-500 text-sm px-2 py-3">Invite suppliers to start tracking them here.</div>
-              )}
-            </div>
-            <p className="pt-1 text-[11px] text-slate-500">
-              Tip: Turn your largest recurring suppliers into scheduled bills so you never miss a payment.
-            </p>
-          </div>
+        {/* Bottom Section: AI Strip + Suppliers + P&L (Redesigned) */}
+        <section className="space-y-4">
+          {/* Full-width AI Command Strip */}
+          <AICommandStrip tasks={tasks} />
 
-          <div className="grid gap-4 md:grid-cols-[1.05fr,0.95fr]">
-            <div className="rounded-3xl border border-slate-100 bg-white/90 p-4 sm:p-5 shadow-sm flex flex-col gap-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-slate-500">Profit & loss summary</p>
-                  <p className="mt-1 text-sm text-slate-500">
-                    {metrics?.pl_period_label || "Month-to-date"} performance.
-                  </p>
-                </div>
-                <a
-                  href={safeUrl(urls?.profitAndLoss)}
-                  className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-white"
-                >
-                  Open P&amp;L
-                </a>
-              </div>
-
-              {/* Month Selector */}
-              {(metrics?.pl_month_options && metrics.pl_month_options.length > 0) && (
-                <div className="flex items-center gap-2">
-                  <label htmlFor="pl-month-select" className="text-xs text-slate-600">
-                    Period:
-                  </label>
-                  <select
-                    id="pl-month-select"
-                    value={metrics?.pl_selected_month || ""}
-                    onChange={(e) => {
-                      const newMonth = e.target.value;
-                      window.location.href = `/dashboard/?pl_month=${newMonth}`;
-                    }}
-                    className="text-xs rounded-lg border border-slate-200 bg-white px-2 py-1 text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300"
-                  >
-                    {metrics.pl_month_options.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {showNoActivityMessage ? (
-                <div className="rounded-2xl bg-slate-50/80 border border-slate-100 px-4 py-6 text-center">
-                  <p className="text-sm text-slate-500">
-                    {plMessage || "No income or expenses have been posted in this period."}
-                  </p>
-                  <p className="mt-1 text-xs text-slate-400">
-                    Create income or expense entries (or categorize bank transactions) to populate the P&amp;L.
-                  </p>
-                </div>
-              ) : (
-                <>
-                  <div className="grid gap-3 text-xs sm:grid-cols-2">
-                    <div className="rounded-2xl bg-slate-50/80 border border-slate-100 px-3 py-3">
-                      <p className="text-[11px] text-slate-500">Revenue</p>
-                      <p className="mt-1 text-lg font-semibold text-slate-900">{formatMoney(metrics?.revenue_month)}</p>
-                    </div>
-                    <div className="rounded-2xl bg-slate-50/80 border border-slate-100 px-3 py-3">
-                      <p className="text-[11px] text-slate-500">Expenses</p>
-                      <p className="mt-1 text-lg font-semibold text-slate-900">{formatMoney(metrics?.expenses_month)}</p>
-                    </div>
-                  </div>
-
-                  <div className="mt-1 rounded-2xl bg-slate-50/80 border border-slate-100 px-3 py-3 text-xs">
-                    <div className="flex items-center justify-between">
-                      <p className="font-medium text-slate-900">Net profit</p>
-                      <p className="font-semibold text-emerald-700">{formatMoney(metrics?.net_income_month)}</p>
-                    </div>
-                    <p className="mt-1 text-[11px] text-slate-500">
-                      Revenue and expenses pulled directly from your ledger.
-                    </p>
-                    {plMessage ? (
-                      <p className="mt-1 text-[11px] text-slate-500">{plMessage}</p>
-                    ) : null}
-                  </div>
-                </>
-              )}
-            </div>
-
-
-            <div className="space-y-4">
-              <div className="rounded-3xl border border-slate-100 bg-white/90 p-4 sm:p-5 shadow-sm flex flex-col gap-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-medium text-slate-500">CERN Books AI</p>
-                    <p className="mt-1 text-sm text-slate-500">Quick wins for today.</p>
-                  </div>
-                  <span className="inline-flex items-center gap-1 rounded-full bg-slate-900 px-3 py-1 text-[11px] font-medium text-slate-50">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                    Agent idle
-                  </span>
-                </div>
-
-                <ul className="mt-1 space-y-1.5 text-xs">
-                  {tasks.map((task) => (
-                    <li key={task.title} className="flex items-start gap-2 rounded-2xl bg-slate-50 px-3 py-2">
-                      <span className={`mt - 0.5 h - 1.5 w - 1.5 rounded - full ${task.color} `} />
-                      <div className="flex-1">
-                        <p className="font-medium text-slate-900">{task.title}</p>
-                        <p className="text-[11px] text-slate-500">{task.body}</p>
-                      </div>
-                      <a href={task.href} className="text-[11px] font-medium text-slate-700 hover:underline">
-                        {task.cta}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
+          {/* Two-column layout: Suppliers + P&L */}
+          <div className="grid gap-4 lg:grid-cols-2">
+            <SuppliersDonutCard
+              suppliers={topSuppliers}
+              currency={currency}
+              suppliersUrl={safeUrl(urls?.suppliers)}
+            />
+            <PLSnapshotCard
+              revenue={metrics?.revenue_month}
+              expenses={metrics?.expenses_month}
+              netProfit={metrics?.net_income_month}
+              currency={currency}
+              periodLabel={plPeriodLabel}
+              selectedMonth={metrics?.pl_selected_month}
+              monthOptions={metrics?.pl_month_options}
+              prevRevenue={metrics?.pl_prev_income}
+              prevExpenses={metrics?.pl_prev_expenses}
+              prevNet={metrics?.pl_prev_net}
+              profitAndLossUrl={safeUrl(urls?.profitAndLoss)}
+              showNoActivity={showNoActivityMessage}
+              noActivityMessage={plMessage || undefined}
+            />
           </div>
         </section>
       </div>
