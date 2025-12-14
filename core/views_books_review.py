@@ -11,6 +11,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
 from .agentic_books_review import run_books_review_workflow
+from .anomaly_detection import apply_llm_explanations, bundle_anomalies
 from .companion_issues import build_books_review_issues, persist_companion_issues
 from .models import BooksReviewRun
 from .utils import get_current_business
@@ -92,6 +93,17 @@ def api_books_review_run(request):
             if business.ai_companion_enabled:
                 issues = build_books_review_issues(run, run.trace_id)
                 persist_companion_issues(business, issues, ai_companion_enabled=business.ai_companion_enabled, user_name=request.user.first_name or None)
+        anomalies = bundle_anomalies(
+            business,
+            period_start=period_start,
+            period_end=period_end,
+            as_of=period_end,
+        )
+        anomalies = apply_llm_explanations(
+            anomalies,
+            ai_enabled=business.ai_companion_enabled,
+            user_name=request.user.first_name or None,
+        )
     except Exception as exc:  # pragma: no cover - defensive
         run.status = BooksReviewRun.RunStatus.FAILED
         run.save(update_fields=["status"])
@@ -112,6 +124,19 @@ def api_books_review_run(request):
             "period_start": run.period_start.isoformat(),
             "period_end": run.period_end.isoformat(),
             "companion_enabled": business.ai_companion_enabled,
+            "anomalies": [
+                {
+                    "code": a.code,
+                    "surface": a.surface,
+                    "impact_area": a.impact_area,
+                    "severity": a.severity,
+                    "explanation": a.explanation,
+                    "task_code": a.task_code,
+                    "explanation_source": a.explanation_source,
+                    "linked_issue_id": a.linked_issue_id,
+                }
+                for a in anomalies
+            ],
         }
     )
 
@@ -150,6 +175,17 @@ def api_books_review_run_detail(request, run_id: int):
     run = BooksReviewRun.objects.filter(business=business, pk=run_id).first()
     if not run:
         return JsonResponse({"error": "Run not found"}, status=404)
+    anomalies = bundle_anomalies(
+        business,
+        period_start=run.period_start,
+        period_end=run.period_end,
+        as_of=run.period_end,
+    )
+    anomalies = apply_llm_explanations(
+        anomalies,
+        ai_enabled=business.ai_companion_enabled,
+        user_name=request.user.first_name or None,
+    )
     return JsonResponse(
         {
             "id": run.id,
@@ -167,6 +203,19 @@ def api_books_review_run_detail(request, run_id: int):
             "llm_ranked_issues": run.llm_ranked_issues,
             "llm_suggested_checks": run.llm_suggested_checks,
             "companion_enabled": business.ai_companion_enabled,
+            "anomalies": [
+                {
+                    "code": a.code,
+                    "surface": a.surface,
+                    "impact_area": a.impact_area,
+                    "severity": a.severity,
+                    "explanation": a.explanation,
+                    "task_code": a.task_code,
+                    "explanation_source": a.explanation_source,
+                    "linked_issue_id": a.linked_issue_id,
+                }
+                for a in anomalies
+            ],
         }
     )
 

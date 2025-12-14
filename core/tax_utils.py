@@ -1,4 +1,4 @@
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, ROUND_HALF_EVEN
 
 TAX_TREATMENTS = {"NONE", "INCLUDED", "ON_TOP"}
 
@@ -16,7 +16,7 @@ def compute_tax_breakdown(amount: Decimal, treatment: str, rate_percent: Decimal
         raise ValueError("Unsupported tax treatment.")
 
     rate_decimal = (rate_percent or Decimal("0")) / Decimal("100")
-    quantize_to_cent = lambda val: val.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    quantize_to_cent = lambda val: val.quantize(Decimal("0.01"), rounding=ROUND_HALF_EVEN)
 
     if treatment_normalized == "NONE" or rate_decimal == 0:
         net = quantize_to_cent(Decimal(amount))

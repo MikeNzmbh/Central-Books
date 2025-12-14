@@ -1,8 +1,13 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import "../index.css";
+import { AuthProvider } from "../contexts/AuthContext";
 import CompanionOverviewPage from "./CompanionOverviewPage";
+import TaxGuardianPage from "./TaxGuardianPage";
+import TaxSettingsPage from "./TaxSettingsPage";
+import TaxProductRulesPage from "./TaxProductRulesPage";
+import TaxCatalogPage from "./TaxCatalogPage";
 
 const rootEl = document.getElementById("companion-overview-root");
 
@@ -42,9 +47,17 @@ if (rootEl) {
   root.render(
     <React.StrictMode>
       <ErrorBoundary>
-        <BrowserRouter>
-          <CompanionOverviewPage />
-        </BrowserRouter>
+        <AuthProvider>
+          <BrowserRouter basename="/ai-companion">
+            <Routes>
+              <Route path="/" element={<CompanionOverviewPage />} />
+              <Route path="/tax" element={<TaxGuardianPage />} />
+              <Route path="/tax/settings" element={<TaxSettingsPage />} />
+              <Route path="/tax/product-rules" element={<TaxProductRulesPage />} />
+              <Route path="/tax/catalog" element={<TaxCatalogPage />} />
+            </Routes>
+          </BrowserRouter>
+        </AuthProvider>
       </ErrorBoundary>
     </React.StrictMode>
   );

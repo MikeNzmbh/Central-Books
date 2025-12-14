@@ -106,6 +106,11 @@ export interface BankTransaction {
   match_confidence?: number | null;
   engine_reason?: string | null;
   matchCandidates?: Array<{ journal_entry_id: number; confidence: number; reason?: string }>;
+  highRiskAudit?: {
+    verdict: "ok" | "warn" | "fail";
+    reasons?: string[];
+    created_at?: string;
+  };
   includedInSession: boolean; // whether this line is checked into current session
 }
 
@@ -375,6 +380,13 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
             match_confidence: t.match_confidence,
             engine_reason: t.engine_reason,
             matchCandidates,
+            highRiskAudit: t.high_risk_audit
+              ? {
+                  verdict: t.high_risk_audit.verdict,
+                  reasons: t.high_risk_audit.reasons || [],
+                  created_at: t.high_risk_audit.created_at,
+                }
+              : undefined,
             includedInSession: t.includedInSession ?? uiStatus !== "EXCLUDED",
           };
         })
@@ -1254,6 +1266,20 @@ function TransactionRow({ tx, onToggleInclude, onMatch, onAddAsNew, onUnmatch, i
   const hasCandidate = tx.matchCandidates && tx.matchCandidates.length > 0;
   const actionsDisabled = isLocked;
   const isPositive = tx.amount >= 0;
+  const critic = tx.highRiskAudit;
+  const criticMessage = critic
+    ? critic.verdict === "ok"
+      ? "High-risk transaction (>$5k) double-checked by Companion; no issues found — please still review before posting."
+      : (critic.reasons && critic.reasons.length > 0
+        ? critic.reasons[0]
+        : "Companion flagged this transaction for manual review.")
+    : null;
+  const criticToneClass =
+    critic?.verdict === "ok"
+      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+      : critic?.verdict === "fail"
+        ? "bg-rose-50 text-rose-700 border-rose-200"
+        : "bg-amber-50 text-amber-700 border-amber-200";
 
   // Status colors for left border
   const statusBorderColor = isMatched
@@ -1298,6 +1324,16 @@ function TransactionRow({ tx, onToggleInclude, onMatch, onAddAsNew, onUnmatch, i
         </p>
         {tx.counterparty && (
           <p className="text-xs text-slate-500 truncate">{tx.counterparty}</p>
+        )}
+        {critic && criticMessage && (
+          <div className="mt-1 flex items-center gap-2 text-[11px] text-slate-600">
+            <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-semibold ${criticToneClass}`}>
+              Critic
+            </span>
+            <span className="truncate" title={criticMessage}>
+              {criticMessage}
+            </span>
+          </div>
         )}
       </div>
 

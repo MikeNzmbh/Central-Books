@@ -28,9 +28,13 @@ from .companion_issues import (
     build_companion_coverage,
     evaluate_period_close_readiness,
     build_companion_playbook,
+    _current_period_key,
 )
 from .companion_voice import build_voice_snapshot
 from .llm_reasoning import generate_companion_story, generate_surface_subtitles
+from .finance_snapshot import compute_finance_snapshot
+from taxes.services import compute_tax_period_snapshot, compute_tax_anomalies
+from taxes.models import TaxPeriodSnapshot, TaxAnomaly
 
 RISK_MEDIUM_THRESHOLD = Decimal("40.0")
 RISK_HIGH_THRESHOLD = Decimal("70.0")
@@ -74,6 +78,73 @@ def _serialize_run(run, high_risk_key: str, total_key: str, error_key: str | Non
     }
 
 
+def _build_tax_summary(business):
+    period_key = _current_period_key()
+    tax_block = {
+        "period_key": period_key,
+        "has_snapshot": False,
+        "net_tax": None,
+        "jurisdictions": [],
+        "anomaly_counts": {"low": 0, "medium": 0, "high": 0},
+    }
+    snapshot = TaxPeriodSnapshot.objects.filter(business=business, period_key=period_key).first()
+    if not snapshot:
+        try:
+            snapshot = compute_tax_period_snapshot(business, period_key)
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning("Failed to compute tax snapshot: %s", exc)
+            snapshot = None
+
+    if snapshot:
+        tax_block["has_snapshot"] = True
+        jurisdictions = []
+        summary = snapshot.summary_by_jurisdiction or {}
+        net_total = Decimal("0.00")
+        for code, data in summary.items():
+            taxable_sales = Decimal(str(data.get("taxable_sales", 0)))
+            tax_collected = Decimal(str(data.get("tax_collected", 0)))
+            tax_on_purchases = Decimal(str(data.get("tax_on_purchases", 0)))
+            net_tax = Decimal(str(data.get("net_tax", tax_collected - tax_on_purchases)))
+            jurisdictions.append(
+                {
+                    "code": code,
+                    "taxable_sales": float(taxable_sales),
+                    "tax_collected": float(tax_collected),
+                    "tax_on_purchases": float(tax_on_purchases),
+                    "net_tax": float(net_tax),
+                    "currency": data.get("currency"),
+                }
+            )
+            net_total += net_tax
+        tax_block["jurisdictions"] = jurisdictions
+        tax_block["net_tax"] = float(net_total) if jurisdictions else None
+        try:
+            compute_tax_anomalies(business, period_key)
+        except Exception as exc:  # pragma: no cover
+            logger.warning("Failed to compute tax anomalies: %s", exc)
+
+    anomalies = TaxAnomaly.objects.filter(
+        business=business,
+        period_key=period_key,
+        status=TaxAnomaly.AnomalyStatus.OPEN,
+    )
+    tax_block["anomaly_counts"] = {
+        "low": anomalies.filter(severity=TaxAnomaly.AnomalySeverity.LOW).count(),
+        "medium": anomalies.filter(severity=TaxAnomaly.AnomalySeverity.MEDIUM).count(),
+        "high": anomalies.filter(severity=TaxAnomaly.AnomalySeverity.HIGH).count(),
+    }
+    tax_block["anomalies"] = [
+        {
+            "code": a.code,
+            "severity": a.severity,
+            "description": a.description,
+            "task_code": a.task_code,
+        }
+        for a in anomalies[:10]
+    ]
+    return tax_block
+
+
 @login_required
 def api_companion_summary(request):
     business = get_current_business(request.user)
@@ -114,6 +185,8 @@ def api_companion_summary(request):
         if issues_qs.exists()
         else None
     )
+
+    include_finance_narrative = request.GET.get("finance_narrative") in {"1", "true", "yes"}
 
     summary = {
         "ai_companion_enabled": business.ai_companion_enabled,
@@ -292,6 +365,22 @@ def api_companion_summary(request):
     # Evaluate close-readiness (deterministic, no LLM)
     close_readiness = evaluate_period_close_readiness(business)
     summary["close_readiness"] = close_readiness
+
+    # Finance Companion snapshot (deterministic; optional short narrative)
+    finance_snapshot = compute_finance_snapshot(
+        business,
+        include_narrative=business.ai_companion_enabled and include_finance_narrative,
+        user_name=request.user.first_name or None,
+    )
+    summary["finance_snapshot"] = finance_snapshot
+
+    # Tax Guardian (deterministic snapshot + anomalies)
+    tax_block = _build_tax_summary(business)
+    summary["tax"] = tax_block
+    summary["tax_guardian"] = {
+        "status": "issues" if sum(tax_block["anomaly_counts"].values()) > 0 else "all_clear",
+        "issues": tax_block.get("anomalies", []),
+    }
     
     # Build today's playbook (deterministic, no LLM)
     playbook = build_companion_playbook(business)
@@ -302,7 +391,6 @@ def api_companion_summary(request):
     if business.ai_companion_enabled:
         # Get actual invoice metrics for more accurate AI insights
         from .models import Invoice
-        from decimal import Decimal
         today = timezone.now().date()
         invoices_qs = Invoice.objects.filter(business=business)
         overdue_invoices = invoices_qs.filter(
@@ -310,10 +398,10 @@ def api_companion_summary(request):
             due_date__lt=today
         )
         overdue_count = overdue_invoices.count()
-        overdue_amount = sum(inv.total_amount or Decimal('0') for inv in overdue_invoices)
+        overdue_amount = overdue_invoices.aggregate(total=models.Sum("total_amount")).get("total") or Decimal("0")
         unpaid_invoices = invoices_qs.filter(status__in=['SENT', 'sent', 'DRAFT', 'draft'])
         unpaid_count = unpaid_invoices.count()
-        unpaid_amount = sum(inv.total_amount or Decimal('0') for inv in unpaid_invoices)
+        unpaid_amount = unpaid_invoices.aggregate(total=models.Sum("total_amount")).get("total") or Decimal("0")
         
         surfaces_data = {
             "receipts": {
@@ -374,7 +462,8 @@ from django.shortcuts import render, redirect  # noqa: E402
 
 
 @login_required
-def companion_overview_page(request):
+def companion_overview_page(request, **kwargs):
+    """Render the Companion overview page. Accepts **kwargs for React router catch-all."""
     business = get_current_business(request.user)
     if business is None:
         return redirect("business_setup")

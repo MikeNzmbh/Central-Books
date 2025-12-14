@@ -32,11 +32,7 @@ from django.views.decorators.http import require_POST, require_http_methods
 from django.views.generic import ListView, TemplateView, CreateView, UpdateView, View
 from django.urls import reverse, reverse_lazy, NoReverseMatch
 from django.utils.dateparse import parse_date
-try:
-    from weasyprint import HTML
-except Exception as exc:  # pragma: no cover - optional dependency in some envs
-    HTML = None
-    logging.getLogger(__name__).warning("weasyprint unavailable; PDF generation will be skipped. (%s)", exc)
+from .pdf_utils import generate_invoice_pdf
 from django.utils.text import slugify
 
 from .forms import (
@@ -2677,22 +2673,16 @@ def invoice_send_email_view(request, pk):
     # Optional CC flag from caller
     cc_me_flag = request.POST.get("cc_me") in {"1", "true", "on", "yes"}
 
-    # Render PDF attachment
+    # Render PDF attachment using reportlab
     pdf_content = None
-    if HTML:
-        try:
-            html_invoice = render_to_string("invoices/public_invoice_pdf.html", {"invoice": invoice}, request=request)
-            pdf_io = io.BytesIO()
-            HTML(string=html_invoice, base_url=request.build_absolute_uri("/")).write_pdf(pdf_io)
-            pdf_io.seek(0)
-            pdf_content = pdf_io.read()
-        except Exception as pdf_exc:  # pragma: no cover - avoid blocking send on PDF errors
-            invoice.email_last_error = str(pdf_exc)
-            invoice.save(update_fields=["email_last_error"])
-            logger = logging.getLogger(__name__)
-            logger.info("Skipping invoice PDF attachment because rendering failed: %s", pdf_exc)
-    else:
-        logging.getLogger(__name__).info("Skipping invoice PDF attachment because weasyprint is unavailable.")
+    try:
+        pdf_io = generate_invoice_pdf(invoice)
+        pdf_content = pdf_io.read()
+    except Exception as pdf_exc:  # pragma: no cover - avoid blocking send on PDF errors
+        invoice.email_last_error = str(pdf_exc)
+        invoice.save(update_fields=["email_last_error"])
+        logger = logging.getLogger(__name__)
+        logger.info("Skipping invoice PDF attachment because rendering failed: %s", pdf_exc)
 
     log = InvoiceEmailLog.objects.create(
         invoice=invoice,

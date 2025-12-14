@@ -1,5 +1,5 @@
-from decimal import Decimal
 import datetime
+from decimal import Decimal
 from typing import Iterable
 
 from django.db import transaction
@@ -34,6 +34,33 @@ def seed_canadian_defaults(business):
                 account.save(update_fields=updated_fields)
         return account
 
+    from .models import TaxJurisdiction  # imported lazily
+
+    def ensure_jurisdiction(
+        code: str,
+        name: str,
+        jurisdiction_type: str,
+        country_code: str,
+        region_code: str = "",
+        sourcing_rule: str = "DESTINATION",
+        parent: TaxJurisdiction | None = None,
+    ) -> TaxJurisdiction:
+        jurisdiction, _ = TaxJurisdiction.objects.get_or_create(
+            code=code,
+            defaults={
+                "name": name,
+                "jurisdiction_type": jurisdiction_type,
+                "country_code": country_code,
+                "region_code": region_code,
+                "sourcing_rule": sourcing_rule,
+                "parent": parent,
+            },
+        )
+        if parent and jurisdiction.parent_id != parent.id:
+            jurisdiction.parent = parent
+            jurisdiction.save(update_fields=["parent"])
+        return jurisdiction
+
     def ensure_component(
         name: str,
         rate: Decimal,
@@ -41,6 +68,7 @@ def seed_canadian_defaults(business):
         is_recoverable: bool,
         effective_start_date: datetime.date,
         default_account: Account,
+        jurisdiction: TaxJurisdiction | None = None,
     ) -> TaxComponent:
         component, created = TaxComponent.objects.get_or_create(
             business=business,
@@ -51,6 +79,7 @@ def seed_canadian_defaults(business):
                 "is_recoverable": is_recoverable,
                 "effective_start_date": effective_start_date,
                 "default_coa_account": default_account,
+                "jurisdiction": jurisdiction,
             },
         )
         updated_fields: list[str] = []
@@ -69,6 +98,9 @@ def seed_canadian_defaults(business):
         if component.default_coa_account_id != default_account.id:
             component.default_coa_account = default_account
             updated_fields.append("default_coa_account")
+        if jurisdiction and component.jurisdiction_id != jurisdiction.id:
+            component.jurisdiction = jurisdiction
+            updated_fields.append("jurisdiction")
         if updated_fields:
             component.save(update_fields=updated_fields)
         return component
@@ -138,6 +170,17 @@ def seed_canadian_defaults(business):
         gst_effective_date = datetime.date(2020, 1, 1)
         ns_effective_date = datetime.date(2025, 4, 1)
 
+        ca_federal = ensure_jurisdiction("CA", "Canada", "FEDERAL", "CA", sourcing_rule="DESTINATION")
+        ca_on = ensure_jurisdiction("CA-ON", "Ontario", "PROVINCIAL", "CA", region_code="ON", parent=ca_federal)
+        ca_nb = ensure_jurisdiction("CA-NB", "New Brunswick", "PROVINCIAL", "CA", region_code="NB", parent=ca_federal)
+        ca_nl = ensure_jurisdiction("CA-NL", "Newfoundland and Labrador", "PROVINCIAL", "CA", region_code="NL", parent=ca_federal)
+        ca_pe = ensure_jurisdiction("CA-PE", "Prince Edward Island", "PROVINCIAL", "CA", region_code="PE", parent=ca_federal)
+        ca_ns = ensure_jurisdiction("CA-NS", "Nova Scotia", "PROVINCIAL", "CA", region_code="NS", parent=ca_federal)
+        ca_bc = ensure_jurisdiction("CA-BC", "British Columbia", "PROVINCIAL", "CA", region_code="BC", parent=ca_federal)
+        ca_mb = ensure_jurisdiction("CA-MB", "Manitoba", "PROVINCIAL", "CA", region_code="MB", parent=ca_federal)
+        ca_sk = ensure_jurisdiction("CA-SK", "Saskatchewan", "PROVINCIAL", "CA", region_code="SK", parent=ca_federal)
+        ca_qc = ensure_jurisdiction("CA-QC", "Quebec", "PROVINCIAL", "CA", region_code="QC", parent=ca_federal)
+
         gst_5 = ensure_component(
             name="Federal GST 5%",
             rate=Decimal("0.05"),
@@ -145,6 +188,7 @@ def seed_canadian_defaults(business):
             is_recoverable=True,
             effective_start_date=gst_effective_date,
             default_account=recoverable_tax_asset,
+            jurisdiction=ca_federal,
         )
         on_hst = ensure_component(
             name="Ontario HST 13%",
@@ -153,6 +197,7 @@ def seed_canadian_defaults(business):
             is_recoverable=True,
             effective_start_date=gst_effective_date,
             default_account=recoverable_tax_asset,
+            jurisdiction=ca_on,
         )
         nb_hst = ensure_component(
             name="New Brunswick HST 15%",
@@ -161,6 +206,7 @@ def seed_canadian_defaults(business):
             is_recoverable=True,
             effective_start_date=gst_effective_date,
             default_account=recoverable_tax_asset,
+            jurisdiction=ca_nb,
         )
         nl_hst = ensure_component(
             name="Newfoundland and Labrador HST 15%",
@@ -169,6 +215,7 @@ def seed_canadian_defaults(business):
             is_recoverable=True,
             effective_start_date=gst_effective_date,
             default_account=recoverable_tax_asset,
+            jurisdiction=ca_nl,
         )
         pe_hst = ensure_component(
             name="Prince Edward Island HST 15%",
@@ -177,6 +224,7 @@ def seed_canadian_defaults(business):
             is_recoverable=True,
             effective_start_date=gst_effective_date,
             default_account=recoverable_tax_asset,
+            jurisdiction=ca_pe,
         )
         ns_hst = ensure_component(
             name="Nova Scotia HST 14%",
@@ -185,6 +233,7 @@ def seed_canadian_defaults(business):
             is_recoverable=True,
             effective_start_date=ns_effective_date,
             default_account=recoverable_tax_asset,
+            jurisdiction=ca_ns,
         )
         bc_pst = ensure_component(
             name="British Columbia PST 7%",
@@ -193,6 +242,7 @@ def seed_canadian_defaults(business):
             is_recoverable=False,
             effective_start_date=gst_effective_date,
             default_account=sales_tax_payable,
+            jurisdiction=ca_bc,
         )
         mb_rst = ensure_component(
             name="Manitoba RST 7%",
@@ -201,6 +251,7 @@ def seed_canadian_defaults(business):
             is_recoverable=False,
             effective_start_date=gst_effective_date,
             default_account=sales_tax_payable,
+            jurisdiction=ca_mb,
         )
         sk_pst = ensure_component(
             name="Saskatchewan PST 6%",
@@ -209,6 +260,7 @@ def seed_canadian_defaults(business):
             is_recoverable=False,
             effective_start_date=gst_effective_date,
             default_account=sales_tax_payable,
+            jurisdiction=ca_sk,
         )
         qc_qst = ensure_component(
             name="Quebec QST 9.975%",
@@ -217,6 +269,7 @@ def seed_canadian_defaults(business):
             is_recoverable=True,
             effective_start_date=gst_effective_date,
             default_account=recoverable_tax_asset,
+            jurisdiction=ca_qc,
         )
 
         # Ensure rate rows for all components (used by TaxEngine).

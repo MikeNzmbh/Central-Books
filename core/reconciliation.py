@@ -482,6 +482,7 @@ def allocate_bank_transaction(
     if invoice_allocations:
         for invoice, amount in invoice_allocations:
             invoice.amount_paid = (invoice.amount_paid or Decimal("0.00")) + amount
+            invoice._skip_paid_posting = True
             invoice.save()
             match_targets.append(("invoice", invoice, amount))
 

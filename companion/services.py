@@ -514,6 +514,8 @@ def get_last_seen_field_name(context: str) -> str | None:
         CompanionSuggestedAction.CONTEXT_RECONCILIATION: "last_seen_reconciliation_at",
         CompanionSuggestedAction.CONTEXT_INVOICES: "last_seen_invoices_at",
         CompanionSuggestedAction.CONTEXT_EXPENSES: "last_seen_expenses_at",
+        CompanionSuggestedAction.CONTEXT_REPORTS: "last_seen_reports_at",
+        CompanionSuggestedAction.CONTEXT_TAX_FX: "last_seen_tax_fx_at",
         CompanionSuggestedAction.CONTEXT_DASHBOARD: "last_seen_dashboard_at",
     }
     return mapping.get(context)

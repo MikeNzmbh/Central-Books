@@ -1,4 +1,5 @@
 from datetime import date
+import io
 from unittest import mock
 
 from django.contrib.auth.models import User
@@ -43,13 +44,9 @@ class InvoiceEmailTests(TestCase):
         self.assertEqual(resp.status_code, 400)
 
     @mock.patch("core.views.EmailMultiAlternatives")
-    @mock.patch("core.views.HTML")
-    @mock.patch("core.views.render_to_string")
-    def test_send_email_logs_success_and_attaches_pdf(self, mock_render_to_string, mock_html, mock_email_cls):
-        mock_render_to_string.return_value = "<html></html>"
-        html_instance = mock.Mock()
-        html_instance.write_pdf.side_effect = lambda buffer: buffer.write(b"pdf")
-        mock_html.return_value = html_instance
+    @mock.patch("core.views.generate_invoice_pdf")
+    def test_send_email_logs_success_and_attaches_pdf(self, mock_generate_pdf, mock_email_cls):
+        mock_generate_pdf.return_value = io.BytesIO(b"pdf")
 
         msg_mock = mock.Mock()
         msg_mock.attachments = []
@@ -96,16 +93,16 @@ class InvoiceEmailTests(TestCase):
 
     @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
     def test_send_email_includes_pdf_attachment(self):
-        with mock.patch("core.views.HTML") as html_mock:
-            html_instance = mock.Mock()
-            html_instance.write_pdf.side_effect = lambda buffer: buffer.write(b"pdf-data")
-            html_mock.return_value = html_instance
+        with mock.patch("core.views.generate_invoice_pdf") as mock_generate_pdf:
+            mock_generate_pdf.return_value = io.BytesIO(b"pdf-data")
 
             resp = self.client.post(f"/api/invoices/{self.invoice.pk}/send_email/", {})
             self.assertEqual(resp.status_code, 200)
             self.assertGreaterEqual(len(mail.outbox), 1)
             email = mail.outbox[0]
-            pdf_attachments = [att for att in email.attachments if isinstance(att, tuple) and att[2] == "application/pdf"]
+            pdf_attachments = [
+                att for att in email.attachments if isinstance(att, tuple) and att[2] == "application/pdf"
+            ]
             self.assertGreaterEqual(len(pdf_attachments), 1)
             self.assertTrue(pdf_attachments[0][0].startswith("Invoice-"))
 

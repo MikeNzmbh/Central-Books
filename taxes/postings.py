@@ -31,11 +31,17 @@ def add_sales_tax_lines(
         total_txn_currency += detail.tax_amount_txn_currency
 
     for account_id, amount_home in totals_by_account.items():
+        debit = Decimal("0.00")
+        credit = Decimal("0.00")
+        if amount_home < 0:
+            debit = -amount_home
+        else:
+            credit = amount_home
         JournalLine.objects.create(
             journal_entry=entry,
             account_id=account_id,
-            debit=Decimal("0.00"),
-            credit=amount_home,
+            debit=debit,
+            credit=credit,
             description="Sales tax payable",
         )
 
@@ -62,11 +68,17 @@ def add_expense_tax_lines(
             non_recoverable_total_home += detail.tax_amount_home_currency_cad
 
     for account_id, amount_home in recoverable_totals.items():
+        debit = Decimal("0.00")
+        credit = Decimal("0.00")
+        if amount_home < 0:
+            credit = -amount_home
+        else:
+            debit = amount_home
         JournalLine.objects.create(
             journal_entry=entry,
             account_id=account_id,
-            debit=amount_home,
-            credit=Decimal("0.00"),
+            debit=debit,
+            credit=credit,
             description="Recoverable tax",
         )
 

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static mb_extras %}
 
 {% block title %}New expense – CERN Books{% endblock %}
 
@@ -306,6 +307,22 @@
                 <p class="mb-hint">Choose a tax rate to auto-calculate the recoverable portion.</p>
                 {% for error in form.tax_rate.errors %}<p class="mb-error">{{ error }}</p>{% endfor %}
               </div>
+              <div class="mb-field">
+                <label class="mb-label">Tax group</label>
+                {{ form.tax_group }}
+                <p class="mb-hint">Deterministic tax engine group (recommended). Enables Tax Guardian drilldown.</p>
+                {% for error in form.tax_group.errors %}<p class="mb-error">{{ error }}</p>{% endfor %}
+              </div>
+              <div class="mb-field" style="margin-top: 8px;">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap: 12px; padding: 10px 12px; border:1px solid #e2e8f0; border-radius: 16px; background:#f8fafc;">
+                  <span style="font-size: 11px; color:#64748b;">
+                    Taxes use your <a href="/ai-companion/tax/settings" style="color:#0369a1; font-weight:600; text-decoration:none;">Tax Settings</a> and deterministic sourcing rules.
+                  </span>
+                  <a href="/ai-companion/tax" style="font-size: 11px; color:#0f172a; font-weight:600; text-decoration:underline;">
+                    Review in Tax Guardian →
+                  </a>
+                </div>
+              </div>
               <div class="mb-row-2">
                 <div class="mb-field">
                   <label class="mb-label">Supplier</label>
@@ -404,6 +421,15 @@
               </div>
             </div>
           </section>
+          {% if expense %}
+          <div style="margin-top: 18px;">
+            <div
+              id="tax-document-drilldown-root"
+              data-document-type="expense"
+              data-document-id="{{ expense.id }}"
+            ></div>
+          </div>
+          {% endif %}
         </aside>
       </div>
     </form>
@@ -474,4 +500,13 @@
     updateFromAmountOrRate();
   });
 </script>
+
+{% vite_asset 'tax-document-drilldown' as js_path %}
+{% if js_path %}
+<script type="module" src="{% static js_path %}"></script>
+{% endif %}
+{% vite_asset 'tax-document-drilldown' 'css' as css_path %}
+{% if css_path %}
+<link rel="stylesheet" href="{% static css_path %}">
+{% endif %}
 {% endblock %}

@@ -33,6 +33,7 @@ class TestBuildCompanionRadar(TestCase):
         self.assertIn("revenue_invoices", radar)
         self.assertIn("expenses_receipts", radar)
         self.assertIn("tax_compliance", radar)
+        self.assertIn("tax_guardian", radar)
     
     def test_each_axis_has_score_and_open_issues(self):
         """Each axis should have score and open_issues keys."""
@@ -72,6 +73,7 @@ class TestBuildCompanionRadar(TestCase):
         self.assertEqual(radar["revenue_invoices"]["score"], 100)
         self.assertEqual(radar["expenses_receipts"]["score"], 100)
         self.assertEqual(radar["tax_compliance"]["score"], 100)
+        self.assertEqual(radar["tax_guardian"]["score"], 100)
     
     def test_multiple_issues_reduce_score_more(self):
         """Multiple issues should reduce score more than a single issue."""
@@ -148,3 +150,18 @@ class TestBuildCompanionRadar(TestCase):
         
         # tax_compliance should be 100 - 3 (base) - 4 (age: 4 weeks * 1pt) = 93
         self.assertEqual(radar["tax_compliance"]["score"], 93)
+
+    def test_tax_axis_reflects_anomalies(self):
+        from taxes.models import TaxAnomaly
+
+        TaxAnomaly.objects.create(
+            business=self.business,
+            period_key="2025-04",
+            code="T6_NEGATIVE_BALANCE",
+            severity=TaxAnomaly.AnomalySeverity.HIGH,
+            status=TaxAnomaly.AnomalyStatus.OPEN,
+            description="Negative tax payable",
+        )
+        radar = build_companion_radar(self.business)
+        self.assertLess(radar["tax_guardian"]["score"], 100)
+        self.assertEqual(radar["tax_guardian"]["open_issues"], 1)

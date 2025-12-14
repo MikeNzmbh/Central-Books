@@ -21,7 +21,9 @@ from core.companion_issues import (
     evaluate_period_close_readiness,
     build_companion_playbook,
 )
+from core.companion_tasks import valid_task_code
 from core.accounting_defaults import ensure_default_accounts
+from taxes.models import TaxAnomaly
 
 
 User = get_user_model()
@@ -95,6 +97,7 @@ class TestEvaluatePeriodCloseReadiness(TestCase):
         
         self.assertEqual(result["status"], "ready")
         self.assertEqual(result["blocking_reasons"], [])
+        self.assertEqual(result.get("blocking_items"), [])
     
     def test_unreconciled_below_threshold_does_not_block(self):
         """Less than 5 unreconciled with ratio below 2% should NOT block period close."""
@@ -138,6 +141,7 @@ class TestEvaluatePeriodCloseReadiness(TestCase):
         
         self.assertEqual(result["status"], "not_ready")
         self.assertTrue(any("unreconciled" in r.lower() for r in result["blocking_reasons"]))
+        self.assertTrue(any(item.get("task_code") == "B1" for item in result.get("blocking_items", [])))
     
     def test_high_severity_issue_blocks_close(self):
         """High severity CompanionIssue in books/bank should block close."""
@@ -153,6 +157,23 @@ class TestEvaluatePeriodCloseReadiness(TestCase):
         
         self.assertEqual(result["status"], "not_ready")
         self.assertTrue(any("high-severity" in r.lower() for r in result["blocking_reasons"]))
+        self.assertTrue(any(item.get("task_code") == "C1" for item in result.get("blocking_items", [])))
+
+    def test_tax_anomaly_blocks_close(self):
+        """High severity tax anomaly should block close readiness."""
+        today = timezone.localdate()
+        period_key = f"{today.year}-{today.month:02d}"
+        TaxAnomaly.objects.create(
+            business=self.business,
+            period_key=period_key,
+            code="T6_NEGATIVE_BALANCE",
+            severity=TaxAnomaly.AnomalySeverity.HIGH,
+            status=TaxAnomaly.AnomalyStatus.OPEN,
+            description="Negative balance",
+        )
+        result = evaluate_period_close_readiness(self.business)
+        self.assertEqual(result["status"], "not_ready")
+        self.assertTrue(any(item.get("task_code") == "T2" for item in result.get("blocking_items", [])))
 
 
 class TestBankingCoverageSemantics(TestCase):
@@ -297,6 +318,9 @@ class TestBuildCompanionPlaybook(TestCase):
         self.assertIn("surface", step)
         self.assertIn("severity", step)
         self.assertIn("url", step)
+        self.assertIn("task_code", step)
+        self.assertTrue(valid_task_code(step["task_code"]))
+        self.assertIn("requires_premium", step)
     
     def test_high_severity_issues_first(self):
         """High severity issues should appear before low severity."""
@@ -317,4 +341,45 @@ class TestBuildCompanionPlaybook(TestCase):
         
         playbook = build_companion_playbook(self.business)
         
-        self.assertEqual(playbook[0]["title" if "title" in playbook[0] else "label"], "High priority")
+        self.assertEqual(playbook[0]["surface"], "bank")
+
+    def test_coverage_step_has_canonical_task(self):
+        """Coverage-driven steps should include a canonical task code."""
+        playbook = build_companion_playbook(self.business)
+        self.assertGreater(len(playbook), 0)
+        step = playbook[-1]
+        self.assertTrue(valid_task_code(step["task_code"]))
+
+    def test_bank_issue_maps_to_b1(self):
+        """Bank issues should map to the B1 task code."""
+        issue = CompanionIssue.objects.create(
+            business=self.business,
+            surface="bank",
+            severity=CompanionIssue.Severity.HIGH,
+            status=CompanionIssue.Status.OPEN,
+            title="Unreconciled items",
+            data={"unreconciled": 12},
+        )
+
+        playbook = build_companion_playbook(self.business)
+
+        self.assertTrue(playbook)
+        self.assertEqual(playbook[0]["issue_id"], issue.id)
+        self.assertEqual(playbook[0]["task_code"], "B1")
+
+    def test_books_suspense_maps_to_g1(self):
+        """Suspense-related books issues should map to G1."""
+        issue = CompanionIssue.objects.create(
+            business=self.business,
+            surface="books",
+            severity=CompanionIssue.Severity.HIGH,
+            status=CompanionIssue.Status.OPEN,
+            title="Suspense balance present",
+            data={"suspense_balance": 3200},
+        )
+
+        playbook = build_companion_playbook(self.business)
+
+        self.assertTrue(playbook)
+        self.assertEqual(playbook[0]["issue_id"], issue.id)
+        self.assertEqual(playbook[0]["task_code"], "G1")

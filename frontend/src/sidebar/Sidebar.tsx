@@ -29,6 +29,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     activeRoute = "",
 }) => {
     const { logout } = useAuth();
+    const currentPath = typeof window !== "undefined" ? window.location.pathname : "";
 
     return (
         <aside className="sticky top-0 flex h-screen w-[280px] flex-col border-r border-slate-200 bg-slate-50/80 px-6 pt-6 pb-4">
@@ -130,6 +131,12 @@ const Sidebar: React.FC<SidebarProps> = ({
                     </NavItem>
                     <NavItem href="/reports/cashflow/" active={activeRoute === "cashflow_report"}>
                         Cashflow
+                    </NavItem>
+                    <NavItem
+                        href="/ai-companion/tax"
+                        active={activeRoute === "companion_overview_page" && currentPath.startsWith("/ai-companion/tax")}
+                    >
+                        Tax Guardian
                     </NavItem>
                     <NavItem href="/accounts/" active={activeRoute === "account_list"}>
                         Chart of Accounts

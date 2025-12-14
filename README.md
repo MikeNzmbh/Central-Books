@@ -227,6 +227,7 @@ Central Books follows a **"deterministic-first, LLM-optional"** architecture:
 | [System Architecture](docs/CentralBooks_Residency_System_Architecture.md) | Detailed technical architecture |
 | [Product Brief](docs/PRODUCT_BRIEF.md) | Non-technical product overview |
 | [AI Companion Brief](docs/AI_COMPANION_BRIEF.md) | AI stack and safety design |
+| [Tax Engine v1 Blueprint](docs/tax_engine_v1_blueprint.md) | Canada + US tax engine architecture |
 | [Demo Script](docs/RESIDENCY_DEMO_SCRIPT.md) | Step-by-step demo walkthrough |
 | [Demo Data Notes](docs/DEMO_DATA_NOTES.md) | How demo data is set up |
 | [Runbook](docs/RESIDENCY_RUNBOOK.md) | Testing and deployment notes |
