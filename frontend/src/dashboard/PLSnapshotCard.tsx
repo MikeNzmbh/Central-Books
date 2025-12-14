@@ -202,8 +202,8 @@ export const PLSnapshotCard: React.FC<PLSnapshotCardProps> = ({
                 </div>
 
                 {/* Net Profit */}
-                <div className={`rounded-2xl p-3 ${netProfit >= 0 ? "bg-indigo-50/50 border border-indigo-100" : "bg-amber-50/50 border border-amber-100"}`}>
-                    <p className={`text-[10px] font-medium uppercase tracking-wider ${netProfit >= 0 ? "text-indigo-600" : "text-amber-600"}`}>
+                <div className={`rounded-2xl p-3 ${netProfit >= 0 ? "bg-slate-50/50 border border-slate-200" : "bg-amber-50/50 border border-amber-100"}`}>
+                    <p className={`text-[10px] font-medium uppercase tracking-wider ${netProfit >= 0 ? "text-slate-600" : "text-amber-600"}`}>
                         Net Profit
                     </p>
                     <p className={`mt-1 text-lg font-bold ${netProfit >= 0 ? "text-slate-900" : "text-amber-700"}`}>
@@ -223,7 +223,7 @@ export const PLSnapshotCard: React.FC<PLSnapshotCardProps> = ({
                 </div>
                 <div className="h-2 w-full rounded-full bg-slate-100 overflow-hidden">
                     <div
-                        className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-emerald-500 transition-all duration-500"
+                        className="h-full rounded-full bg-gradient-to-r from-slate-500 to-emerald-500 transition-all duration-500"
                         style={{ width: `${marginCapped}%` }}
                     />
                 </div>

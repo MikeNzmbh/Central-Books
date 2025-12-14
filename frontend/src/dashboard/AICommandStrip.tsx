@@ -52,7 +52,7 @@ export const AICommandStrip: React.FC<AICommandStripProps> = ({ tasks }) => {
                 <div className="flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10 backdrop-blur-sm">
-                            <Sparkles className="h-5 w-5 text-indigo-400" />
+                            <Sparkles className="h-5 w-5 text-slate-400" />
                         </div>
                         <div className="min-w-0 flex-1">
                             <p className="text-sm font-medium text-white truncate">{primaryTask.title}</p>
@@ -72,7 +72,7 @@ export const AICommandStrip: React.FC<AICommandStripProps> = ({ tasks }) => {
                         {hasMultipleTasks && (
                             <button
                                 onClick={() => setIsExpanded(!isExpanded)}
-                                className="flex items-center gap-1 rounded-full bg-white/10 px-3 py-2 text-xs font-medium text-slate-300 transition-colors hover:bg-white/20"
+                                className="flex items-center gap-1 rounded-full border border-slate-600 bg-slate-800 px-3 py-2 text-xs font-medium text-slate-200 transition-colors hover:bg-slate-700"
                             >
                                 <span>{tasks.length - 1} more</span>
                                 {isExpanded ? (
@@ -89,7 +89,7 @@ export const AICommandStrip: React.FC<AICommandStripProps> = ({ tasks }) => {
                 <div className="mt-3 flex items-center gap-2">
                     <div className="flex-1 h-1 rounded-full bg-white/10 overflow-hidden">
                         <div
-                            className="h-full bg-gradient-to-r from-indigo-500 to-emerald-500 transition-all duration-500"
+                            className="h-full bg-gradient-to-r from-slate-500 to-emerald-500 transition-all duration-500"
                             style={{ width: `${(1 / tasks.length) * 100}%` }}
                         />
                     </div>

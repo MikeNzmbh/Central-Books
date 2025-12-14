@@ -14,7 +14,7 @@ interface SuppliersDonutCardProps {
 }
 
 const COLORS = [
-    { bg: "bg-indigo-500", text: "text-indigo-600", light: "bg-indigo-100" },
+    { bg: "bg-slate-500", text: "text-slate-600", light: "bg-slate-100" },
     { bg: "bg-emerald-500", text: "text-emerald-600", light: "bg-emerald-100" },
     { bg: "bg-amber-500", text: "text-amber-600", light: "bg-amber-100" },
     { bg: "bg-rose-500", text: "text-rose-600", light: "bg-rose-100" },
@@ -156,13 +156,13 @@ export const SuppliersDonutCard: React.FC<SuppliersDonutCardProps> = ({
                             {segments.map((_, idx) => (
                                 <linearGradient key={idx} id={`gradient-${idx}`}>
                                     <stop offset="0%" stopColor={
-                                        idx === 0 ? "#6366f1" :
+                                        idx === 0 ? "#64748b" :
                                             idx === 1 ? "#10b981" :
                                                 idx === 2 ? "#f59e0b" :
                                                     idx === 3 ? "#f43f5e" : "#0ea5e9"
                                     } />
                                     <stop offset="100%" stopColor={
-                                        idx === 0 ? "#818cf8" :
+                                        idx === 0 ? "#94a3b8" :
                                             idx === 1 ? "#34d399" :
                                                 idx === 2 ? "#fbbf24" :
                                                     idx === 3 ? "#fb7185" : "#38bdf8"
