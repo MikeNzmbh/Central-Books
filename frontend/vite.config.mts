@@ -94,6 +94,7 @@ export default defineConfig({
         "companion-overview": path.resolve(__dirname, "src/companion/companion-overview-entry.tsx"),
         "companion-issues": path.resolve(__dirname, "src/companion/companion-issues-entry.tsx"),
         "tax-document-drilldown": path.resolve(__dirname, "src/taxDocuments/tax-document-drilldown-entry.tsx"),
+        "transactions": path.resolve(__dirname, "src/transactions/transactions-entry.tsx"),
         sidebar: path.resolve(__dirname, "src/sidebar/sidebar-entry.tsx"),
       },
       output: {

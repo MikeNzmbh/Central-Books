@@ -38,6 +38,15 @@ def expenses_list_page(request):
 
 
 @login_required
+def transactions_page(request):
+    """Thin shell page that mounts unified TransactionsPage React component."""
+    business = get_current_business(request.user)
+    return render(request, "transactions.html", {
+        "default_currency": business.currency if business else "USD",
+    })
+
+
+@login_required
 def customers_list_page(request):
     """Thin shell page that mounts CustomersPage React component."""
     business = get_current_business(request.user)

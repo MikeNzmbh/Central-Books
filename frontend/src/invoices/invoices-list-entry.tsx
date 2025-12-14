@@ -1,16 +1,15 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import "../index.css";
-import InvoicesListPage from "./InvoicesListPage";
+import { TransactionsPageContent } from "../transactions/TransactionsPage";
 
 const rootEl = document.getElementById("invoices-list-root");
 
 if (rootEl) {
-    const defaultCurrency = rootEl.dataset.defaultCurrency || "USD";
     const root = createRoot(rootEl);
     root.render(
         <React.StrictMode>
-            <InvoicesListPage defaultCurrency={defaultCurrency} />
+            <TransactionsPageContent kind="invoice" />
         </React.StrictMode>
     );
 } else {

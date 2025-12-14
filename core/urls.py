@@ -122,6 +122,8 @@ urlpatterns = [
     # React List Pages (backwards-compatible redirects to main routes)
     path("invoices/react/", RedirectView.as_view(pattern_name="invoice_list", permanent=False)),
     path("expenses/react/", RedirectView.as_view(pattern_name="expense_list", permanent=False)),
+    # Unified Transactions Page (new combined invoice/expense view)
+    path("transactions/", views_list_apis.transactions_page, name="transactions"),
     # Products & Services (Option B - React)
     path("products/", views_list_apis.products_list_page, name="product_list"),
     # Product List API (Option B)

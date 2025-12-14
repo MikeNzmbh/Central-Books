@@ -250,13 +250,13 @@ function MetricCard({
   badge?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-100/50 transition-all hover:shadow-md">
+    <div className="flex flex-col overflow-hidden rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-100/50 transition-all hover:shadow-md">
       <div className="flex items-center justify-between gap-3">
         <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">{label}</span>
         {badge}
       </div>
-      <div className="mt-2 flex items-baseline gap-2">
-        <span className="text-3xl font-bold tracking-tight text-slate-900">{value}</span>
+      <div className="mt-2 flex items-baseline gap-2 min-w-0">
+        <span className="text-3xl font-bold tracking-tight text-slate-900 truncate">{value}</span>
       </div>
       {subtext && (
         <div className={classNames("mt-2 text-xs font-medium",

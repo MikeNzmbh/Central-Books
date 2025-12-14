@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Transactions{% endblock %}
+
+{% block extra_head %}
+{% with manifest=frontend_manifest %}
+{% if manifest %}
+{% for css_file in manifest.transactions.css %}
+<link rel="stylesheet" href="{% static css_file %}" />
+{% endfor %}
+{% endif %}
+{% endwith %}
+{% endblock %}
+
+{% block main %}
+<div id="root"></div>
+{% endblock %}
+
+{% block scripts %}
+{% with manifest=frontend_manifest %}
+{% if manifest %}
+<script type="module" src="{% static manifest.transactions.file %}"></script>
+{% endif %}
+{% endwith %}
+{% endblock %}
