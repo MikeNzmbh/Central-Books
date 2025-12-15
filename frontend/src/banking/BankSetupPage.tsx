@@ -161,8 +161,26 @@ export default function BankSetupPage({ skipUrl }: { skipUrl?: string }) {
       }
 
       const fallback = "/workspace/";
-      // Validate skipUrl is a safe relative URL (starts with /) to prevent open redirects
-      const safeUrl = skipUrl && skipUrl.startsWith("/") && !skipUrl.startsWith("//") ? skipUrl : fallback;
+      // Strictly validate skipUrl: must be relative, start with '/' (not '//'), and not contain suspicious characters
+      let safeUrl = fallback;
+      if (
+        typeof skipUrl === "string" &&
+        skipUrl.startsWith("/") &&
+        !skipUrl.startsWith("//") &&
+        !skipUrl.includes("\\") &&
+        !skipUrl.includes('\0')
+      ) {
+        // Ensure skipUrl is a simple relative path (no protocol, etc)
+        try {
+          // Attempt to construct as a URL relative to the origin
+          const parsed = new URL(skipUrl, window.location.origin);
+          if (parsed.origin === window.location.origin && parsed.pathname.startsWith("/")) {
+            safeUrl = parsed.pathname + parsed.search + parsed.hash;
+          }
+        } catch (e) {
+          // Parsing failed, keep fallback
+        }
+      }
       window.location.href = safeUrl;
     } catch (err) {
       console.error(err);
