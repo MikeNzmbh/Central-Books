@@ -5,10 +5,13 @@
 <head>
   <meta charset="utf-8">
   <title>Clover Books{% block title %}{% endblock %}</title>
-  <link rel="icon" type="image/png" href="{% static 'frontend/favicon-32x32.png' %}" sizes="32x32" />
-  <link rel="icon" type="image/png" href="{% static 'frontend/favicon-16x16.png' %}" sizes="16x16" />
-  <link rel="shortcut icon" href="{% static 'frontend/favicon.ico' %}" />
-  <link rel="apple-touch-icon" href="{% static 'frontend/apple-touch-icon.png' %}" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=MuseoModerno:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/png" href="{% static 'favicon-32x32.png' %}" sizes="32x32" />
+  <link rel="icon" type="image/png" href="{% static 'favicon-16x16.png' %}" sizes="16x16" />
+  <link rel="shortcut icon" href="{% static 'favicon.ico' %}" />
+  <link rel="apple-touch-icon" href="{% static 'apple-touch-icon.png' %}" />
   <meta name="theme-color" content="#0B1015" />
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
   {% vite_asset 'index' 'css' as css_path %}

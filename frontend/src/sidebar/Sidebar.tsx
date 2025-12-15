@@ -37,13 +37,13 @@ const Sidebar: React.FC<SidebarProps> = ({
             <a href="/dashboard/" className="flex items-center gap-3 pb-4 border-b border-slate-100 no-underline">
                 <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-900 p-1.5 overflow-hidden shadow-md shadow-slate-900/25">
                     <img
-                        src="/branding/clover-logo-dark-bg.png"
+                        src="/static/branding/clover-logo-dark-bg.png"
                         alt="Clover"
                         className="h-7 w-7 object-contain"
                     />
                 </div>
                 <div className="flex flex-col leading-tight">
-                    <span className="text-sm font-semibold tracking-[0.08em] text-slate-900 uppercase" style={{ fontFamily: "'Museo Moderno', system-ui, sans-serif" }}>Clover</span>
+                    <span className="text-sm font-semibold tracking-[0.12em] text-slate-900 uppercase" style={{ fontFamily: "'MuseoModerno', system-ui, sans-serif" }}>CLOVER</span>
                     <span className="text-[11px] font-medium text-slate-400">
                         {businessName}
                     </span>
