@@ -1110,7 +1110,7 @@ def api_reconciliation_delete_session(request: HttpRequest, session_id: int):
         tx.reconciled_at = None
         tx.status = BankTransaction.TransactionStatus.NEW
         tx.reconciliation_status = BankTransaction.RECO_STATUS_UNRECONCILED
-        tx.allocated_amount = None
+        tx.allocated_amount = Decimal("0.00")
         tx.save(update_fields=[
             "reconciliation_session",
             "is_reconciled",
