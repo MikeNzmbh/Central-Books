@@ -53,6 +53,7 @@ import { Separator } from "../components/ui/separator";
 import "../index.css";
 import { ReportExportButton } from "../reports/ReportExportButton";
 import CompanionStrip from "../companion/CompanionStrip";
+import { parseCookies } from "../utils/cookies";
 
 // --- Types ---
 
@@ -171,6 +172,10 @@ async function fetchJson<T = any>(url: string, options?: RequestInit): Promise<T
 }
 
 function getCsrfToken() {
+  // First try the cookie (most reliable for SPAs)
+  const cookieToken = parseCookies(document.cookie).csrftoken;
+  if (cookieToken) return cookieToken;
+  // Fallback to form input if exists
   return document.querySelector<HTMLInputElement>("[name=csrfmiddlewaretoken]")?.value || "";
 }
 
