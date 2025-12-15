@@ -137,6 +137,8 @@ interface ReconciliationPageState {
   error: string | null;
   actionError: string | null;
   completionError: string | null;
+  sessionStarted: boolean; // Whether user has clicked "Start Reconciliation"
+  saving: boolean; // Auto-save indicator
 }
 
 // --- Helper Functions ---
@@ -228,6 +230,8 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
     error: null,
     actionError: null,
     completionError: null,
+    sessionStarted: false,
+    saving: false,
   });
 
   const setActionError = (msg: string | null) => {
@@ -249,9 +253,9 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
     }
   }, [state.activeBankId]);
 
+  // Only load session data when user explicitly starts reconciliation
   useEffect(() => {
-    if (state.activeBankId && state.activePeriodId) {
-      // Clear previous state and reload session when bank/period changes
+    if (state.activeBankId && state.activePeriodId && state.sessionStarted) {
       setState(prev => ({
         ...prev,
         session: null,
@@ -261,6 +265,17 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
       }));
       loadSession(state.activeBankId, state.activePeriodId);
     }
+  }, [state.activeBankId, state.activePeriodId, state.sessionStarted]);
+
+  // Handler for "Start Reconciliation" button
+  const onStartSession = () => {
+    if (!state.activeBankId || !state.activePeriodId) return;
+    setState(prev => ({ ...prev, sessionStarted: true }));
+  };
+
+  // Reset sessionStarted when account or period changes
+  useEffect(() => {
+    setState(prev => ({ ...prev, sessionStarted: false, session: null, transactions: [] }));
   }, [state.activeBankId, state.activePeriodId]);
 
   async function loadAccounts() {
@@ -759,9 +774,11 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
           <SessionSetupBar
             state={state}
             isLocked={isLocked}
+            sessionStarted={state.sessionStarted}
             onSelectBank={onSelectBank}
             onSelectPeriod={onSelectPeriod}
             onChangeSessionField={onChangeSessionField}
+            onStart={onStartSession}
             onComplete={onCompleteSession}
             onReopen={onReopenSession}
             onDelete={onDeleteSession}
@@ -772,63 +789,103 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
             activePeriod={activePeriod}
           />
 
-          <div className="grid grid-cols-12 gap-6">
-            <div className="col-span-12 xl:col-span-8 flex flex-col gap-6">
-              <ProgressSummary session={state.session} />
+          {/* Only show main content after session is started */}
+          {state.sessionStarted && (
+            <div className="grid grid-cols-12 gap-6">
+              <div className="col-span-12 xl:col-span-8 flex flex-col gap-6">
+                <ProgressSummary session={state.session} />
 
-              <section className="rounded-3xl border border-slate-200 bg-white shadow-sm flex flex-col">
-                <div className="border-b border-slate-100 p-4 md:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div>
-                    <h2 className="text-sm font-semibold tracking-wide text-slate-900">
-                      Feed
-                    </h2>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Transactions in this statement period
-                    </p>
-                  </div>
+                <section className="rounded-3xl border border-slate-200 bg-white shadow-sm flex flex-col">
+                  <div className="border-b border-slate-100 p-4 md:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                      <h2 className="text-sm font-semibold tracking-wide text-slate-900">
+                        Feed
+                      </h2>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        {state.transactions.length === 0
+                          ? "Loading transactions..."
+                          : `${state.transactions.length} transactions in this period`}
+                      </p>
+                    </div>
 
-                  <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
-                    <StatusFilter
-                      active={state.statusFilter}
-                      onChange={(status) => setState((prev) => ({ ...prev, statusFilter: status }))}
-                    />
-
-                    <div className="relative w-full sm:w-64">
-                      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                      <input
-                        type="search"
-                        placeholder="Search..."
-                        value={state.search}
-                        onChange={(e) =>
-                          setState((prev) => ({ ...prev, search: e.target.value }))
-                        }
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-300 transition-all"
+                    <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+                      <StatusFilter
+                        active={state.statusFilter}
+                        onChange={(status) => setState((prev) => ({ ...prev, statusFilter: status }))}
+                        counts={{
+                          all: state.transactions.length,
+                          new: state.transactions.filter(t => (t.uiStatus || t.status || "NEW").toUpperCase() === "NEW").length,
+                          matched: state.transactions.filter(t => (t.uiStatus || t.status || "NEW").toUpperCase() === "MATCHED").length,
+                          partial: state.transactions.filter(t => (t.uiStatus || t.status || "NEW").toUpperCase() === "PARTIAL").length,
+                          excluded: state.transactions.filter(t => (t.uiStatus || t.status || "NEW").toUpperCase() === "EXCLUDED").length,
+                        }}
                       />
+
+                      <div className="relative w-full sm:w-64">
+                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <input
+                          type="search"
+                          placeholder="Search..."
+                          value={state.search}
+                          onChange={(e) =>
+                            setState((prev) => ({ ...prev, search: e.target.value }))
+                          }
+                          className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-300 transition-all"
+                        />
+                      </div>
                     </div>
                   </div>
+
+                  <ScrollArea className="max-h-[600px]">
+                    {state.loading ? (
+                      <div className="p-8 text-center text-slate-500">
+                        <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2" />
+                        Loading transactions...
+                      </div>
+                    ) : filteredTransactions.length === 0 ? (
+                      <div className="p-8 text-center">
+                        <Check className="h-8 w-8 text-emerald-500 mx-auto mb-2" />
+                        <p className="text-emerald-700 font-medium">All caught up!</p>
+                        <p className="text-xs text-slate-500 mt-1">No transactions match your current filter.</p>
+                      </div>
+                    ) : (
+                      <TransactionFeed
+                        transactions={filteredTransactions}
+                        activeFilter={state.statusFilter}
+                        onToggleInclude={onToggleInclude}
+                        onMatch={onMatch}
+                        onAddAsNew={onAddAsNew}
+                        onUnmatch={onUnmatch}
+                        isLocked={isLocked}
+                        totalCount={state.session?.totalTransactions ?? state.transactions.length}
+                      />
+                    )}
+                  </ScrollArea>
+                </section>
+
+                <AdjustmentsPanel session={state.session} isLocked={isLocked} onUpdate={() => loadSession(state.activeBankId!, state.activePeriodId)} onError={setActionError} />
+              </div>
+
+              <div className="col-span-12 xl:col-span-4 flex flex-col gap-6">
+                <RightRail session={state.session} engineInsights={state.engineInsights} />
+              </div>
+            </div>
+          )}
+
+          {/* Show placeholder when session not started */}
+          {!state.sessionStarted && (
+            <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50/50 p-12 text-center">
+              <div className="mx-auto max-w-md">
+                <div className="inline-flex items-center justify-center rounded-2xl bg-slate-100 p-4 mb-4">
+                  <Check className="h-8 w-8 text-slate-400" />
                 </div>
-
-                <ScrollArea className="max-h-[600px]">
-                  <TransactionFeed
-                    transactions={filteredTransactions}
-                    activeFilter={state.statusFilter}
-                    onToggleInclude={onToggleInclude}
-                    onMatch={onMatch}
-                    onAddAsNew={onAddAsNew}
-                    onUnmatch={onUnmatch}
-                    isLocked={isLocked}
-                    totalCount={state.session?.totalTransactions ?? state.transactions.length}
-                  />
-                </ScrollArea>
-              </section>
-
-              <AdjustmentsPanel session={state.session} isLocked={isLocked} onUpdate={() => loadSession(state.activeBankId!, state.activePeriodId)} onError={setActionError} />
+                <h3 className="text-lg font-semibold text-slate-700 mb-2">Ready to reconcile</h3>
+                <p className="text-sm text-slate-500 mb-4">
+                  Select a bank account and statement period above, then click "Start Reconciliation" to begin matching transactions.
+                </p>
+              </div>
             </div>
-
-            <div className="col-span-12 xl:col-span-4 flex flex-col gap-6">
-              <RightRail session={state.session} engineInsights={state.engineInsights} />
-            </div>
-          </div>
+          )}
         </div>
       </main>
     </div>
@@ -867,9 +924,11 @@ function PageHeader({ session }: { session: RecoSession | null }) {
 interface SessionSetupBarProps {
   state: ReconciliationPageState;
   isLocked: boolean;
+  sessionStarted: boolean;
   onSelectBank: (id: string) => void;
   onSelectPeriod: (id: string) => void;
   onChangeSessionField: (field: "beginningBalance" | "endingBalance", value: number) => void;
+  onStart: () => void;
   onComplete: () => void;
   onReopen?: () => void;
   onDelete?: () => void;
@@ -883,9 +942,11 @@ interface SessionSetupBarProps {
 function SessionSetupBar({
   state,
   isLocked,
+  sessionStarted,
   onSelectBank,
   onSelectPeriod,
   onChangeSessionField,
+  onStart,
   onComplete,
   onReopen,
   onDelete,
@@ -1010,50 +1071,68 @@ function SessionSetupBar({
         </div>
 
         <div className="flex flex-col items-stretch gap-2 lg:w-48 pt-6">
-          <Button
-            onClick={onComplete}
-            disabled={disableComplete}
-            title={completeDisabledReason || undefined}
-            className={`w-full rounded-xl h-11 font-semibold shadow-sm transition-all ${disableComplete
-              ? "bg-slate-100 text-slate-400 hover:bg-slate-100"
-              : "bg-slate-900 text-white hover:bg-slate-800 hover:shadow-md"
-              }`}
-          >
-            {session?.status === "COMPLETED" ? "Period Completed" : "Complete period"}
-          </Button>
-          {session?.status === "COMPLETED" && (
-            <Button
-              variant="outline"
-              onClick={onReopen}
-              className="w-full rounded-xl border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 disabled:opacity-60"
-            >
-              Reopen period
-            </Button>
-          )}
-          <Button
-            variant="outline"
-            disabled={isLocked}
-            className="w-full rounded-xl border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 disabled:opacity-60"
-          >
-            Save draft
-          </Button>
-          {session && onDelete && (
-            <Button
-              variant="outline"
-              onClick={onDelete}
-              className="w-full rounded-xl border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 disabled:opacity-60"
-            >
-              Start over
-            </Button>
-          )}
-          {session?.status === "COMPLETED" && (
-            <p className="text-[11px] text-slate-500 leading-snug">This period is locked. Reopen the period to make changes.</p>
-          )}
-          {completionError && (
-            <p className="text-xs text-red-600 leading-snug">{completionError}</p>
-          )}
-          {!completionError && completeDisabledReason && disableComplete && (
-            <p className="text-[11px] text-slate-500 leading-snug">{completeDisabledReason}</p>
+          {/* Show Start button before session is started */}
+          {!sessionStarted ? (
+            <>
+              <Button
+                onClick={onStart}
+                disabled={!activeBankId || !activePeriodId}
+                className="w-full rounded-xl h-11 font-semibold shadow-sm transition-all bg-emerald-600 text-white hover:bg-emerald-700 hover:shadow-md disabled:opacity-60 disabled:bg-slate-100 disabled:text-slate-400"
+              >
+                Start Reconciliation
+              </Button>
+              <p className="text-[11px] text-slate-500 leading-snug">
+                Select an account and period, then click Start to begin reconciling.
+              </p>
+            </>
+          ) : (
+            <>
+              <Button
+                onClick={onComplete}
+                disabled={disableComplete}
+                title={completeDisabledReason || undefined}
+                className={`w-full rounded-xl h-11 font-semibold shadow-sm transition-all ${disableComplete
+                  ? "bg-slate-100 text-slate-400 hover:bg-slate-100"
+                  : "bg-slate-900 text-white hover:bg-slate-800 hover:shadow-md"
+                  }`}
+              >
+                {session?.status === "COMPLETED" ? "Period Completed" : "Complete period"}
+              </Button>
+              {session?.status === "COMPLETED" && (
+                <Button
+                  variant="outline"
+                  onClick={onReopen}
+                  className="w-full rounded-xl border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 disabled:opacity-60"
+                >
+                  Reopen period
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                disabled={isLocked}
+                className="w-full rounded-xl border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 disabled:opacity-60"
+              >
+                Save draft
+              </Button>
+              {session && onDelete && (
+                <Button
+                  variant="outline"
+                  onClick={onDelete}
+                  className="w-full rounded-xl border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 disabled:opacity-60"
+                >
+                  Start over
+                </Button>
+              )}
+              {session?.status === "COMPLETED" && (
+                <p className="text-[11px] text-slate-500 leading-snug">This period is locked. Reopen the period to make changes.</p>
+              )}
+              {completionError && (
+                <p className="text-xs text-red-600 leading-snug">{completionError}</p>
+              )}
+              {!completionError && completeDisabledReason && disableComplete && (
+                <p className="text-[11px] text-slate-500 leading-snug">{completeDisabledReason}</p>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -1190,6 +1269,7 @@ function ProgressSummary({ session }: ProgressSummaryProps) {
 interface StatusFilterProps {
   active: RecoStatus | "all";
   onChange: (s: RecoStatus | "all") => void;
+  counts?: Record<RecoStatus | "all", number>;
 }
 
 const STATUS_LABELS: Record<RecoStatus | "all", string> = {
@@ -1200,7 +1280,7 @@ const STATUS_LABELS: Record<RecoStatus | "all", string> = {
   excluded: "Excluded",
 };
 
-function StatusFilter({ active, onChange }: StatusFilterProps) {
+function StatusFilter({ active, onChange, counts }: StatusFilterProps) {
   const keys: Array<RecoStatus | "all"> = ["all", "new", "matched", "partial", "excluded"];
   return (
     <div className="inline-flex items-center rounded-xl border border-slate-200 bg-slate-50/50 p-1">
@@ -1215,6 +1295,11 @@ function StatusFilter({ active, onChange }: StatusFilterProps) {
             }`}
         >
           {STATUS_LABELS[key]}
+          {counts && counts[key] > 0 && (
+            <span className={`ml-1 ${active === key ? "text-slate-500" : "text-slate-400"}`}>
+              ({counts[key]})
+            </span>
+          )}
         </button>
       ))}
     </div>
@@ -1415,6 +1500,7 @@ function TransactionRow({ tx, onToggleInclude, onMatch, onAddAsNew, onUnmatch, i
               size="sm"
               onClick={() => onMatch(tx.id)}
               disabled={actionsDisabled}
+              title="Link this transaction to an existing journal entry"
               className="h-7 rounded-full bg-slate-900 px-3 text-[11px] font-medium text-white hover:bg-slate-800"
             >
               Match
@@ -1425,6 +1511,7 @@ function TransactionRow({ tx, onToggleInclude, onMatch, onAddAsNew, onUnmatch, i
               size="sm"
               onClick={() => onAddAsNew(tx.id)}
               disabled={actionsDisabled}
+              title="Create a new journal entry and mark as reconciled"
               className="h-7 rounded-full border-slate-200 px-3 text-[11px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
             >
               Reconcile
@@ -1437,9 +1524,10 @@ function TransactionRow({ tx, onToggleInclude, onMatch, onAddAsNew, onUnmatch, i
             size="sm"
             onClick={() => onUnmatch(tx.id)}
             disabled={actionsDisabled}
+            title="Remove the link to journal entry and mark as unreconciled"
             className="h-7 rounded-full border-slate-200 px-3 text-[11px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
           >
-            Undo
+            Unmatch
           </Button>
         )}
       </div>
