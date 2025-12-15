@@ -34,13 +34,17 @@ const Sidebar: React.FC<SidebarProps> = ({
     return (
         <aside className="sticky top-0 flex h-screen w-[280px] flex-col border-r border-slate-200 bg-slate-50/80 px-6 pt-6 pb-4">
             {/* Brand */}
-            <a href="/dashboard/" className="flex items-center gap-3 pb-4 no-underline">
-                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-900 text-sm font-semibold text-white shadow-md shadow-slate-900/25">
-                    {businessInitials}
+            <a href="/dashboard/" className="flex items-center gap-3 pb-4 border-b border-slate-100 no-underline">
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-900 p-1.5 overflow-hidden shadow-md shadow-slate-900/25">
+                    <img
+                        src="/branding/clover-logo-dark-bg.png"
+                        alt="Clover"
+                        className="h-7 w-7 object-contain"
+                    />
                 </div>
                 <div className="flex flex-col leading-tight">
-                    <span className="text-sm font-semibold tracking-tight text-slate-900">CERN Books</span>
-                    <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-slate-400">
+                    <span className="text-sm font-semibold tracking-[0.08em] text-slate-900 uppercase" style={{ fontFamily: "'Museo Moderno', system-ui, sans-serif" }}>Clover</span>
+                    <span className="text-[11px] font-medium text-slate-400">
                         {businessName}
                     </span>
                 </div>

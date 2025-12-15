@@ -3,8 +3,8 @@ from django.contrib import admin
 from .models import TaxRate
 
 
-admin.site.site_header = "CERN Books – System Admin (Legacy)"
-admin.site.site_title = "CERN Books System Admin"
+admin.site.site_header = "Clover Books – System Admin (Legacy)"
+admin.site.site_title = "Clover Books System Admin"
 
 
 def _superuser_only(request):

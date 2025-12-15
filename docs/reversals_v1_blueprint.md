@@ -1,4 +1,4 @@
-# Central Books (CERN) – Reversals, Credits, Refunds & Allocations (v1 Blueprint)
+# Clover Books (CERN) – Reversals, Credits, Refunds & Allocations (v1 Blueprint)
 
 This document is the **implementation source-of-truth** for adding customer/vendor reversals on top of:
 

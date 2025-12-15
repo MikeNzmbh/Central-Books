@@ -162,7 +162,7 @@ export const ReportShell: React.FC<ReportShellProps> = ({
           <div className="flex flex-col gap-1">
             <div className="inline-flex items-center gap-2">
               <span className="rounded-full bg-slate-900 text-white px-2.5 py-0.5 text-[10px] uppercase tracking-wide">
-                CERN Books
+                Clover Books
               </span>
               {context.currencyCode && (
                 <span className="rounded-full bg-slate-100 text-slate-700 px-2 py-0.5 text-[10px]">

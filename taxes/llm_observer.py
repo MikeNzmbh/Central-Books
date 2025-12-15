@@ -88,7 +88,7 @@ def build_tax_llm_enrichment_prompt(*, business, snapshot: TaxPeriodSnapshot, an
     }
 
     return (
-        "You are Central Books Tax Guardian (observer). "
+        "You are Clover Books Tax Guardian (observer). "
         "Amounts and line mappings are authoritative and already computed deterministically. "
         "Do NOT recompute, adjust, or invent numbers. "
         "Return ONLY valid JSON with this schema:\n"

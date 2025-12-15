@@ -98,7 +98,7 @@ class SalesAgent(BaseAgent):
         self.log_step(f"Built prompt spec: {prompt_spec}")
 
         # Build script sections based on enabled features
-        sections = ["## CERN Books Demo Script\n"]
+        sections = ["## Clover Books Demo Script\n"]
         sections.append("### Opening (2 min)")
         sections.append("- Welcome and quick company overview")
         sections.append("- Ask about their current pain points\n")

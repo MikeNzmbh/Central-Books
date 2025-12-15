@@ -1,6 +1,6 @@
 import React from "react";
 
-export interface CentralBooksLoginPageProps {
+export interface CloverBooksLoginPageProps {
   action?: string;
   csrfToken?: string;
   nextUrl?: string;
@@ -80,7 +80,7 @@ const CashCard: React.FC = () => (
   </div>
 );
 
-const CentralBooksLoginPage: React.FC<CentralBooksLoginPageProps> = ({
+const CloverBooksLoginPage: React.FC<CloverBooksLoginPageProps> = ({
   action = "/login/",
   csrfToken = "",
   nextUrl,
@@ -103,7 +103,7 @@ const CentralBooksLoginPage: React.FC<CentralBooksLoginPageProps> = ({
               </div>
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">
-                  CERN Books
+                  Clover Books
                 </p>
                 <p className="text-sm text-slate-500">Quiet confidence for owner-led teams.</p>
               </div>
@@ -194,7 +194,7 @@ const CentralBooksLoginPage: React.FC<CentralBooksLoginPageProps> = ({
             )}
 
             <p className="text-center text-xs text-slate-500">
-              New to CERN Books?{" "}
+              New to Clover Books?{" "}
               <a href="/signup/" className="font-semibold text-slate-900 hover:underline">
                 Create one
               </a>
@@ -234,7 +234,7 @@ const CentralBooksLoginPage: React.FC<CentralBooksLoginPageProps> = ({
               </div>
             </div>
             <p className="mt-6 text-xs text-slate-200">
-              Sign in once. CERN Books keeps cash, revenue, and expenses aligned without tab
+              Sign in once. Clover Books keeps cash, revenue, and expenses aligned without tab
               juggling or exports.
             </p>
           </div>
@@ -244,4 +244,4 @@ const CentralBooksLoginPage: React.FC<CentralBooksLoginPageProps> = ({
   );
 };
 
-export default CentralBooksLoginPage;
+export default CloverBooksLoginPage;

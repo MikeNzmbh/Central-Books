@@ -92,7 +92,7 @@ type CashflowSeries = {
   expenses?: number[];
 };
 
-export interface CentralBooksDashboardProps {
+export interface CloverBooksDashboardProps {
   username?: string;
   currency?: string;
   metrics?: DashboardMetrics;
@@ -118,7 +118,7 @@ export interface CentralBooksDashboardProps {
   is_empty_workspace?: boolean;
 }
 
-const CentralBooksDashboard: React.FC<CentralBooksDashboardProps> = ({
+const CloverBooksDashboard: React.FC<CloverBooksDashboardProps> = ({
   username,
   currency = "USD",
   metrics,
@@ -632,4 +632,4 @@ const CentralBooksDashboard: React.FC<CentralBooksDashboardProps> = ({
   );
 };
 
-export default CentralBooksDashboard;
+export default CloverBooksDashboard;

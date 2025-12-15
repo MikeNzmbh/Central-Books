@@ -1,8 +1,8 @@
 import "../index.css";
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import CentralBooksDashboard, { type CentralBooksDashboardProps } from "./CentralBooksDashboard";
-import CentralBooksWelcomeOnboarding from "./CentralBooksWelcomeOnboarding";
+import CloverBooksDashboard, { type CloverBooksDashboardProps } from "./CloverBooksDashboard";
+import CloverBooksWelcomeOnboarding from "./CloverBooksWelcomeOnboarding";
 import { AuthProvider } from "../contexts/AuthContext";
 
 const router = {
@@ -16,7 +16,7 @@ const router = {
  * Wrapper component that fetches dashboard data from API (Option B architecture).
  */
 const DashboardApp: React.FC = () => {
-  const [payload, setPayload] = useState<CentralBooksDashboardProps | null>(null);
+  const [payload, setPayload] = useState<CloverBooksDashboardProps | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -96,14 +96,14 @@ const DashboardApp: React.FC = () => {
   // Render appropriate component based on workspace state
   if (payload.is_empty_workspace) {
     return (
-      <CentralBooksWelcomeOnboarding
+      <CloverBooksWelcomeOnboarding
         onStartBooks={() => router.push(startBooksUrl)}
         onUploadSampleCsv={() => router.push(bankImportUrl)}
       />
     );
   }
 
-  return <CentralBooksDashboard {...payload} />;
+  return <CloverBooksDashboard {...payload} />;
 };
 
 // Mount the app

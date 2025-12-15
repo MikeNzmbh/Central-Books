@@ -1,4 +1,4 @@
-# Central Books — Demo Script
+# Clover Books — Demo Script
 
 *Step-by-step walkthrough for demo video recording*
 
@@ -17,7 +17,7 @@
 1. Open browser to `http://localhost:8000/`
 2. Log in (or show logged-in state)
 3. **Show**: Dashboard with Companion banner at top
-4. **Narration**: "This is Central Books, an AI-powered accounting OS. The banner shows today's focus from our AI Companion."
+4. **Narration**: "This is Clover Books, an AI-powered accounting OS. The banner shows today's focus from our AI Companion."
 
 ---
 
@@ -113,7 +113,7 @@
 
 1. Return to browser
 2. Show **AI Companion** dashboard one more time
-3. **Narration**: "Central Books combines deterministic accounting rules with AI-powered insights. The AI suggests, but humans approve. This is the future of small business bookkeeping."
+3. **Narration**: "Clover Books combines deterministic accounting rules with AI-powered insights. The AI suggests, but humans approve. This is the future of small business bookkeeping."
 
 ---
 

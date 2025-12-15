@@ -1,4 +1,4 @@
-// Authentication Context for CERN Books
+// Authentication Context for Clover Books
 // Provides user authentication state across the React application
 
 import React, { createContext, useContext, useState, useEffect } from "react";

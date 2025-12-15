@@ -56,7 +56,7 @@ describe("AdminApp", () => {
         <AdminApp />
       </AuthProvider>
     );
-    await waitFor(() => expect(screen.getByText(/CERN Books control center/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/Clover Books control center/i)).toBeInTheDocument());
   });
 
   it("renders admin view for internal routes without customer navigation", async () => {
@@ -79,7 +79,7 @@ describe("AdminApp", () => {
     );
 
     await waitFor(() =>
-      expect(screen.getByText(/CERN Books control center/i)).toBeInTheDocument()
+      expect(screen.getByText(/Clover Books control center/i)).toBeInTheDocument()
     );
     expect(screen.queryByText(/Products & Services/i)).not.toBeInTheDocument();
   });

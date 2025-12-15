@@ -49,7 +49,7 @@ class InternalAdminAPITests(TestCase):
 
         self.workspace_owner = User.objects.create_user(username="owner", email="owner@example.com", password="pass1234")
         self.business = Business.objects.create(
-            name="CERN Books Labs Inc.",
+            name="Clover Books Labs Inc.",
             currency="USD",
             owner_user=self.workspace_owner,
             plan="Internal / staging",

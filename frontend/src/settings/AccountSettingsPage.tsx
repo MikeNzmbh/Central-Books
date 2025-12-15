@@ -212,7 +212,7 @@ const Card: React.FC<{ title: string; subtitle: string; children: React.ReactNod
   <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
     <header className="flex items-start justify-between gap-3">
       <div>
-        <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400">CERN Books</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-400">Clover Books</p>
         <h2 className="text-xl font-semibold text-slate-900">{title}</h2>
         <p className="text-sm text-slate-500">{subtitle}</p>
       </div>
@@ -708,7 +708,7 @@ const AccountSettingsPage: React.FC<AccountSettingsProps> = ({
         );
       case "sessions":
         return (
-          <Card title="Sessions" subtitle="Devices currently signed in to CERN Books.">
+          <Card title="Sessions" subtitle="Devices currently signed in to Clover Books.">
             <div className="space-y-4 text-sm">
               <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                 <p className="text-base font-semibold text-slate-900">This device</p>

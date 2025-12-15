@@ -7,7 +7,7 @@ vi.mock("./api", () => {
     results: [
       {
         id: 1,
-        name: "CERN Books Labs Inc.",
+        name: "Clover Books Labs Inc.",
         owner_email: "owner@example.com",
         plan: "Pro",
         status: "active",
@@ -29,7 +29,7 @@ vi.mock("./api", () => {
 describe("WorkspacesSection", () => {
   it("renders workspaces table", async () => {
     render(<WorkspacesSection />);
-    await waitFor(() => expect(screen.getAllByText(/CERN Books Labs Inc./i).length).toBeGreaterThan(0));
+    await waitFor(() => expect(screen.getAllByText(/Clover Books Labs Inc./i).length).toBeGreaterThan(0));
     expect(screen.getAllByRole("columnheader", { name: /Owner/i }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("columnheader", { name: /Plan/i }).length).toBeGreaterThan(0);
   });

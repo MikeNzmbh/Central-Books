@@ -1,8 +1,8 @@
-# Architectural Blueprint – Central Books Tax Engine v1 (Canada + US)
+# Architectural Blueprint – Clover Books Tax Engine v1 (Canada + US)
 
 ## Executive Summary
 
-The Central Books Tax Engine v1 implements a **split-brain design** for tax calculation and compliance:
+The Clover Books Tax Engine v1 implements a **split-brain design** for tax calculation and compliance:
 
 | Layer | Role | Technology |
 |-------|------|------------|
@@ -593,4 +593,4 @@ Tax reports (existing `taxes/views.py` or new React pages) should:
 
 ---
 
-*Document version: v1.0 | Created: 2024-12-11 | Author: Central Books Tax Engine Team*
+*Document version: v1.0 | Created: 2024-12-11 | Author: Clover Books Tax Engine Team*

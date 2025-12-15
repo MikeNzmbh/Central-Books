@@ -1,4 +1,4 @@
-# Central Books
+# Clover Books
 
 **AI-powered accounting OS with an intelligent Companion Control Tower.**
 
@@ -6,11 +6,11 @@
 
 ## Overview
 
-Central Books (CERN Books) is a modern accounting platform built for small businesses, freelancers, and agencies. Unlike traditional bookkeeping software that simply records transactions, Central Books features an **AI Companion** that proactively monitors your financial health, surfaces issues, and guides you through month-end close.
+Clover Books (Clover Books) is a modern accounting platform built for small businesses, freelancers, and agencies. Unlike traditional bookkeeping software that simply records transactions, Clover Books features an **AI Companion** that proactively monitors your financial health, surfaces issues, and guides you through month-end close.
 
 The system combines **deterministic accounting rules** with **AI-powered insights** from DeepSeek and OpenAI. The AI never auto-posts transactions or moves money—it analyzes, suggests, and explains, while you remain in control. This "human-in-the-loop" design ensures accuracy and compliance while dramatically reducing the cognitive load of managing business finances.
 
-Central Books is designed to be the **"control tower"** for your books: one dashboard that shows you what needs attention, what's working, and what to do next.
+Clover Books is designed to be the **"control tower"** for your books: one dashboard that shows you what needs attention, what's working, and what to do next.
 
 ---
 
@@ -198,7 +198,7 @@ See [`.env.example`](.env.example) for the complete list.
 
 ## AI / Safety Design
 
-Central Books follows a **"deterministic-first, LLM-optional"** architecture:
+Clover Books follows a **"deterministic-first, LLM-optional"** architecture:
 
 1. **Deterministic engine always runs first** – Rule-based checks (duplicates, outliers, balance validation) execute before any LLM call.
 
@@ -224,7 +224,7 @@ Central Books follows a **"deterministic-first, LLM-optional"** architecture:
 
 | Document | Description |
 |----------|-------------|
-| [System Architecture](docs/CentralBooks_Residency_System_Architecture.md) | Detailed technical architecture |
+| [System Architecture](docs/CloverBooks_Residency_System_Architecture.md) | Detailed technical architecture |
 | [Product Brief](docs/PRODUCT_BRIEF.md) | Non-technical product overview |
 | [AI Companion Brief](docs/AI_COMPANION_BRIEF.md) | AI stack and safety design |
 | [Tax Engine v1 Blueprint](docs/tax_engine_v1_blueprint.md) | Canada + US tax engine architecture |
