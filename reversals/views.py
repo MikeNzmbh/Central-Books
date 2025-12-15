@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from decimal import Decimal, InvalidOperation
 
 from django.contrib.auth.decorators import login_required
@@ -33,6 +34,8 @@ from reversals.services.voiding import (
     void_customer_deposit,
     void_customer_refund,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _json_from_body(request):
@@ -321,7 +324,8 @@ def api_customer_credit_memo_post(request, credit_memo_id: int):
     try:
         entry = post_customer_credit_memo(credit_memo, user=request.user)
     except Exception as exc:
-        return JsonResponse({"error": str(exc)}, status=400)
+        logger.exception("Error posting credit memo %s: %s", credit_memo_id, exc)
+        return JsonResponse({"error": "An error occurred while posting the credit memo."}, status=400)
 
     return JsonResponse(
         {
@@ -351,7 +355,8 @@ def api_customer_credit_memo_void(request, credit_memo_id: int):
     try:
         void_customer_credit_memo(credit_memo=credit_memo, user=request.user, reason=reason)
     except Exception as exc:
-        return JsonResponse({"error": str(exc)}, status=400)
+        logger.exception("Error voiding credit memo %s: %s", credit_memo_id, exc)
+        return JsonResponse({"error": "An error occurred while voiding the credit memo."}, status=400)
 
     return JsonResponse({"ok": True, "credit_memo": _serialize_credit_memo(business, credit_memo)})
 
@@ -394,7 +399,8 @@ def api_customer_credit_memo_allocate(request, credit_memo_id: int):
     try:
         allocations = allocate_credit_memo_to_invoices(credit_memo=credit_memo, invoice_amounts=invoice_amounts, user=request.user)
     except Exception as exc:
-        return JsonResponse({"error": str(exc)}, status=400)
+        logger.exception("Error allocating credit memo %s: %s", credit_memo_id, exc)
+        return JsonResponse({"error": "An error occurred while allocating the credit memo."}, status=400)
 
     return JsonResponse(
         {
@@ -481,7 +487,8 @@ def api_customer_deposit_create(request):
     try:
         entry = post_customer_deposit(deposit, user=request.user)
     except Exception as exc:
-        return JsonResponse({"error": str(exc)}, status=400)
+        logger.exception("Error posting deposit %s: %s", deposit.id, exc)
+        return JsonResponse({"error": "An error occurred while posting the deposit."}, status=400)
 
     return JsonResponse({"ok": True, "journal_entry_id": entry.id, "deposit": _serialize_deposit(business, deposit)})
 
@@ -524,7 +531,8 @@ def api_customer_deposit_apply(request, deposit_id: int):
     try:
         entry = apply_customer_deposit_to_invoices(deposit=deposit, invoice_amounts=invoice_amounts, user=request.user)
     except Exception as exc:
-        return JsonResponse({"error": str(exc)}, status=400)
+        logger.exception("Error applying deposit %s to invoices: %s", deposit_id, exc)
+        return JsonResponse({"error": "An error occurred while applying the deposit."}, status=400)
 
     return JsonResponse(
         {
@@ -554,7 +562,8 @@ def api_customer_deposit_void(request, deposit_id: int):
     try:
         void_customer_deposit(deposit=deposit, user=request.user, reason=reason)
     except Exception as exc:
-        return JsonResponse({"error": str(exc)}, status=400)
+        logger.exception("Error voiding deposit %s: %s", deposit_id, exc)
+        return JsonResponse({"error": "An error occurred while voiding the deposit."}, status=400)
 
     return JsonResponse({"ok": True, "deposit": _serialize_deposit(business, deposit)})
 
@@ -651,7 +660,8 @@ def api_customer_refund_create(request):
     try:
         entry = post_customer_refund(refund, user=request.user)
     except Exception as exc:
-        return JsonResponse({"error": str(exc)}, status=400)
+        logger.exception("Error posting refund %s: %s", refund.id, exc)
+        return JsonResponse({"error": "An error occurred while posting the refund."}, status=400)
 
     return JsonResponse({"ok": True, "journal_entry_id": entry.id, "refund": _serialize_refund(refund)})
 
@@ -675,6 +685,7 @@ def api_customer_refund_void(request, refund_id: int):
     try:
         void_customer_refund(refund=refund, user=request.user, reason=reason)
     except Exception as exc:
-        return JsonResponse({"error": str(exc)}, status=400)
+        logger.exception("Error voiding refund %s: %s", refund_id, exc)
+        return JsonResponse({"error": "An error occurred while voiding the refund."}, status=400)
 
     return JsonResponse({"ok": True, "refund": _serialize_refund(refund)})

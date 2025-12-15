@@ -134,7 +134,12 @@ export const PLSnapshotCard: React.FC<PLSnapshotCardProps> = ({
                     <select
                         value={selectedMonth}
                         onChange={(e) => {
-                            window.location.href = `/dashboard/?pl_month=${e.target.value}`;
+                            const value = e.target.value;
+                            // Validate against allowed options to prevent XSS/open redirect
+                            const isValid = monthOptions.some(opt => opt.value === value);
+                            if (isValid) {
+                                window.location.href = `/dashboard/?pl_month=${encodeURIComponent(value)}`;
+                            }
                         }}
                         className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-300 transition-colors hover:bg-white"
                     >

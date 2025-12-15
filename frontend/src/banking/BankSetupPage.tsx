@@ -161,7 +161,9 @@ export default function BankSetupPage({ skipUrl }: { skipUrl?: string }) {
       }
 
       const fallback = "/workspace/";
-      window.location.href = skipUrl || fallback;
+      // Validate skipUrl is a safe relative URL (starts with /) to prevent open redirects
+      const safeUrl = skipUrl && skipUrl.startsWith("/") && !skipUrl.startsWith("//") ? skipUrl : fallback;
+      window.location.href = safeUrl;
     } catch (err) {
       console.error(err);
       alert("Error skipping setup. Please try again.");
