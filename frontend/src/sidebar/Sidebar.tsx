@@ -126,7 +126,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 </SidebarSection>
 
                 <SidebarSection label="Reports">
-                    <NavItem href="/reports/profit-loss/" active={activeRoute === "report_pnl"}>
+                    <NavItem href="/reports/pl-shadow/" active={activeRoute === "report_pnl" || activeRoute === "pl_shadow"}>
                         Profit & Loss
                     </NavItem>
                     <NavItem href="/reports/cashflow/" active={activeRoute === "cashflow_report"}>
