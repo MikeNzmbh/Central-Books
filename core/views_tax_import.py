@@ -1,6 +1,7 @@
 import csv
 import io
 import json
+import logging
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, Tuple
@@ -14,6 +15,8 @@ from django.utils.dateparse import parse_date
 from core.utils import get_current_business
 from core.models import Business
 from taxes.models import TaxComponent, TaxJurisdiction, TaxProductRule, TaxRate
+
+logger = logging.getLogger(__name__)
 
 
 def _require_staff(request):
@@ -81,7 +84,8 @@ def _parse_payload_rows(uploaded_file) -> Tuple[Optional[str], Optional[List[Dic
             return "csv", None, "CSV missing header row."
         return "csv", list(reader), None
     except Exception as exc:
-        return None, None, f"Failed to parse file: {exc}"
+        logger.exception("Failed to parse import file: %s", exc)
+        return None, None, "Failed to parse file. Please check the format and try again."
 
 
 def _ranges_overlap(a_from, a_to, b_from, b_to) -> bool:
