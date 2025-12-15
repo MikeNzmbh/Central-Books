@@ -253,8 +253,8 @@ def api_customer_credit_memo_create(request):
 
     try:
         net_total = _as_decimal(payload.get("net_total"), field="net_total")
-    except ValueError as exc:
-        return JsonResponse({"error": str(exc)}, status=400)
+    except ValueError:
+        return JsonResponse({"error": "Invalid net_total value."}, status=400)
     if net_total <= 0:
         return JsonResponse({"error": "net_total must be > 0"}, status=400)
 
@@ -389,8 +389,8 @@ def api_customer_credit_memo_allocate(request, credit_memo_id: int):
             return JsonResponse({"error": "invoice_id is required"}, status=400)
         try:
             amount = _as_decimal(row.get("amount"), field="amount")
-        except ValueError as exc:
-            return JsonResponse({"error": str(exc)}, status=400)
+        except ValueError:
+            return JsonResponse({"error": "Invalid amount value."}, status=400)
         invoice = Invoice.objects.filter(business=business, pk=invoice_id).select_related("customer").first()
         if not invoice:
             return JsonResponse({"error": f"Invoice {invoice_id} not found"}, status=404)
@@ -464,8 +464,8 @@ def api_customer_deposit_create(request):
 
     try:
         amount = _as_decimal(payload.get("amount"), field="amount")
-    except ValueError as exc:
-        return JsonResponse({"error": str(exc)}, status=400)
+    except ValueError:
+        return JsonResponse({"error": "Invalid amount value."}, status=400)
     if amount <= 0:
         return JsonResponse({"error": "amount must be > 0"}, status=400)
 
@@ -521,8 +521,8 @@ def api_customer_deposit_apply(request, deposit_id: int):
             return JsonResponse({"error": "invoice_id is required"}, status=400)
         try:
             amount = _as_decimal(row.get("amount"), field="amount")
-        except ValueError as exc:
-            return JsonResponse({"error": str(exc)}, status=400)
+        except ValueError:
+            return JsonResponse({"error": "Invalid amount value."}, status=400)
         invoice = Invoice.objects.filter(business=business, pk=invoice_id).select_related("customer").first()
         if not invoice:
             return JsonResponse({"error": f"Invoice {invoice_id} not found"}, status=404)
@@ -621,8 +621,8 @@ def api_customer_refund_create(request):
 
     try:
         amount = _as_decimal(payload.get("amount"), field="amount")
-    except ValueError as exc:
-        return JsonResponse({"error": str(exc)}, status=400)
+    except ValueError:
+        return JsonResponse({"error": "Invalid amount value."}, status=400)
     if amount <= 0:
         return JsonResponse({"error": "amount must be > 0"}, status=400)
 
