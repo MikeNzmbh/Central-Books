@@ -1422,7 +1422,7 @@ function TransactionRow({ tx, onToggleInclude, onMatch, onAddAsNew, onUnmatch, i
               disabled={actionsDisabled}
               className="h-7 rounded-full border-slate-200 px-3 text-[11px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
             >
-              Add new
+              Reconcile
             </Button>
           )
         ) : null}
