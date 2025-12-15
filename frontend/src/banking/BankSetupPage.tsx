@@ -141,6 +141,16 @@ export default function BankSetupPage({ skipUrl }: { skipUrl?: string }) {
     }
   }
 
+  // Allowlist of valid redirect destinations after skipping bank setup
+  const ALLOWED_SKIP_DESTINATIONS = [
+    "/workspace/",
+    "/dashboard/",
+    "/",
+    "/invoices/",
+    "/expenses/",
+    "/banking/",
+  ];
+
   async function handleSkip() {
     setIsSaving(true);
     try {
@@ -160,28 +170,12 @@ export default function BankSetupPage({ skipUrl }: { skipUrl?: string }) {
         throw new Error("Failed to skip bank setup");
       }
 
-      const fallback = "/workspace/";
-      // Strictly validate skipUrl: must be relative, start with '/' (not '//'), and not contain suspicious characters
-      let safeUrl = fallback;
-      if (
-        typeof skipUrl === "string" &&
-        skipUrl.startsWith("/") &&
-        !skipUrl.startsWith("//") &&
-        !skipUrl.includes("\\") &&
-        !skipUrl.includes('\0')
-      ) {
-        // Ensure skipUrl is a simple relative path (no protocol, etc)
-        try {
-          // Attempt to construct as a URL relative to the origin
-          const parsed = new URL(skipUrl, window.location.origin);
-          if (parsed.origin === window.location.origin && parsed.pathname.startsWith("/")) {
-            safeUrl = parsed.pathname + parsed.search + parsed.hash;
-          }
-        } catch (e) {
-          // Parsing failed, keep fallback
-        }
-      }
-      window.location.href = safeUrl;
+      // Use allowlist validation - only redirect to known-safe paths
+      const defaultUrl = "/workspace/";
+      const targetUrl = ALLOWED_SKIP_DESTINATIONS.includes(skipUrl || "")
+        ? skipUrl!
+        : defaultUrl;
+      window.location.href = targetUrl;
     } catch (err) {
       console.error(err);
       alert("Error skipping setup. Please try again.");
