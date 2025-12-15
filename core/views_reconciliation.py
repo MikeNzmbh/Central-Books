@@ -1088,6 +1088,77 @@ def api_reconciliation_reopen_session(request: HttpRequest, session_id: int):
     return JsonResponse(_session_payload(session, include_periods=True))
 
 
+@login_required
+@require_POST
+def api_reconciliation_delete_session(request: HttpRequest, session_id: int):
+    """
+    Delete a reconciliation session and reset all associated transactions.
+    This allows the user to start over for a period.
+    """
+    business, error = _ensure_business(request)
+    if error:
+        return error
+
+    session = get_object_or_404(ReconciliationSession, pk=session_id, business=business)
+    
+    # Reset all transactions associated with this session
+    # This unlinks them from the session and resets their status to NEW
+    affected_txs = BankTransaction.objects.filter(reconciliation_session=session)
+    for tx in affected_txs:
+        tx.reconciliation_session = None
+        tx.is_reconciled = False
+        tx.reconciled_at = None
+        tx.status = BankTransaction.TransactionStatus.NEW
+        tx.reconciliation_status = BankTransaction.RECO_STATUS_UNRECONCILED
+        tx.allocated_amount = None
+        tx.save(update_fields=[
+            "reconciliation_session",
+            "is_reconciled",
+            "reconciled_at",
+            "status",
+            "reconciliation_status",
+            "allocated_amount",
+        ])
+    
+    # Delete matches associated with transactions in this period
+    BankReconciliationMatch.objects.filter(
+        bank_transaction__bank_account=session.bank_account,
+        bank_transaction__date__gte=session.statement_start_date,
+        bank_transaction__date__lte=session.statement_end_date,
+    ).delete()
+    
+    # Also reset journal line reconciliation flags
+    JournalLine.objects.filter(reconciliation_session=session).update(
+        is_reconciled=False,
+        reconciled_at=None,
+        reconciliation_session=None,
+    )
+    
+    # Store period info before deleting
+    bank_account_id = session.bank_account_id
+    period_start = session.statement_start_date.isoformat()
+    period_end = session.statement_end_date.isoformat()
+    
+    # Delete the session
+    session.delete()
+
+    logger.info(
+        "reconciliation.session_deleted",
+        extra={
+            "session_id": session_id,
+            "bank_account_id": bank_account_id,
+            "user_id": request.user.id,
+        },
+    )
+
+    return JsonResponse({
+        "ok": True,
+        "message": "Session deleted. You can now start a fresh reconciliation for this period.",
+        "bank_account_id": bank_account_id,
+        "period_start": period_start,
+        "period_end": period_end,
+    })
+
 def _mark_reconciled(bank_tx: BankTransaction, journal_entry, session: ReconciliationSession | None = None):
     ts = timezone.now()
     target_session = session or _session_for_tx(bank_tx)

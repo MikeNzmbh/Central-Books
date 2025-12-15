@@ -382,10 +382,10 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
             matchCandidates,
             highRiskAudit: t.high_risk_audit
               ? {
-                  verdict: t.high_risk_audit.verdict,
-                  reasons: t.high_risk_audit.reasons || [],
-                  created_at: t.high_risk_audit.created_at,
-                }
+                verdict: t.high_risk_audit.verdict,
+                reasons: t.high_risk_audit.reasons || [],
+                created_at: t.high_risk_audit.created_at,
+              }
               : undefined,
             includedInSession: t.includedInSession ?? uiStatus !== "EXCLUDED",
           };
@@ -642,6 +642,30 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
     }
   };
 
+  const onDeleteSession = async () => {
+    if (!state.session || !state.activeBankId || !state.activePeriodId) return;
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this reconciliation and start over? All matches and progress will be lost."
+    );
+    if (!confirmed) return;
+    try {
+      setState(prev => ({ ...prev, loading: true, actionError: null, completionError: null }));
+      await fetchJson(`/api/reconciliation/sessions/${state.session.id}/delete/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCsrfToken(),
+        },
+      });
+      // Reload session - will create a fresh one
+      await loadSession(state.activeBankId, state.activePeriodId);
+    } catch (e: any) {
+      console.error(e);
+      setActionError(e?.message || "Could not delete session.");
+      setState(prev => ({ ...prev, loading: false }));
+    }
+  };
+
   const filteredTransactions = useMemo(() => {
     return state.transactions.filter((tx) => {
       const txUiStatus = (tx.uiStatus || tx.status || "NEW").toLowerCase() as RecoStatus;
@@ -735,6 +759,7 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
             onChangeSessionField={onChangeSessionField}
             onComplete={onCompleteSession}
             onReopen={onReopenSession}
+            onDelete={onDeleteSession}
             disableComplete={disableComplete}
             completionError={state.completionError}
             completeDisabledReason={completionDisabledReason}
@@ -842,6 +867,7 @@ interface SessionSetupBarProps {
   onChangeSessionField: (field: "beginningBalance" | "endingBalance", value: number) => void;
   onComplete: () => void;
   onReopen?: () => void;
+  onDelete?: () => void;
   disableComplete: boolean;
   completionError?: string | null;
   completeDisabledReason?: string | null;
@@ -857,6 +883,7 @@ function SessionSetupBar({
   onChangeSessionField,
   onComplete,
   onReopen,
+  onDelete,
   disableComplete,
   completionError,
   completeDisabledReason,
@@ -1005,6 +1032,15 @@ function SessionSetupBar({
           >
             Save draft
           </Button>
+          {session && onDelete && (
+            <Button
+              variant="outline"
+              onClick={onDelete}
+              className="w-full rounded-xl border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 disabled:opacity-60"
+            >
+              Start over
+            </Button>
+          )}
           {session?.status === "COMPLETED" && (
             <p className="text-[11px] text-slate-500 leading-snug">This period is locked. Reopen the period to make changes.</p>
           )}

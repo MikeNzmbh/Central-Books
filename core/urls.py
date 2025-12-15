@@ -202,6 +202,11 @@ urlpatterns = [
         name="reconciliation-reopen-session",
     ),
     path(
+        "api/reconciliation/sessions/<int:session_id>/delete/",
+        views_reconciliation.api_reconciliation_delete_session,
+        name="reconciliation-delete-session",
+    ),
+    path(
         "api/reconciliation/session/<int:session_id>/",
         views_reconciliation.api_reconciliation_session_report,
         name="api_reco_session_report",
