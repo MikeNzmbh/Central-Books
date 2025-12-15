@@ -1,5 +1,5 @@
-import React, { useMemo } from "react";
-import CompanionPanel from "../companion/CompanionPanel";
+import React, { useMemo, useState } from "react";
+import { DashboardCompanionPanel, CompanionBreakdown, CompanionInsight, CompanionTask } from "./DashboardCompanionPanel";
 import { useAuth } from "../contexts/AuthContext";
 import { AICommandStrip } from "./AICommandStrip";
 import { SuppliersDonutCard } from "./SuppliersDonutCard";
@@ -221,6 +221,78 @@ const CentralBooksDashboard: React.FC<CentralBooksDashboardProps> = ({
     return items.slice(0, 3);
   }, [metrics, bankFeed, formatMoney, urls]);
 
+  // Companion Panel State
+  const [companionTasks, setCompanionTasks] = useState<CompanionTask[]>([
+    {
+      id: "t1",
+      title: "Uncategorized Transaction",
+      subtitle: `Large outflow needs a category assignment.`,
+      severity: "high",
+      confidenceLabel: "Rent?",
+      categoryLabel: "Ledger",
+      ctaLabel: "Categorize",
+    },
+    {
+      id: "t2",
+      title: "Duplicate Invoice Detected",
+      subtitle: "An invoice appears twice with identical amounts.",
+      severity: "medium",
+      categoryLabel: "Invoices",
+      ctaLabel: "Review Duplicates",
+    },
+  ]);
+
+  const companionInsights: CompanionInsight[] = useMemo(() => {
+    const items: CompanionInsight[] = [];
+    if ((metrics?.overdue_count || 0) > 0) {
+      items.push({
+        id: "overdue",
+        title: "Customers have overdue invoices",
+        message: `${metrics?.overdue_count} invoice${(metrics?.overdue_count || 0) > 1 ? 's' : ''} past due. Follow up to improve cash flow.`,
+        severity: "info",
+        categoryLabel: "Invoices",
+      });
+    }
+    if (bankFeed.length > 5) {
+      items.push({
+        id: "bank",
+        title: "Unreconciled transactions to clear",
+        message: `${bankFeed.length} bank items need reconciliation.`,
+        severity: "info",
+        categoryLabel: "Banking",
+      });
+    }
+    return items;
+  }, [metrics, bankFeed]);
+
+  const companionBreakdown: CompanionBreakdown = useMemo(() => {
+    const today = new Date();
+    const dateLabel = today.toISOString().split('T')[0];
+    return {
+      dateLabel,
+      reconciliation: bankFeed.length === 0 ? 100 : Math.max(0, 100 - bankFeed.length * 5),
+      ledgerIntegrity: 95,
+      invoices: (metrics?.overdue_count || 0) > 0 ? 85 : 96,
+      expenses: 100,
+      taxFx: 100,
+      bank: bankFeed.length === 0 ? 100 : Math.max(4, 100 - bankFeed.length * 10),
+    };
+  }, [bankFeed, metrics]);
+
+  const handleCompanionTaskPrimary = (id: string) => {
+    // Navigate to appropriate page based on task
+    const task = companionTasks.find(t => t.id === id);
+    if (task?.categoryLabel === "Ledger") {
+      window.location.href = urls?.banking || "/banking/";
+    } else if (task?.categoryLabel === "Invoices") {
+      window.location.href = urls?.invoices || "/invoices/";
+    }
+  };
+
+  const handleCompanionTaskSecondary = (id: string) => {
+    setCompanionTasks((prev) => prev.filter((t) => t.id !== id));
+  };
+
   return (
     <div className="min-h-screen w-full bg-slate-50 text-slate-900 px-4 py-6">
       <div className="mx-auto max-w-7xl space-y-6">
@@ -375,7 +447,15 @@ const CentralBooksDashboard: React.FC<CentralBooksDashboardProps> = ({
 
         {/* Companion Health Index - above invoices/banking */}
         <section>
-          <CompanionPanel />
+          <DashboardCompanionPanel
+            greetingName={greetingName}
+            breakdown={companionBreakdown}
+            insights={companionInsights}
+            tasks={companionTasks}
+            onTaskPrimary={handleCompanionTaskPrimary}
+            onTaskSecondary={handleCompanionTaskSecondary}
+            onOpenFullCompanion={() => window.location.href = "/companion/"}
+          />
         </section>
 
         <section className="grid gap-4 xl:grid-cols-[1.1fr,1.05fr]">

@@ -1,483 +1,685 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import CompanionStrip from "../companion/CompanionStrip";
+import {
+  Plus,
+  Search,
+  Filter,
+  Mail,
+  Phone,
+  Download,
+  TrendingUp,
+  CreditCard,
+  CalendarDays,
+  FileText,
+  AlertTriangle,
+} from "lucide-react";
+
+// -----------------------------------------------------------------------------
+// Types
+// -----------------------------------------------------------------------------
 
 interface Supplier {
-    id: number;
-    name: string;
-    email: string;
-    phone: string;
-    address: string;
-    total_spend: string;
-    ytd_spend: string;
-    expense_count: number;
+  id: number;
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  total_spend: string;
+  ytd_spend: string;
+  expense_count: number;
+  is_active?: boolean;
+  last_expense_date?: string;
 }
 
 interface Stats {
-    total_suppliers: number;
-    total_spend: string;
-    ytd_spend: string;
+  total_suppliers: number;
+  total_spend: string;
+  ytd_spend: string;
 }
 
 interface SupplierData {
-    suppliers: Supplier[];
-    stats: Stats;
-    currency: string;
+  suppliers: Supplier[];
+  stats: Stats;
+  currency: string;
 }
 
-const formatCurrency = (value: string, currency: string): string => {
-    const num = parseFloat(value) || 0;
-    return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: currency || 'USD',
+interface SupplierExpense {
+  id: number;
+  expense_number?: string;
+  issue_date?: string;
+  status?: string;
+  total?: string;
+  net_total?: string;
+}
+
+// -----------------------------------------------------------------------------
+// Utilities
+// -----------------------------------------------------------------------------
+
+function formatCurrency(amount: number | string, currency = "CAD"): string {
+  const num = typeof amount === "string" ? parseFloat(amount) || 0 : amount;
+  try {
+    return new Intl.NumberFormat("en-CA", {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 2,
     }).format(num);
-};
+  } catch {
+    return `${currency} ${num.toFixed(2)}`;
+  }
+}
+
+function classNames(...classes: (string | false | null | undefined)[]) {
+  return classes.filter(Boolean).join(" ");
+}
+
+function statusBadgeClass(isActive: boolean): string {
+  return isActive
+    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+    : "bg-slate-100 text-slate-500 border border-slate-200";
+}
+
+type FilterTab = "all" | "active" | "inactive";
+type DetailTab = "overview" | "expenses" | "credits" | "activity" | "notes";
+
+const FILTER_TABS = [
+  { id: "all" as FilterTab, label: "All" },
+  { id: "active" as FilterTab, label: "Active" },
+  { id: "inactive" as FilterTab, label: "Inactive" },
+];
+
+// -----------------------------------------------------------------------------
+// Main Component
+// -----------------------------------------------------------------------------
 
 export const SuppliersPage: React.FC = () => {
-    const [data, setData] = useState<SupplierData | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
+  const [data, setData] = useState<SupplierData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [filterTab, setFilterTab] = useState<FilterTab>("all");
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [activeTab, setActiveTab] = useState<DetailTab>("overview");
 
-    const fetchData = async (query: string = '') => {
-        setLoading(true);
-        try {
-            const params = new URLSearchParams();
-            if (query) params.set('q', query);
-            const response = await fetch(`/api/suppliers/list/?${params.toString()}`);
-            if (!response.ok) throw new Error('Failed to fetch suppliers');
-            const json = await response.json();
-            setData(json);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Unknown error');
-        } finally {
-            setLoading(false);
-        }
-    };
+  // Expenses for selected supplier
+  const [supplierExpenses, setSupplierExpenses] = useState<SupplierExpense[]>([]);
+  const [loadingExpenses, setLoadingExpenses] = useState(false);
 
-    useEffect(() => {
-        fetchData();
-    }, []);
+  // Notes
+  const [noteText, setNoteText] = useState("");
+  const [supplierNotes, setSupplierNotes] = useState<Array<{ id: number; text: string; created_at: string }>>([]);
 
-    useEffect(() => {
-        const debounce = setTimeout(() => {
-            fetchData(searchQuery);
-        }, 300);
-        return () => clearTimeout(debounce);
-    }, [searchQuery]);
-
-    if (loading && !data) {
-        return (
-            <div className="page-container">
-                <div className="loading-spinner">Loading suppliers...</div>
-            </div>
-        );
+  const fetchData = async () => {
+    try {
+      const response = await fetch(`/api/suppliers/list/`);
+      if (!response.ok) throw new Error("Failed to fetch suppliers");
+      const json = await response.json();
+      setData(json);
+      if (json.suppliers?.length > 0 && !selectedId) {
+        setSelectedId(json.suppliers[0].id);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setLoading(false);
     }
+  };
 
-    if (error) {
-        return (
-            <div className="page-container">
-                <div className="error-state">Error: {error}</div>
-            </div>
-        );
-    }
+  useEffect(() => {
+    fetchData();
+  }, []);
 
-    const currency = data?.currency || 'USD';
-    const stats = data?.stats;
-    const suppliers = data?.suppliers || [];
+  // Fetch expenses when supplier changes
+  useEffect(() => {
+    if (!selectedId) return;
+    setLoadingExpenses(true);
+    fetch(`/api/expenses/list/?supplier=${selectedId}`)
+      .then(res => res.json())
+      .then(json => setSupplierExpenses(json.expenses || []))
+      .catch(() => setSupplierExpenses([]))
+      .finally(() => setLoadingExpenses(false));
+  }, [selectedId]);
 
+  const suppliers = data?.suppliers || [];
+  const currency = data?.currency || "CAD";
+  const stats = data?.stats;
+
+  const filteredSuppliers = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return suppliers.filter((s) => {
+      if (filterTab === "active" && s.is_active === false) return false;
+      if (filterTab === "inactive" && s.is_active !== false) return false;
+      if (!q) return true;
+      return s.name.toLowerCase().includes(q) || (s.email && s.email.toLowerCase().includes(q));
+    });
+  }, [suppliers, search, filterTab]);
+
+  const selectedSupplier = useMemo(
+    () => suppliers.find((s) => s.id === selectedId) ?? filteredSuppliers[0] ?? null,
+    [suppliers, selectedId, filteredSuppliers]
+  );
+
+  const summary = useMemo(() => {
+    const totalOpen = suppliers.reduce((sum, s) => sum + (parseFloat(s.ytd_spend) || 0), 0);
+    const activeCount = suppliers.filter((s) => s.is_active !== false).length;
+    const inactiveCount = suppliers.filter((s) => s.is_active === false).length;
+    return { totalOpen, activeCount, inactiveCount, total: suppliers.length };
+  }, [suppliers]);
+
+  const handleAddNote = () => {
+    if (!selectedSupplier || !noteText.trim()) return;
+    const newNote = { id: Date.now(), text: noteText, created_at: new Date().toISOString() };
+    setSupplierNotes([newNote, ...supplierNotes]);
+    setNoteText("");
+  };
+
+  if (loading) {
     return (
-        <div className="page-container">
-            {/* Header */}
-            <div className="page-header">
-                <div className="header-content">
-                    <h1>Suppliers</h1>
-                    <a href="/suppliers/new/" className="btn btn-primary">
-                        <span className="icon">+</span> New Supplier
-                    </a>
-                </div>
-            </div>
-
-            {/* KPI Cards */}
-            <div className="kpi-grid">
-                <div className="kpi-card">
-                    <div className="kpi-label">Total Suppliers</div>
-                    <div className="kpi-value">{stats?.total_suppliers || 0}</div>
-                </div>
-                <div className="kpi-card">
-                    <div className="kpi-label">All-Time Spend</div>
-                    <div className="kpi-value expense">{formatCurrency(stats?.total_spend || '0', currency)}</div>
-                </div>
-                <div className="kpi-card">
-                    <div className="kpi-label">YTD Spend</div>
-                    <div className="kpi-value expense">{formatCurrency(stats?.ytd_spend || '0', currency)}</div>
-                </div>
-            </div>
-
-            {/* Search */}
-            <div className="filter-bar">
-                <input
-                    type="text"
-                    className="search-input"
-                    placeholder="Search suppliers by name or email..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                />
-            </div>
-
-            {/* Main Content */}
-            <div className="content-layout">
-                {/* Table */}
-                <div className="table-container">
-                    <table className="data-table">
-                        <thead>
-                            <tr>
-                                <th>Supplier</th>
-                                <th>Contact</th>
-                                <th className="text-right">Total Spend</th>
-                                <th className="text-right">YTD Spend</th>
-                                <th className="text-center">Expenses</th>
-                                <th className="text-center">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {suppliers.length === 0 ? (
-                                <tr>
-                                    <td colSpan={6} className="empty-state">
-                                        No suppliers found. <a href="/suppliers/new/">Add your first supplier</a>
-                                    </td>
-                                </tr>
-                            ) : (
-                                suppliers.map((supplier) => (
-                                    <tr
-                                        key={supplier.id}
-                                        className={selectedSupplier?.id === supplier.id ? 'selected' : ''}
-                                        onClick={() => setSelectedSupplier(supplier)}
-                                    >
-                                        <td className="supplier-name">{supplier.name}</td>
-                                        <td>
-                                            <div className="contact-info">
-                                                {supplier.email && <span className="email">{supplier.email}</span>}
-                                                {supplier.phone && <span className="phone">{supplier.phone}</span>}
-                                            </div>
-                                        </td>
-                                        <td className="text-right expense">
-                                            {formatCurrency(supplier.total_spend, currency)}
-                                        </td>
-                                        <td className="text-right expense">
-                                            {formatCurrency(supplier.ytd_spend, currency)}
-                                        </td>
-                                        <td className="text-center">
-                                            <span className="badge">{supplier.expense_count}</span>
-                                        </td>
-                                        <td className="text-center">
-                                            <div className="action-buttons">
-                                                <a href={`/suppliers/${supplier.id}/edit/`} className="btn btn-sm btn-secondary">
-                                                    Edit
-                                                </a>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-
-                {/* Detail Panel */}
-                {selectedSupplier && (
-                    <div className="detail-panel">
-                        <div className="panel-header">
-                            <h3>{selectedSupplier.name}</h3>
-                            <button className="close-btn" onClick={() => setSelectedSupplier(null)}>×</button>
-                        </div>
-                        <div className="panel-content">
-                            <div className="detail-section">
-                                <h4>Contact Information</h4>
-                                {selectedSupplier.email && (
-                                    <div className="detail-row">
-                                        <span className="label">Email</span>
-                                        <span className="value">{selectedSupplier.email}</span>
-                                    </div>
-                                )}
-                                {selectedSupplier.phone && (
-                                    <div className="detail-row">
-                                        <span className="label">Phone</span>
-                                        <span className="value">{selectedSupplier.phone}</span>
-                                    </div>
-                                )}
-                                {selectedSupplier.address && (
-                                    <div className="detail-row">
-                                        <span className="label">Address</span>
-                                        <span className="value">{selectedSupplier.address}</span>
-                                    </div>
-                                )}
-                            </div>
-                            <div className="detail-section">
-                                <h4>Spending Summary</h4>
-                                <div className="detail-row">
-                                    <span className="label">Total Spend</span>
-                                    <span className="value expense">{formatCurrency(selectedSupplier.total_spend, currency)}</span>
-                                </div>
-                                <div className="detail-row">
-                                    <span className="label">YTD Spend</span>
-                                    <span className="value expense">{formatCurrency(selectedSupplier.ytd_spend, currency)}</span>
-                                </div>
-                                <div className="detail-row">
-                                    <span className="label">Total Expenses</span>
-                                    <span className="value">{selectedSupplier.expense_count}</span>
-                                </div>
-                            </div>
-                            <div className="panel-actions">
-                                <a href={`/suppliers/${selectedSupplier.id}/edit/`} className="btn btn-primary btn-block">
-                                    Edit Supplier
-                                </a>
-                                <a href={`/expenses/new/?supplier=${selectedSupplier.id}`} className="btn btn-secondary btn-block">
-                                    Add Expense
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            <style>{`
-        .page-container {
-          padding: 24px;
-          max-width: 1400px;
-          margin: 0 auto;
-        }
-        .page-header {
-          margin-bottom: 24px;
-        }
-        .header-content {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-        .header-content h1 {
-          margin: 0;
-          font-size: 28px;
-          font-weight: 600;
-        }
-        .btn {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          padding: 10px 18px;
-          border-radius: 8px;
-          font-weight: 500;
-          text-decoration: none;
-          cursor: pointer;
-          border: none;
-          transition: all 0.2s;
-        }
-        .btn-primary {
-          background: linear-gradient(135deg, #8b5cf6, #7c3aed);
-          color: white;
-        }
-        .btn-primary:hover {
-          background: linear-gradient(135deg, #7c3aed, #6d28d9);
-        }
-        .btn-secondary {
-          background: #f1f5f9;
-          color: #334155;
-        }
-        .btn-secondary:hover {
-          background: #e2e8f0;
-        }
-        .btn-sm {
-          padding: 6px 12px;
-          font-size: 13px;
-        }
-        .btn-block {
-          width: 100%;
-          justify-content: center;
-        }
-        .kpi-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-          gap: 16px;
-          margin-bottom: 24px;
-        }
-        .kpi-card {
-          background: white;
-          border-radius: 12px;
-          padding: 20px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-        .kpi-label {
-          font-size: 13px;
-          color: #64748b;
-          margin-bottom: 8px;
-        }
-        .kpi-value {
-          font-size: 24px;
-          font-weight: 600;
-          color: #1e293b;
-        }
-        .kpi-value.expense { color: #dc2626; }
-        .filter-bar {
-          margin-bottom: 20px;
-        }
-        .search-input {
-          width: 100%;
-          max-width: 400px;
-          padding: 12px 16px;
-          border: 1px solid #e2e8f0;
-          border-radius: 8px;
-          font-size: 14px;
-        }
-        .search-input:focus {
-          outline: none;
-          border-color: #8b5cf6;
-          box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
-        }
-        .content-layout {
-          display: flex;
-          gap: 24px;
-        }
-        .table-container {
-          flex: 1;
-          background: white;
-          border-radius: 12px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-          overflow: hidden;
-        }
-        .data-table {
-          width: 100%;
-          border-collapse: collapse;
-        }
-        .data-table th,
-        .data-table td {
-          padding: 14px 16px;
-          text-align: left;
-          border-bottom: 1px solid #f1f5f9;
-        }
-        .data-table th {
-          background: #f8fafc;
-          font-weight: 600;
-          font-size: 13px;
-          color: #64748b;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-        }
-        .data-table tbody tr {
-          cursor: pointer;
-          transition: background 0.15s;
-        }
-        .data-table tbody tr:hover {
-          background: #f8fafc;
-        }
-        .data-table tbody tr.selected {
-          background: #f5f3ff;
-        }
-        .text-right { text-align: right; }
-        .text-center { text-align: center; }
-        .supplier-name {
-          font-weight: 500;
-          color: #1e293b;
-        }
-        .contact-info {
-          display: flex;
-          flex-direction: column;
-          gap: 2px;
-          font-size: 13px;
-        }
-        .contact-info .email { color: #64748b; }
-        .contact-info .phone { color: #94a3b8; }
-        .expense { color: #dc2626; }
-        .badge {
-          display: inline-block;
-          padding: 4px 12px;
-          background: #f1f5f9;
-          border-radius: 12px;
-          font-size: 13px;
-          font-weight: 500;
-        }
-        .empty-state {
-          text-align: center;
-          padding: 48px;
-          color: #64748b;
-        }
-        .empty-state a {
-          color: #8b5cf6;
-          text-decoration: none;
-        }
-        .detail-panel {
-          width: 360px;
-          background: white;
-          border-radius: 12px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-          overflow: hidden;
-        }
-        .panel-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 16px 20px;
-          border-bottom: 1px solid #f1f5f9;
-        }
-        .panel-header h3 {
-          margin: 0;
-          font-size: 16px;
-          font-weight: 600;
-        }
-        .close-btn {
-          background: none;
-          border: none;
-          font-size: 24px;
-          cursor: pointer;
-          color: #94a3b8;
-          line-height: 1;
-        }
-        .close-btn:hover { color: #64748b; }
-        .panel-content {
-          padding: 20px;
-        }
-        .detail-section {
-          margin-bottom: 24px;
-        }
-        .detail-section h4 {
-          margin: 0 0 12px 0;
-          font-size: 12px;
-          font-weight: 600;
-          color: #64748b;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-        }
-        .detail-row {
-          display: flex;
-          justify-content: space-between;
-          padding: 8px 0;
-          border-bottom: 1px solid #f8fafc;
-        }
-        .detail-row .label {
-          color: #64748b;
-          font-size: 14px;
-        }
-        .detail-row .value {
-          font-weight: 500;
-          font-size: 14px;
-        }
-        .panel-actions {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-        }
-        .loading-spinner, .error-state {
-          text-align: center;
-          padding: 48px;
-          color: #64748b;
-        }
-        .error-state { color: #dc2626; }
-        .action-buttons {
-          display: flex;
-          gap: 8px;
-          justify-content: center;
-        }
-      `}</style>
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-slate-900 border-t-transparent mx-auto mb-3" />
+          <p className="text-sm text-slate-500">Loading suppliers...</p>
         </div>
+      </div>
     );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-slate-50 p-8">
+        <div className="p-4 text-rose-700 bg-rose-50 border border-rose-200 rounded-xl">Error: {error}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50/80 px-4 py-6 sm:px-6 lg:px-10">
+      <div className="mx-auto flex max-w-6xl flex-col gap-5">
+        {/* Header */}
+        <header className="mb-10 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-xs font-medium text-slate-400">
+              <span>Directory</span>
+              <span className="text-slate-300">/</span>
+              <span className="text-slate-600">Suppliers</span>
+            </div>
+            <h1 className="text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">
+              Suppliers
+            </h1>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50">
+              <Download className="h-3.5 w-3.5" />
+              Export
+            </button>
+            <a
+              href="/suppliers/new/"
+              className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-5 py-2 text-xs font-semibold text-white shadow-lg shadow-slate-900/10 transition-transform hover:scale-105 active:scale-95"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              New Supplier
+            </a>
+          </div>
+        </header>
+
+        <div className="flex flex-col gap-8">
+          {/* Top Section: Companion + Metrics */}
+          <div className="grid gap-6 lg:grid-cols-3">
+            <div className="lg:col-span-2">
+              <CompanionStrip context="expenses" />
+            </div>
+            <div className="flex flex-col justify-between gap-4">
+              <div className="flex flex-col rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-100 transition-all hover:shadow-md">
+                <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                  Open Payables
+                </span>
+                <span className="mt-3 text-3xl font-bold tracking-tight text-slate-900">
+                  {formatCurrency(stats?.ytd_spend || 0, currency)}
+                </span>
+                <span className="mt-2 text-xs font-medium text-emerald-600 flex items-center gap-1">
+                  <TrendingUp className="h-3 w-3" /> Live from ledger
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-100 transition-all hover:shadow-md min-w-0">
+                  <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Spend</span>
+                  <span className="mt-3 text-xl font-bold tracking-tight text-slate-900 truncate">
+                    {formatCurrency(stats?.total_spend || 0, currency).split('.')[0]}
+                  </span>
+                  <span className="mt-1 text-[10px] text-slate-400">YTD Volume</span>
+                </div>
+                <div className="flex flex-col rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-100 transition-all hover:shadow-md">
+                  <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Active</span>
+                  <span className="mt-3 text-2xl font-bold tracking-tight text-slate-900">{summary.activeCount}</span>
+                  <span className="mt-1 text-[10px] text-slate-400">Relationships</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Main content: list + detail */}
+          <section className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.4fr)]">
+            {/* Left: Suppliers list */}
+            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+              <div className="px-4 py-4 border-b border-slate-100">
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-900">Supplier directory</h3>
+                    <p className="text-xs text-slate-500">Search, filter, and select a supplier.</p>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <div className="relative flex-1">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Search by name or email"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      className="w-full h-9 border border-slate-200 bg-slate-50 rounded-lg pl-9 pr-3 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500/20 focus:border-slate-500"
+                    />
+                  </div>
+                  <button className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-[11px] font-medium text-slate-600 hover:bg-slate-100 transition-colors">
+                    <Filter className="h-3.5 w-3.5" />
+                    Filters
+                  </button>
+                </div>
+
+                <div className="mt-3 flex gap-1.5 overflow-x-auto pb-1 text-xs">
+                  {FILTER_TABS.map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setFilterTab(tab.id)}
+                      className={classNames(
+                        "inline-flex items-center rounded-full px-3 py-1 transition-all",
+                        filterTab === tab.id
+                          ? "bg-slate-900 text-white shadow-sm"
+                          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      )}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="h-[420px] overflow-y-auto">
+                <div className="divide-y divide-slate-100">
+                  {filteredSuppliers.length === 0 && (
+                    <div className="flex flex-col items-center justify-center gap-2 px-5 py-10 text-center text-xs text-slate-400">
+                      <p>No suppliers match your filters.</p>
+                      <a href="/suppliers/new/" className="text-slate-900 hover:underline">Create a new supplier</a>
+                    </div>
+                  )}
+
+                  {filteredSuppliers.map((supplier) => {
+                    const isSelected = selectedSupplier?.id === supplier.id;
+                    const isActive = supplier.is_active !== false;
+                    return (
+                      <button
+                        key={supplier.id}
+                        onClick={() => setSelectedId(supplier.id)}
+                        className={classNames(
+                          "w-full flex items-start gap-3 px-4 py-3 text-left transition-colors",
+                          isSelected ? "bg-slate-50" : "hover:bg-slate-50/50"
+                        )}
+                      >
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-slate-700 to-slate-900 text-sm font-semibold text-white shadow-sm">
+                          {supplier.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0 overflow-hidden">
+                          <div className="text-sm font-semibold text-slate-900 truncate">{supplier.name}</div>
+                          <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
+                            {supplier.email && (
+                              <span className="inline-flex items-center gap-1">
+                                <Mail className="h-3 w-3" />
+                                <span className="truncate max-w-[150px]">{supplier.email}</span>
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-1 flex flex-wrap items-center gap-2">
+                            <span className={classNames(
+                              "inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px]",
+                              statusBadgeClass(isActive)
+                            )}>
+                              <span className={classNames(
+                                "mr-1.5 h-1.5 w-1.5 rounded-full",
+                                isActive ? "bg-emerald-500" : "bg-slate-400"
+                              )} />
+                              {isActive ? "Active" : "Inactive"}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end justify-between gap-1 text-right text-[11px]">
+                          <div className="text-[12px] font-semibold text-slate-900">
+                            {formatCurrency(supplier.ytd_spend, currency)}
+                          </div>
+                          <div className="text-[11px] text-slate-400">
+                            {supplier.expense_count} expenses
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Right: Supplier details */}
+            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+              <div className="px-4 py-4 border-b border-slate-100">
+                {selectedSupplier ? (
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-gradient-to-br from-slate-700 to-slate-900 text-sm font-semibold text-white shadow-sm">
+                          {selectedSupplier.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-semibold text-slate-900 sm:text-base">
+                            {selectedSupplier.name}
+                          </h3>
+                          <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
+                            {selectedSupplier.email && (
+                              <span className="inline-flex items-center gap-1">
+                                <Mail className="h-3 w-3" />
+                                {selectedSupplier.email}
+                              </span>
+                            )}
+                            {selectedSupplier.phone && (
+                              <span className="inline-flex items-center gap-1">
+                                <Phone className="h-3 w-3" />
+                                {selectedSupplier.phone}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
+                        <span className={classNames(
+                          "inline-flex items-center rounded-full px-2.5 py-0.5",
+                          statusBadgeClass(selectedSupplier.is_active !== false)
+                        )}>
+                          <span className={classNames(
+                            "mr-1.5 h-1.5 w-1.5 rounded-full",
+                            selectedSupplier.is_active !== false ? "bg-emerald-500" : "bg-slate-400"
+                          )} />
+                          {selectedSupplier.is_active !== false ? "Active" : "Inactive"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col items-end gap-2">
+                      <div className="text-right text-xs text-slate-500">Total spend</div>
+                      <div className="text-lg font-semibold tracking-tight text-slate-900">
+                        {formatCurrency(selectedSupplier.total_spend, currency)}
+                      </div>
+                      <div className="flex gap-1.5">
+                        <button className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-[11px] font-medium text-slate-700 hover:bg-slate-100 transition-colors">
+                          <CreditCard className="h-3.5 w-3.5" />
+                          Record payment
+                        </button>
+                        <a
+                          href={`/expenses/new/?supplier=${selectedSupplier.id}`}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 text-[11px] font-medium text-white hover:bg-slate-800 transition-colors"
+                        >
+                          <FileText className="h-3.5 w-3.5" />
+                          Create expense
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="py-6 text-center text-xs text-slate-400">
+                    Select a supplier to see details.
+                  </div>
+                )}
+              </div>
+
+              {/* Tabs content */}
+              {selectedSupplier && (
+                <div className="p-4">
+                  <div className="mb-4 flex gap-1 rounded-2xl bg-slate-100 p-1 text-xs">
+                    {(["overview", "expenses", "credits", "activity", "notes"] as DetailTab[]).map((tab) => (
+                      <button
+                        key={tab}
+                        onClick={() => setActiveTab(tab)}
+                        className={classNames(
+                          "flex-1 rounded-xl px-3 py-2 font-medium capitalize transition-all",
+                          activeTab === tab
+                            ? "bg-white text-slate-900 shadow-sm"
+                            : "text-slate-500 hover:text-slate-700"
+                        )}
+                      >
+                        {tab}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Tab: OVERVIEW */}
+                  {activeTab === "overview" && (
+                    <div className="space-y-4">
+                      <h4 className="text-sm font-semibold text-slate-900">Supplier Overview</h4>
+                      <div className="grid gap-3 md:grid-cols-3">
+                        <div className="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
+                          <div className="text-[11px] text-slate-500">Total Spend</div>
+                          <div className="mt-1 text-lg font-semibold text-slate-900">
+                            {formatCurrency(selectedSupplier.total_spend, currency)}
+                          </div>
+                        </div>
+                        <div className="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
+                          <div className="text-[11px] text-slate-500">YTD Spend</div>
+                          <div className="mt-1 text-lg font-semibold text-slate-900">
+                            {formatCurrency(selectedSupplier.ytd_spend, currency)}
+                          </div>
+                        </div>
+                        <div className="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
+                          <div className="text-[11px] text-slate-500">Total Expenses</div>
+                          <div className="mt-1 text-lg font-semibold text-slate-900">
+                            {selectedSupplier.expense_count}
+                          </div>
+                        </div>
+                      </div>
+                      {selectedSupplier.address && (
+                        <div className="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
+                          <div className="text-[11px] text-slate-500">Address</div>
+                          <div className="mt-1 text-sm text-slate-900">{selectedSupplier.address}</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Tab: EXPENSES */}
+                  {activeTab === "expenses" && (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-semibold text-slate-900">Expenses</h4>
+                        <a
+                          href={`/expenses/new/?supplier=${selectedSupplier.id}`}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 text-[11px] font-medium text-white hover:bg-slate-800 transition-colors"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          New expense
+                        </a>
+                      </div>
+
+                      {loadingExpenses ? (
+                        <div className="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200 text-center">
+                          <div className="animate-spin rounded-full h-6 w-6 border-2 border-slate-500 border-t-transparent mx-auto" />
+                          <p className="text-xs text-slate-500 mt-2">Loading expenses...</p>
+                        </div>
+                      ) : supplierExpenses.length === 0 ? (
+                        <div className="rounded-2xl bg-slate-50 p-8 ring-1 ring-slate-200 text-center">
+                          <FileText className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+                          <p className="text-sm text-slate-500">No expenses yet</p>
+                          <p className="text-xs text-slate-400 mt-1">Create the first expense for {selectedSupplier.name}</p>
+                        </div>
+                      ) : (
+                        <div className="rounded-2xl bg-slate-50 p-2 ring-1 ring-slate-200 space-y-2">
+                          {supplierExpenses.slice(0, 10).map((exp) => (
+                            <a
+                              key={exp.id}
+                              href={`/expenses/${exp.id}/`}
+                              className="flex items-center justify-between p-3 rounded-xl bg-white ring-1 ring-slate-100 hover:ring-slate-200 transition-colors"
+                            >
+                              <div>
+                                <div className="text-xs font-semibold text-slate-900">
+                                  {exp.expense_number || `EXP-${exp.id}`}
+                                </div>
+                                <div className="text-[11px] text-slate-500">
+                                  {exp.issue_date ? new Date(exp.issue_date).toLocaleDateString() : "—"} • {exp.status || "Draft"}
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-sm font-bold text-slate-900 tabular-nums">
+                                  {formatCurrency(exp.total || exp.net_total || 0, currency)}
+                                </div>
+                              </div>
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Tab: CREDITS */}
+                  {activeTab === "credits" && (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-semibold text-slate-900">Credits & Prepayments</h4>
+                        <div className="flex flex-wrap gap-2">
+                          <button className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 text-[11px] font-medium text-white hover:bg-slate-800 transition-colors">
+                            <Plus className="h-3.5 w-3.5" />
+                            Issue debit memo
+                          </button>
+                          <button className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-[11px] font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+                            <CreditCard className="h-3.5 w-3.5" />
+                            Record prepayment
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid gap-3 md:grid-cols-3">
+                        <div className="rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-200">
+                          <div className="text-[11px] text-slate-500">Open A/P (after credits)</div>
+                          <div className="mt-1 text-sm font-semibold text-slate-900">
+                            {formatCurrency(0, currency)}
+                          </div>
+                        </div>
+                        <div className="rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-200">
+                          <div className="text-[11px] text-slate-500">Open credits</div>
+                          <div className="mt-1 text-sm font-semibold text-slate-900">
+                            {formatCurrency(0, currency)}
+                          </div>
+                        </div>
+                        <div className="rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-200">
+                          <div className="text-[11px] text-slate-500">Prepayments</div>
+                          <div className="mt-1 text-sm font-semibold text-slate-900">
+                            {formatCurrency(0, currency)}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <h5 className="text-xs font-semibold text-slate-900">Debit memos</h5>
+                        <div className="rounded-2xl bg-slate-50 p-2 ring-1 ring-slate-200">
+                          <div className="text-center py-4 text-xs text-slate-500">No debit memos yet.</div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <h5 className="text-xs font-semibold text-slate-900">Prepayments</h5>
+                        <div className="rounded-2xl bg-slate-50 p-2 ring-1 ring-slate-200">
+                          <div className="text-center py-4 text-xs text-slate-500">No prepayments recorded yet.</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Tab: ACTIVITY */}
+                  {activeTab === "activity" && (
+                    <div className="space-y-4">
+                      <h4 className="text-sm font-semibold text-slate-900">Activity Timeline</h4>
+                      <div className="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
+                        {supplierExpenses.length === 0 ? (
+                          <div className="text-center py-4 text-xs text-slate-500">
+                            No activity yet for this supplier.
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            {supplierExpenses.slice(0, 8).map((exp) => (
+                              <div key={exp.id} className="flex gap-3">
+                                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600">
+                                  <FileText className="h-4 w-4" />
+                                </div>
+                                <div>
+                                  <p className="text-xs font-medium text-slate-900">
+                                    Expense {exp.status === "PAID" ? "paid" : "created"}
+                                  </p>
+                                  <p className="text-[11px] text-slate-500">
+                                    {exp.expense_number || `EXP-${exp.id}`} • {formatCurrency(exp.total || exp.net_total || 0, currency)}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Tab: NOTES */}
+                  {activeTab === "notes" && (
+                    <div className="space-y-4">
+                      <h4 className="text-sm font-semibold text-slate-900">Supplier Notes</h4>
+                      <div className="rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-200">
+                        <textarea
+                          value={noteText}
+                          onChange={(e) => setNoteText(e.target.value)}
+                          placeholder="Add a note about this supplier..."
+                          className="w-full h-20 px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-slate-200"
+                        />
+                        <div className="mt-2 flex justify-end">
+                          <button
+                            onClick={handleAddNote}
+                            disabled={!noteText.trim()}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 text-[11px] font-medium text-white hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                            Add Note
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        {supplierNotes.length === 0 ? (
+                          <div className="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200 text-center">
+                            <p className="text-xs text-slate-500">No notes yet. Add one above!</p>
+                          </div>
+                        ) : (
+                          supplierNotes.map((note) => (
+                            <div key={note.id} className="rounded-2xl bg-white p-3 ring-1 ring-slate-200">
+                              <p className="text-xs text-slate-900">{note.text}</p>
+                              <p className="mt-1 text-[10px] text-slate-400">
+                                {new Date(note.created_at).toLocaleString()}
+                              </p>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 export default SuppliersPage;

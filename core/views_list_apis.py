@@ -479,15 +479,30 @@ def api_supplier_list(request):
 #    Categories API
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _serialize_category(cat: Category) -> dict:
+def _serialize_category(cat: Category, month_start=None, year_start=None) -> dict:
     """Serialize a Category for JSON response."""
+    # Get account label if linked
+    account_label = None
+    if cat.account:
+        code = cat.account.code or ""
+        name = cat.account.name or ""
+        account_label = f"{code} • {name}" if code else name
+
     return {
         "id": cat.id,
         "name": cat.name,
+        "code": cat.code or f"CAT-{cat.id}",
         "type": cat.type,
+        "description": cat.description or "",
         "is_archived": cat.is_archived,
+        "account_label": account_label,
+        "account_id": cat.account_id,
         "expense_count": getattr(cat, "expense_count", 0) or 0,
+        "transaction_count": getattr(cat, "transaction_count", 0) or 0,
+        "current_month_total": str(getattr(cat, "mtd_total", None) or "0.00"),
+        "ytd_total": str(getattr(cat, "ytd_total", None) or "0.00"),
         "total_amount": str(getattr(cat, "total_amount", None) or "0.00"),
+        "last_used_at": getattr(cat, "last_used_at", None).isoformat() if getattr(cat, "last_used_at", None) else None,
     }
 
 
@@ -495,7 +510,7 @@ def _serialize_category(cat: Category) -> dict:
 @require_GET
 def api_category_list(request):
     """JSON API for category list."""
-    from django.db.models import Count
+    from django.db.models import Count, Max
     
     business = get_current_business(request.user)
     if business is None:
@@ -503,8 +518,13 @@ def api_category_list(request):
 
     type_filter = request.GET.get("type", "all").lower()
     show_archived = request.GET.get("archived", "false").lower() == "true"
+    search_query = request.GET.get("q", "").strip()
 
-    qs = Category.objects.filter(business=business)
+    today = timezone.localdate()
+    month_start = today.replace(day=1)
+    year_start = today.replace(month=1, day=1)
+
+    qs = Category.objects.filter(business=business).select_related("account")
     
     if type_filter == "expense":
         qs = qs.filter(type=Category.CategoryType.EXPENSE)
@@ -514,23 +534,59 @@ def api_category_list(request):
     if not show_archived:
         qs = qs.filter(is_archived=False)
 
-    # Annotate
+    if search_query:
+        qs = qs.filter(
+            Q(name__icontains=search_query) 
+            | Q(code__icontains=search_query)
+            | Q(description__icontains=search_query)
+        )
+
+    # Annotate with usage stats
     qs = qs.annotate(
         expense_count=Count("expenses"),
+        transaction_count=Count("expenses", distinct=True),
         total_amount=Sum("expenses__amount"),
+        mtd_total=Sum(
+            "expenses__amount",
+            filter=Q(expenses__date__gte=month_start),
+        ),
+        ytd_total=Sum(
+            "expenses__amount",
+            filter=Q(expenses__date__gte=year_start),
+        ),
+        last_used_at=Max("expenses__date"),
     ).order_by("type", "name")
 
-    categories = list(qs)
-    expense_count = sum(1 for c in categories if c.type == Category.CategoryType.EXPENSE)
-    income_count = sum(1 for c in categories if c.type == Category.CategoryType.INCOME)
+    categories = list(qs[:100])
+    
+    # Stats
+    all_categories = Category.objects.filter(business=business, is_archived=False)
+    active_count = all_categories.count()
+    expense_count = all_categories.filter(type=Category.CategoryType.EXPENSE).count()
+    income_count = all_categories.filter(type=Category.CategoryType.INCOME).count()
+    
+    # Check for uncategorized transactions (expenses without a category)
+    uncategorized_count = Expense.objects.filter(
+        business=business,
+        category__isnull=True,
+    ).count()
+    uncategorized_ytd = Expense.objects.filter(
+        business=business,
+        category__isnull=True,
+        date__gte=year_start,
+    ).aggregate(total=Sum("amount"))["total"] or Decimal("0")
 
     return JsonResponse({
-        "categories": [_serialize_category(c) for c in categories],
+        "categories": [_serialize_category(c, month_start, year_start) for c in categories],
         "stats": {
             "total_categories": len(categories),
+            "active_count": active_count,
             "expense_categories": expense_count,
             "income_categories": income_count,
+            "uncategorized_count": uncategorized_count,
+            "uncategorized_ytd": str(uncategorized_ytd),
         },
+        "currency": business.currency,
         "type_choices": [{"value": c[0], "label": c[1]} for c in Category.CategoryType.choices],
     })
 
@@ -539,18 +595,46 @@ def api_category_list(request):
 #    Products API
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _serialize_item(item: Item) -> dict:
+def _serialize_item(item: Item, usage_count: int = 0, last_sold_on=None) -> dict:
     """Serialize an Item (Product/Service) for JSON response."""
+    # Build income account label
+    income_account_label = None
+    if item.income_account:
+        code = item.income_account.code or ""
+        name = item.income_account.name or ""
+        income_account_label = f"{code} • {name}" if code else name
+    elif item.income_category and getattr(item.income_category, "account", None):
+        acct = item.income_category.account
+        code = acct.code or ""
+        name = acct.name or ""
+        income_account_label = f"{code} • {name}" if code else name
+    elif item.income_category:
+        income_account_label = item.income_category.name
+
+    # Build expense account label (for products with COGS)
+    expense_account_label = None
+    if item.expense_account:
+        code = item.expense_account.code or ""
+        name = item.expense_account.name or ""
+        expense_account_label = f"{code} • {name}" if code else name
+
     return {
         "id": item.id,
         "name": item.name,
-        "sku": item.sku,
+        "sku": item.sku or "",
+        "code": item.sku or f"ITEM-{item.id}",
         "type": item.type,
-        "price": str(item.price) if item.price else "0.00",
+        "kind": "product" if item.type == Item.ItemType.PRODUCT else "service",
+        "status": "archived" if item.is_archived else "active",
+        "price": str(item.unit_price) if item.unit_price else "0.00",
         "description": item.description,
         "is_archived": item.is_archived,
         "income_category_id": item.income_category_id,
         "income_category_name": item.income_category.name if item.income_category else None,
+        "income_account_label": income_account_label,
+        "expense_account_label": expense_account_label,
+        "usage_count": usage_count,
+        "last_sold_on": last_sold_on.isoformat() if last_sold_on else None,
     }
 
 
@@ -558,6 +642,8 @@ def _serialize_item(item: Item) -> dict:
 @require_GET
 def api_product_list(request):
     """JSON API for products/services list."""
+    from django.db.models import Count, Max
+    
     business = get_current_business(request.user)
     if business is None:
         return JsonResponse({"error": "No business context"}, status=400)
@@ -566,7 +652,12 @@ def api_product_list(request):
     status = request.GET.get("status", "active").lower()
     search_query = request.GET.get("q", "").strip()
 
-    qs = Item.objects.filter(business=business).select_related("income_category")
+    qs = Item.objects.filter(business=business).select_related(
+        "income_category",
+        "income_category__account",
+        "income_account",
+        "expense_account",
+    )
 
     if kind == "product":
         qs = qs.filter(type=Item.ItemType.PRODUCT)
@@ -579,7 +670,21 @@ def api_product_list(request):
         qs = qs.filter(is_archived=True)
 
     if search_query:
-        qs = qs.filter(Q(name__icontains=search_query) | Q(sku__icontains=search_query))
+        qs = qs.filter(
+            Q(name__icontains=search_query) 
+            | Q(sku__icontains=search_query)
+            | Q(income_category__name__icontains=search_query)
+        )
+
+    # Annotate with usage stats (invoices that reference this item)
+    qs = qs.annotate(
+        usage_count=Count("invoices", filter=Q(invoices__status__in=[
+            Invoice.Status.SENT, Invoice.Status.PARTIAL, Invoice.Status.PAID
+        ])),
+        last_sold_on=Max("invoices__issue_date", filter=Q(invoices__status__in=[
+            Invoice.Status.SENT, Invoice.Status.PARTIAL, Invoice.Status.PAID
+        ])),
+    )
 
     items = list(qs.order_by("name")[:100])
     
@@ -588,13 +693,26 @@ def api_product_list(request):
     active_count = all_items.count()
     product_count = all_items.filter(type=Item.ItemType.PRODUCT).count()
     service_count = all_items.filter(type=Item.ItemType.SERVICE).count()
+    
+    # Calculate avg price
+    from django.db.models import Avg
+    avg_price_result = all_items.aggregate(avg=Avg("unit_price"))
+    avg_price = avg_price_result["avg"] or Decimal("0")
 
     return JsonResponse({
-        "items": [_serialize_item(i) for i in items],
+        "items": [
+            _serialize_item(
+                i, 
+                usage_count=getattr(i, "usage_count", None) or 0,
+                last_sold_on=getattr(i, "last_sold_on", None),
+            ) 
+            for i in items
+        ],
         "stats": {
             "active_count": active_count,
             "product_count": product_count,
             "service_count": service_count,
+            "avg_price": str(avg_price.quantize(Decimal("0.01")) if avg_price else "0.00"),
         },
         "currency": business.currency,
         "type_choices": [{"value": c[0], "label": c[1]} for c in Item.ItemType.choices],

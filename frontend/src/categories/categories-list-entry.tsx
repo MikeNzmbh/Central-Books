@@ -1,6 +1,6 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { CategoriesPage } from './CategoriesPage';
+import CategoriesPage from './CategoriesPage';
 
 const container = document.getElementById('categories-root');
 if (container) {

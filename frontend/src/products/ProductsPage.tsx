@@ -1,603 +1,549 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from "react";
+import { Plus, Filter, Search, Tag, Package, Wrench, Archive, Sparkles, ArrowUpRight, Check } from "lucide-react";
 
-interface Item {
-    id: number;
-    name: string;
-    sku: string;
-    type: string;
-    price: string;
-    description: string;
-    is_archived: boolean;
-    income_category_id: number | null;
-    income_category_name: string | null;
+// Shared types
+export type ItemKind = "product" | "service";
+export type ItemStatus = "active" | "archived";
+
+export interface ProductServiceItem {
+  id: number;
+  name: string;
+  code: string;
+  sku: string;
+  kind: ItemKind;
+  status: ItemStatus;
+  type: string;
+  category?: string;
+  unitLabel?: string;
+  price: number;
+  currency: string;
+  incomeAccountLabel?: string;
+  expenseAccountLabel?: string;
+  lastSoldOn?: string;
+  usageCount?: number;
+  isRecurring?: boolean;
+  description?: string;
 }
 
 interface Stats {
-    active_count: number;
-    product_count: number;
-    service_count: number;
+  activeCount: number;
+  productCount: number;
+  serviceCount: number;
+  avgPrice: number;
 }
 
-interface TypeChoice {
-    value: string;
-    label: string;
+function formatMoney(value: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat("en-CA", {
+      style: "currency",
+      currency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value);
+  } catch {
+    return `${currency} ${value.toFixed(2)}`;
+  }
 }
 
-interface ProductData {
-    items: Item[];
-    stats: Stats;
-    currency: string;
-    type_choices: TypeChoice[];
+function kindIcon(kind: ItemKind) {
+  if (kind === "product") return <Package className="h-3.5 w-3.5" />;
+  return <Wrench className="h-3.5 w-3.5" />;
 }
 
-const formatCurrency = (value: string, currency: string): string => {
-    const num = parseFloat(value) || 0;
-    return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: currency || 'USD',
-    }).format(num);
-};
+export default function ProductsPage() {
+  const [items, setItems] = useState<ProductServiceItem[]>([]);
+  const [stats, setStats] = useState<Stats>({ activeCount: 0, productCount: 0, serviceCount: 0, avgPrice: 0 });
+  const [currency, setCurrency] = useState("CAD");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-export const ProductsPage: React.FC = () => {
-    const [data, setData] = useState<ProductData | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [kindFilter, setKindFilter] = useState('all');
-    const [statusFilter, setStatusFilter] = useState('active');
-    const [searchQuery, setSearchQuery] = useState('');
-    const [selectedItem, setSelectedItem] = useState<Item | null>(null);
+  const [activeKind, setActiveKind] = useState<ItemKind | "all">("all");
+  const [statusFilter, setStatusFilter] = useState<ItemStatus | "all">("active");
+  const [search, setSearch] = useState("");
+  const [selectedId, setSelectedId] = useState<number | null>(null);
 
-    const fetchData = async () => {
-        setLoading(true);
-        try {
-            const params = new URLSearchParams();
-            if (kindFilter !== 'all') params.set('kind', kindFilter);
-            if (statusFilter !== 'all') params.set('status', statusFilter);
-            if (searchQuery) params.set('q', searchQuery);
-            const response = await fetch(`/api/products/list/?${params.toString()}`);
-            if (!response.ok) throw new Error('Failed to fetch products');
-            const json = await response.json();
-            setData(json);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Unknown error');
-        } finally {
-            setLoading(false);
-        }
-    };
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (activeKind !== "all") params.set("kind", activeKind);
+      if (statusFilter !== "all") params.set("status", statusFilter);
+      if (search) params.set("q", search);
 
-    useEffect(() => {
-        fetchData();
-    }, [kindFilter, statusFilter]);
+      const response = await fetch(`/api/products/list/?${params.toString()}`);
+      if (!response.ok) throw new Error("Failed to fetch products");
 
-    useEffect(() => {
-        const debounce = setTimeout(() => {
-            fetchData();
-        }, 300);
-        return () => clearTimeout(debounce);
-    }, [searchQuery]);
+      const json = await response.json();
 
-    if (loading && !data) {
-        return (
-            <div className="page-container">
-                <div className="loading-spinner">Loading products & services...</div>
-            </div>
-        );
+      // Map API response to our interface
+      const mappedItems: ProductServiceItem[] = (json.items || []).map((item: any) => ({
+        id: item.id,
+        name: item.name,
+        code: item.code || item.sku || `ITEM-${item.id}`,
+        sku: item.sku || "",
+        kind: item.kind || (item.type === "PRODUCT" ? "product" : "service"),
+        status: item.status || (item.is_archived ? "archived" : "active"),
+        type: item.type,
+        category: item.income_category_name || undefined,
+        price: parseFloat(item.price) || 0,
+        currency: json.currency || "CAD",
+        incomeAccountLabel: item.income_account_label || undefined,
+        expenseAccountLabel: item.expense_account_label || undefined,
+        lastSoldOn: item.last_sold_on || undefined,
+        usageCount: item.usage_count || 0,
+        description: item.description || "",
+      }));
+
+      setItems(mappedItems);
+      setStats({
+        activeCount: json.stats?.active_count || 0,
+        productCount: json.stats?.product_count || 0,
+        serviceCount: json.stats?.service_count || 0,
+        avgPrice: parseFloat(json.stats?.avg_price) || 0,
+      });
+      setCurrency(json.currency || "CAD");
+
+      // Auto-select first item if none selected
+      if (mappedItems.length > 0 && !selectedId) {
+        setSelectedId(mappedItems[0].id);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setLoading(false);
     }
+  };
 
-    if (error) {
-        return (
-            <div className="page-container">
-                <div className="error-state">Error: {error}</div>
-            </div>
-        );
-    }
+  useEffect(() => {
+    fetchData();
+  }, [activeKind, statusFilter]);
 
-    const currency = data?.currency || 'USD';
-    const stats = data?.stats;
-    const items = data?.items || [];
+  useEffect(() => {
+    const debounce = setTimeout(() => {
+      fetchData();
+    }, 300);
+    return () => clearTimeout(debounce);
+  }, [search]);
 
+  const selected = useMemo(
+    () => items.find((it) => it.id === selectedId) ?? items[0] ?? null,
+    [items, selectedId]
+  );
+
+  if (loading && items.length === 0) {
     return (
-        <div className="page-container">
-            {/* Header */}
-            <div className="page-header">
-                <div className="header-content">
-                    <h1>Products & Services</h1>
-                    <a href="/items/new/" className="btn btn-primary">
-                        <span className="icon">+</span> New Item
-                    </a>
-                </div>
-            </div>
-
-            {/* KPI Cards */}
-            <div className="kpi-grid">
-                <div className="kpi-card">
-                    <div className="kpi-label">Active Items</div>
-                    <div className="kpi-value">{stats?.active_count || 0}</div>
-                </div>
-                <div className="kpi-card">
-                    <div className="kpi-label">Products</div>
-                    <div className="kpi-value product">{stats?.product_count || 0}</div>
-                    <div className="kpi-icon">📦</div>
-                </div>
-                <div className="kpi-card">
-                    <div className="kpi-label">Services</div>
-                    <div className="kpi-value service">{stats?.service_count || 0}</div>
-                    <div className="kpi-icon">⚙️</div>
-                </div>
-            </div>
-
-            {/* Filters */}
-            <div className="filter-bar">
-                <input
-                    type="text"
-                    className="search-input"
-                    placeholder="Search by name or SKU..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                />
-                <div className="filter-group">
-                    <select
-                        className="filter-select"
-                        value={kindFilter}
-                        onChange={(e) => setKindFilter(e.target.value)}
-                    >
-                        <option value="all">All Types</option>
-                        <option value="product">Products</option>
-                        <option value="service">Services</option>
-                    </select>
-                    <select
-                        className="filter-select"
-                        value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
-                    >
-                        <option value="active">Active</option>
-                        <option value="archived">Archived</option>
-                        <option value="all">All Status</option>
-                    </select>
-                </div>
-            </div>
-
-            {/* Main Content */}
-            <div className="content-layout">
-                {/* Table */}
-                <div className="table-container">
-                    <table className="data-table">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>SKU</th>
-                                <th>Type</th>
-                                <th className="text-right">Price</th>
-                                <th>Category</th>
-                                <th className="text-center">Status</th>
-                                <th className="text-center">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {items.length === 0 ? (
-                                <tr>
-                                    <td colSpan={7} className="empty-state">
-                                        No items found. <a href="/items/new/">Add your first product or service</a>
-                                    </td>
-                                </tr>
-                            ) : (
-                                items.map((item) => (
-                                    <tr
-                                        key={item.id}
-                                        className={`${item.is_archived ? 'archived' : ''} ${selectedItem?.id === item.id ? 'selected' : ''}`}
-                                        onClick={() => setSelectedItem(item)}
-                                    >
-                                        <td className="item-name">
-                                            <span className="type-icon">{item.type === 'PRODUCT' ? '📦' : '⚙️'}</span>
-                                            {item.name}
-                                        </td>
-                                        <td className="sku">{item.sku || '-'}</td>
-                                        <td>
-                                            <span className={`type-badge ${item.type.toLowerCase()}`}>
-                                                {item.type === 'PRODUCT' ? 'Product' : 'Service'}
-                                            </span>
-                                        </td>
-                                        <td className="text-right price">
-                                            {formatCurrency(item.price, currency)}
-                                        </td>
-                                        <td className="category">
-                                            {item.income_category_name || '-'}
-                                        </td>
-                                        <td className="text-center">
-                                            <span className={`status-badge ${item.is_archived ? 'archived' : 'active'}`}>
-                                                {item.is_archived ? 'Archived' : 'Active'}
-                                            </span>
-                                        </td>
-                                        <td className="text-center">
-                                            <div className="action-buttons">
-                                                <a href={`/items/${item.id}/edit/`} className="btn btn-sm btn-secondary">
-                                                    Edit
-                                                </a>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-
-                {/* Detail Panel */}
-                {selectedItem && (
-                    <div className="detail-panel">
-                        <div className="panel-header">
-                            <div className="header-with-icon">
-                                <span className="type-icon-large">{selectedItem.type === 'PRODUCT' ? '📦' : '⚙️'}</span>
-                                <h3>{selectedItem.name}</h3>
-                            </div>
-                            <button className="close-btn" onClick={() => setSelectedItem(null)}>×</button>
-                        </div>
-                        <div className="panel-content">
-                            <div className="detail-section">
-                                <h4>Item Details</h4>
-                                <div className="detail-row">
-                                    <span className="label">Type</span>
-                                    <span className={`value type-badge ${selectedItem.type.toLowerCase()}`}>
-                                        {selectedItem.type === 'PRODUCT' ? 'Product' : 'Service'}
-                                    </span>
-                                </div>
-                                {selectedItem.sku && (
-                                    <div className="detail-row">
-                                        <span className="label">SKU</span>
-                                        <span className="value">{selectedItem.sku}</span>
-                                    </div>
-                                )}
-                                <div className="detail-row">
-                                    <span className="label">Price</span>
-                                    <span className="value price">{formatCurrency(selectedItem.price, currency)}</span>
-                                </div>
-                                <div className="detail-row">
-                                    <span className="label">Status</span>
-                                    <span className={`value ${selectedItem.is_archived ? 'archived' : 'active'}`}>
-                                        {selectedItem.is_archived ? 'Archived' : 'Active'}
-                                    </span>
-                                </div>
-                            </div>
-                            {selectedItem.income_category_name && (
-                                <div className="detail-section">
-                                    <h4>Accounting</h4>
-                                    <div className="detail-row">
-                                        <span className="label">Income Category</span>
-                                        <span className="value">{selectedItem.income_category_name}</span>
-                                    </div>
-                                </div>
-                            )}
-                            {selectedItem.description && (
-                                <div className="detail-section">
-                                    <h4>Description</h4>
-                                    <p className="description-text">{selectedItem.description}</p>
-                                </div>
-                            )}
-                            <div className="panel-actions">
-                                <a href={`/items/${selectedItem.id}/edit/`} className="btn btn-primary btn-block">
-                                    Edit Item
-                                </a>
-                                <a href={`/invoices/new/?item=${selectedItem.id}`} className="btn btn-secondary btn-block">
-                                    Add to Invoice
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            <style>{`
-        .page-container {
-          padding: 24px;
-          max-width: 1400px;
-          margin: 0 auto;
-        }
-        .page-header {
-          margin-bottom: 24px;
-        }
-        .header-content {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-        .header-content h1 {
-          margin: 0;
-          font-size: 28px;
-          font-weight: 600;
-        }
-        .btn {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          padding: 10px 18px;
-          border-radius: 8px;
-          font-weight: 500;
-          text-decoration: none;
-          cursor: pointer;
-          border: none;
-          transition: all 0.2s;
-        }
-        .btn-primary {
-          background: linear-gradient(135deg, #f59e0b, #d97706);
-          color: white;
-        }
-        .btn-primary:hover {
-          background: linear-gradient(135deg, #d97706, #b45309);
-        }
-        .btn-secondary {
-          background: #f1f5f9;
-          color: #334155;
-        }
-        .btn-secondary:hover {
-          background: #e2e8f0;
-        }
-        .btn-sm {
-          padding: 6px 12px;
-          font-size: 13px;
-        }
-        .btn-block {
-          width: 100%;
-          justify-content: center;
-        }
-        .kpi-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-          gap: 16px;
-          margin-bottom: 24px;
-        }
-        .kpi-card {
-          background: white;
-          border-radius: 12px;
-          padding: 20px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-          position: relative;
-        }
-        .kpi-label {
-          font-size: 13px;
-          color: #64748b;
-          margin-bottom: 8px;
-        }
-        .kpi-value {
-          font-size: 24px;
-          font-weight: 600;
-          color: #1e293b;
-        }
-        .kpi-value.product { color: #0ea5e9; }
-        .kpi-value.service { color: #8b5cf6; }
-        .kpi-icon {
-          position: absolute;
-          right: 20px;
-          top: 50%;
-          transform: translateY(-50%);
-          font-size: 32px;
-          opacity: 0.3;
-        }
-        .filter-bar {
-          display: flex;
-          gap: 16px;
-          margin-bottom: 20px;
-          flex-wrap: wrap;
-        }
-        .filter-group {
-          display: flex;
-          gap: 12px;
-        }
-        .search-input {
-          flex: 1;
-          max-width: 300px;
-          padding: 10px 14px;
-          border: 1px solid #e2e8f0;
-          border-radius: 8px;
-          font-size: 14px;
-        }
-        .search-input:focus {
-          outline: none;
-          border-color: #f59e0b;
-          box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1);
-        }
-        .filter-select {
-          padding: 10px 14px;
-          border: 1px solid #e2e8f0;
-          border-radius: 8px;
-          font-size: 14px;
-          background: white;
-        }
-        .content-layout {
-          display: flex;
-          gap: 24px;
-        }
-        .table-container {
-          flex: 1;
-          background: white;
-          border-radius: 12px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-          overflow: hidden;
-        }
-        .data-table {
-          width: 100%;
-          border-collapse: collapse;
-        }
-        .data-table th,
-        .data-table td {
-          padding: 14px 16px;
-          text-align: left;
-          border-bottom: 1px solid #f1f5f9;
-        }
-        .data-table th {
-          background: #f8fafc;
-          font-weight: 600;
-          font-size: 13px;
-          color: #64748b;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-        }
-        .data-table tbody tr {
-          cursor: pointer;
-          transition: background 0.15s;
-        }
-        .data-table tbody tr:hover {
-          background: #f8fafc;
-        }
-        .data-table tbody tr.selected {
-          background: #fffbeb;
-        }
-        .data-table tbody tr.archived {
-          opacity: 0.6;
-        }
-        .text-right { text-align: right; }
-        .text-center { text-align: center; }
-        .item-name {
-          font-weight: 500;
-          color: #1e293b;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-        .type-icon {
-          font-size: 16px;
-        }
-        .type-icon-large {
-          font-size: 24px;
-        }
-        .sku {
-          font-family: monospace;
-          color: #64748b;
-        }
-        .type-badge {
-          display: inline-block;
-          padding: 4px 10px;
-          border-radius: 12px;
-          font-size: 12px;
-          font-weight: 500;
-        }
-        .type-badge.product {
-          background: #e0f2fe;
-          color: #0369a1;
-        }
-        .type-badge.service {
-          background: #ede9fe;
-          color: #6d28d9;
-        }
-        .price {
-          font-weight: 600;
-          color: #059669;
-        }
-        .category {
-          color: #64748b;
-        }
-        .status-badge {
-          display: inline-block;
-          padding: 4px 10px;
-          border-radius: 12px;
-          font-size: 12px;
-          font-weight: 500;
-        }
-        .status-badge.active {
-          background: #dcfce7;
-          color: #16a34a;
-        }
-        .status-badge.archived {
-          background: #fef3c7;
-          color: #92400e;
-        }
-        .empty-state {
-          text-align: center;
-          padding: 48px;
-          color: #64748b;
-        }
-        .empty-state a {
-          color: #f59e0b;
-          text-decoration: none;
-        }
-        .detail-panel {
-          width: 360px;
-          background: white;
-          border-radius: 12px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-          overflow: hidden;
-          align-self: flex-start;
-        }
-        .panel-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 16px 20px;
-          border-bottom: 1px solid #f1f5f9;
-        }
-        .header-with-icon {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-        }
-        .panel-header h3 {
-          margin: 0;
-          font-size: 16px;
-          font-weight: 600;
-        }
-        .close-btn {
-          background: none;
-          border: none;
-          font-size: 24px;
-          cursor: pointer;
-          color: #94a3b8;
-          line-height: 1;
-        }
-        .close-btn:hover { color: #64748b; }
-        .panel-content {
-          padding: 20px;
-        }
-        .detail-section {
-          margin-bottom: 24px;
-        }
-        .detail-section h4 {
-          margin: 0 0 12px 0;
-          font-size: 12px;
-          font-weight: 600;
-          color: #64748b;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-        }
-        .detail-row {
-          display: flex;
-          justify-content: space-between;
-          padding: 8px 0;
-          border-bottom: 1px solid #f8fafc;
-        }
-        .detail-row .label {
-          color: #64748b;
-          font-size: 14px;
-        }
-        .detail-row .value {
-          font-weight: 500;
-          font-size: 14px;
-        }
-        .value.archived { color: #f59e0b; }
-        .value.active { color: #059669; }
-        .description-text {
-          margin: 0;
-          font-size: 14px;
-          color: #475569;
-          line-height: 1.5;
-        }
-        .panel-actions {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-        }
-        .loading-spinner, .error-state {
-          text-align: center;
-          padding: 48px;
-          color: #64748b;
-        }
-        .error-state { color: #dc2626; }
-        .action-buttons {
-          display: flex;
-          gap: 8px;
-          justify-content: center;
-        }
-      `}</style>
+      <div className="min-h-screen w-full bg-slate-50/80 px-4 pb-12 pt-20 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-900 border-t-transparent" />
+          <p className="text-sm text-slate-500">Loading products &amp; services...</p>
         </div>
+      </div>
     );
-};
+  }
 
-export default ProductsPage;
+  if (error) {
+    return (
+      <div className="min-h-screen w-full bg-slate-50/80 px-4 pb-12 pt-20 flex items-center justify-center">
+        <div className="rounded-2xl border border-red-100 bg-red-50 p-6 text-center max-w-md">
+          <p className="text-sm font-medium text-red-700">{error}</p>
+          <button
+            onClick={() => { setError(null); fetchData(); }}
+            className="mt-4 rounded-lg bg-red-600 px-4 py-2 text-xs font-medium text-white hover:bg-red-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen w-full bg-slate-50/80 px-4 pb-12 pt-6 sm:px-6 lg:px-8 font-sans">
+      <div className="mx-auto max-w-7xl space-y-8">
+        {/* Header */}
+        <header className="flex flex-wrap items-center justify-between gap-6">
+          <div className="space-y-1">
+            <div className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">
+              Catalog
+            </div>
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-bold tracking-tight text-slate-900">Products &amp; Services</h1>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-900 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm">
+                <Sparkles className="h-2.5 w-2.5" />
+                Live
+              </span>
+            </div>
+            <p className="text-sm text-slate-500 max-w-xl leading-relaxed">
+              Central place to manage what you sell, how you price it, and how it flows into your
+              ledger and tax engine.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <a
+              href="/items/new/?type=service"
+              className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-5 py-2.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition-all hover:scale-[1.02] active:scale-[0.98]"
+            >
+              <Wrench className="mr-2 h-3.5 w-3.5" />
+              New Service
+            </a>
+            <a
+              href="/items/new/?type=product"
+              className="inline-flex items-center justify-center rounded-full bg-slate-900 px-5 py-2.5 text-xs font-semibold text-white shadow-lg shadow-slate-900/10 hover:bg-slate-800 transition-all hover:scale-[1.02] active:scale-[0.98]"
+            >
+              <Plus className="mr-2 h-3.5 w-3.5" />
+              New Product
+            </a>
+          </div>
+        </header>
+
+        {/* Metrics Cards */}
+        <section className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="flex flex-col gap-2 rounded-[1.5rem] border border-slate-100 bg-white p-6 shadow-sm hover:shadow-md transition-shadow">
+            <div className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">
+              Active Items
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-bold text-slate-900 tabular-nums tracking-tight">
+                {stats.activeCount}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 font-medium">
+              {stats.productCount} products · {stats.serviceCount} services
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 rounded-[1.5rem] border border-slate-100 bg-white p-6 shadow-sm hover:shadow-md transition-shadow">
+            <div className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">
+              Avg. Price
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-bold text-slate-900 tabular-nums tracking-tight">
+                {formatMoney(stats.avgPrice, currency)}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 font-medium">Across all active items</p>
+          </div>
+          <div className="flex flex-col gap-2 rounded-[1.5rem] border border-slate-100 bg-white p-6 shadow-sm hover:shadow-md transition-shadow">
+            <div className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">
+              Services
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-bold text-slate-900 tabular-nums tracking-tight">
+                {stats.serviceCount}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 font-medium">Subscriptions or retainers</p>
+          </div>
+          <div className="flex flex-col gap-2 rounded-[1.5rem] border border-slate-100 bg-white p-6 shadow-sm hover:shadow-md transition-shadow">
+            <div className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">
+              Catalog Health
+            </div>
+            <div className="mt-1 flex items-center gap-2">
+              <span className="inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-emerald-100" />
+              <span className="text-sm font-semibold text-emerald-700">Ready for invoicing</span>
+            </div>
+            <p className="text-xs text-slate-500 font-medium mt-0.5">
+              Accounts &amp; pricing set.
+            </p>
+          </div>
+        </section>
+
+        {/* Main Content */}
+        <section className="grid gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)] xl:grid-cols-[minmax(0,2.5fr)_minmax(0,1.2fr)]">
+          {/* Items List */}
+          <div className="flex flex-col gap-5 rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm">
+            {/* Filters */}
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-2 rounded-xl bg-slate-50/50 p-1.5 ring-1 ring-slate-100">
+                {(["all", "product", "service"] as const).map((kind) => (
+                  <button
+                    key={kind}
+                    type="button"
+                    onClick={() => setActiveKind(kind)}
+                    className={`rounded-lg px-4 py-1.5 text-xs font-semibold capitalize transition-all ${activeKind === kind
+                        ? "bg-white text-slate-900 shadow-sm ring-1 ring-black/5"
+                        : "text-slate-500 hover:text-slate-700 hover:bg-slate-100/50"
+                      }`}
+                  >
+                    {kind === "all" ? "All Items" : `${kind}s`}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex flex-1 items-center justify-end gap-3">
+                <div className="flex items-center rounded-xl border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-600 shadow-sm">
+                  <Filter className="mr-2 h-3.5 w-3.5 text-slate-400" />
+                  <div className="flex gap-1">
+                    {(["active", "archived"] as const).map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => setStatusFilter(s === statusFilter ? "all" : s)}
+                        className={`rounded-lg px-2.5 py-1 capitalize transition-colors ${statusFilter === s
+                            ? "bg-slate-100 text-slate-900 font-medium"
+                            : "text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+                          }`}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="relative w-full max-w-[260px]">
+                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
+                    <Search className="h-4 w-4 text-slate-400" />
+                  </div>
+                  <input
+                    type="text"
+                    className="block w-full rounded-xl border border-slate-200 bg-white py-2 pl-10 pr-3 text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-100 transition-shadow"
+                    placeholder="Search name, SKU, category..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Table */}
+            <div className="overflow-hidden rounded-2xl border border-slate-100">
+              <div className="hidden grid-cols-[minmax(0,2.5fr)_minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,0.8fr)] bg-slate-50/80 px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400 md:grid border-b border-slate-100">
+                <div>Item Details</div>
+                <div>Ledger Account</div>
+                <div className="text-right">Price</div>
+                <div className="text-right pr-2">Usage</div>
+              </div>
+              <div className="divide-y divide-slate-100 bg-white">
+                {items.length === 0 ? (
+                  <div className="px-6 py-16 text-center">
+                    <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-slate-50 text-slate-400">
+                      <Search className="h-6 w-6" />
+                    </div>
+                    <h3 className="text-sm font-semibold text-slate-900">No items found</h3>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Try adjusting your filters or search query to find what you're looking for.
+                    </p>
+                    <a
+                      href="/items/new/"
+                      className="mt-4 inline-flex items-center rounded-lg bg-slate-900 px-4 py-2 text-xs font-medium text-white hover:bg-slate-800"
+                    >
+                      <Plus className="mr-1.5 h-3.5 w-3.5" />
+                      Add your first item
+                    </a>
+                  </div>
+                ) : null}
+                {items.map((item) => {
+                  const isSelected = selected?.id === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setSelectedId(item.id)}
+                      className={`flex w-full flex-col gap-4 px-6 py-5 text-left transition-all md:grid md:grid-cols-[minmax(0,2.5fr)_minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,0.8fr)] md:items-center md:gap-6 ${isSelected
+                          ? "bg-slate-50 relative z-10 ring-1 ring-inset ring-slate-200"
+                          : "hover:bg-slate-50/60"
+                        }`}
+                    >
+                      {/* Item Details */}
+                      <div className="flex items-start gap-4">
+                        <div className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border text-slate-500 shadow-sm transition-colors ${isSelected ? "bg-white border-slate-200" : "bg-slate-50 border-slate-100"
+                          }`}>
+                          {kindIcon(item.kind)}
+                        </div>
+                        <div className="min-w-0 space-y-1.5">
+                          <div className="flex items-center gap-2">
+                            <span className="truncate text-sm font-bold text-slate-900 leading-none">
+                              {item.name}
+                            </span>
+                            {item.status === "archived" && (
+                              <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-500 border border-slate-200">
+                                Archived
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2 text-[11px] font-medium text-slate-500">
+                            <span className="flex items-center gap-1 rounded-md bg-slate-100/80 px-2 py-0.5 font-mono text-slate-600 border border-slate-200/50">
+                              {item.code}
+                            </span>
+                            {item.category && (
+                              <span className="flex items-center gap-1 text-slate-400">
+                                <span className="h-0.5 w-0.5 rounded-full bg-slate-300" />
+                                {item.category}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Ledger Account */}
+                      <div className="flex flex-col gap-1.5">
+                        <div className="text-[11px] font-medium text-slate-600 truncate flex items-center gap-1.5" title={item.incomeAccountLabel}>
+                          <div className="h-1.5 w-1.5 rounded-full bg-indigo-400" />
+                          {item.incomeAccountLabel || <span className="text-slate-400 italic">No account map</span>}
+                        </div>
+                      </div>
+
+                      {/* Price */}
+                      <div className="flex items-center justify-end md:block md:text-right">
+                        <div className="text-sm font-bold text-slate-900 tabular-nums">
+                          {formatMoney(item.price, currency)}
+                        </div>
+                        {item.unitLabel && (
+                          <div className="text-[10px] font-medium text-slate-400">
+                            per {item.unitLabel}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Usage */}
+                      <div className="flex items-center justify-end pr-2 md:block md:text-right">
+                        <span className="text-xs font-semibold text-slate-700 tabular-nums">
+                          {item.usageCount || 0}
+                        </span>
+                        <div className="text-[10px] font-medium text-slate-400">uses</div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Right Sidebar */}
+          <aside className="flex flex-col gap-6">
+            {/* Companion Panel */}
+            <div className="relative rounded-[2rem] bg-white p-1.5 ring-1 ring-slate-200 shadow-[0_0_60px_-15px_rgba(99,102,241,0.15)]">
+              <div className="relative z-10 flex flex-col gap-5 rounded-[1.7rem] border border-white/60 bg-white p-6">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <div className="text-[10px] font-bold tracking-[0.2em] text-slate-400 uppercase">
+                      Catalog Companion
+                    </div>
+                    <p className="mt-1 text-xs font-medium text-slate-600">
+                      Pricing &amp; account signals.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 transition-colors"
+                  >
+                    <ArrowUpRight className="h-4 w-4" />
+                  </button>
+                </div>
+
+                {selected ? (
+                  <div className="flex flex-col gap-5 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+                    <div className="flex items-start gap-4">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-sm font-bold text-white shadow-md">
+                        {selected.name.slice(0, 2).toUpperCase()}
+                      </div>
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex items-center gap-2">
+                          <h3 className="truncate text-sm font-bold text-slate-900">
+                            {selected.name}
+                          </h3>
+                        </div>
+                        <div className="flex items-center gap-2 text-[10px] font-medium text-slate-500">
+                          <span className="capitalize">{selected.kind}</span>
+                          <span className="h-0.5 w-0.5 rounded-full bg-slate-300" />
+                          <span>{selected.code}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 py-4 border-y border-slate-50">
+                      <div>
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Pricing</div>
+                        <div className="mt-1 text-base font-bold text-slate-900">
+                          {formatMoney(selected.price, currency)}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Uses</div>
+                        <div className="mt-1 text-sm font-medium text-slate-600">
+                          {selected.usageCount || 0} invoices
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div>
+                        <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+                          <span>Ledger Account</span>
+                        </div>
+                        <div className="text-xs font-medium text-slate-700 bg-slate-50 px-3 py-2 rounded-xl border border-slate-100 truncate flex items-center gap-2">
+                          <div className="h-1.5 w-1.5 rounded-full bg-indigo-400" />
+                          {selected.incomeAccountLabel || "Unmapped"}
+                        </div>
+                      </div>
+                      {selected.expenseAccountLabel && (
+                        <div>
+                          <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+                            <span>Expense Account</span>
+                          </div>
+                          <div className="text-xs font-medium text-slate-700 bg-slate-50 px-3 py-2 rounded-xl border border-slate-100 truncate flex items-center gap-2">
+                            <div className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                            {selected.expenseAccountLabel}
+                          </div>
+                        </div>
+                      )}
+                      {selected.category && (
+                        <div>
+                          <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+                            <span>Category</span>
+                          </div>
+                          <div className="inline-flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 border border-emerald-100 w-full">
+                            <Check className="h-3.5 w-3.5" />
+                            {selected.category}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="pt-2">
+                      <a
+                        href={`/items/${selected.id}/edit/`}
+                        className="block w-full rounded-xl bg-slate-900 py-3 text-center text-xs font-bold text-white hover:bg-slate-800 transition-colors shadow-lg shadow-slate-900/10"
+                      >
+                        Edit Item Details
+                      </a>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+                    <Tag className="mb-3 h-6 w-6 text-slate-300" />
+                    <p className="text-xs font-medium text-slate-500">
+                      Select an item to see details.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Quick Tips */}
+            <div className="rounded-[2rem] border border-slate-100 bg-white p-6 text-[11px] text-slate-600 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <span className="font-bold uppercase tracking-[0.15em] text-slate-400 text-[10px]">
+                  Quick Tips
+                </span>
+                <Sparkles className="h-4 w-4 text-amber-400" />
+              </div>
+              <ul className="space-y-3">
+                <li className="flex gap-3 items-start">
+                  <div className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-slate-400" />
+                  <span className="leading-relaxed">Link each item to an <strong>income account</strong> for accurate P&L tracking.</span>
+                </li>
+                <li className="flex gap-3 items-start">
+                  <div className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-slate-400" />
+                  <span className="leading-relaxed">Use clear SKUs to align invoices with inventory.</span>
+                </li>
+                <li className="flex gap-3 items-start">
+                  <div className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-slate-400" />
+                  <span className="leading-relaxed">Archive old items instead of deleting to preserve historical data.</span>
+                </li>
+              </ul>
+            </div>
+          </aside>
+        </section>
+      </div>
+    </div>
+  );
+}
