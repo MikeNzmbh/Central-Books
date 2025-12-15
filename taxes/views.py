@@ -16,6 +16,23 @@ def _parse_date(value: str, default: date) -> date:
         return default
 
 
+def _wants_json(request: HttpRequest) -> bool:
+    """
+    Content negotiation for report endpoints that can return HTML or JSON.
+
+    Many clients send Accept like "application/json, text/plain, */*" (axios) or "*/*" (fetch),
+    so avoid strict equality checks.
+    """
+    if (request.GET.get("format") or "").lower() == "json":
+        return True
+    accept = (request.headers.get("Accept") or "").lower()
+    if "application/json" in accept:
+        return True
+    if accept.strip() == "*/*":
+        return True
+    return False
+
+
 @login_required
 def gst_hst_report(request: HttpRequest) -> HttpResponse:
     business = get_current_business(request.user)
@@ -48,7 +65,7 @@ def gst_hst_report(request: HttpRequest) -> HttpResponse:
         "details": summary["details"],
     }
 
-    if request.headers.get("Accept") == "application/json" or request.GET.get("format") == "json":
+    if _wants_json(request):
         return JsonResponse(payload)
 
     return render(
@@ -89,7 +106,7 @@ def us_sales_tax_report(request: HttpRequest) -> HttpResponse:
         "disclaimer": summary["disclaimer"],
     }
 
-    if request.headers.get("Accept") == "application/json" or request.GET.get("format") == "json":
+    if _wants_json(request):
         return JsonResponse(payload)
 
     return render(

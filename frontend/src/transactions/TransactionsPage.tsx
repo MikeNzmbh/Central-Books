@@ -477,13 +477,16 @@ export const TransactionsPageContent: React.FC<{ kind: TransactionKind }> = ({ k
                                 </span>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
-                                <div className="flex flex-col rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-100 transition-all hover:shadow-md">
+                                <div className="flex flex-col rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-100 transition-all hover:shadow-md min-w-0">
                                     <div className="flex justify-between">
                                         <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
                                             {kind === "invoice" ? "Revenue YTD" : "Expenses YTD"}
                                         </span>
                                     </div>
-                                    <span className="mt-3 text-2xl font-bold tracking-tight text-slate-900">
+                                    <span className="mt-3 text-xl font-bold tracking-tight text-slate-900 truncate" title={formatCurrency(
+                                        kind === "invoice" ? (stats.revenueYtd || 0) : (stats.expensesYtd || 0),
+                                        currency
+                                    )}>
                                         {formatCurrency(
                                             kind === "invoice" ? (stats.revenueYtd || 0) : (stats.expensesYtd || 0),
                                             currency

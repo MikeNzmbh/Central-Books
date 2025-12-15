@@ -12,6 +12,7 @@ from django.http import HttpResponseBadRequest, JsonResponse
 from django.utils.dateparse import parse_date
 
 from core.utils import get_current_business
+from core.models import Business
 from taxes.models import TaxComponent, TaxJurisdiction, TaxProductRule, TaxRate
 
 
@@ -19,6 +20,20 @@ def _require_staff(request):
     if not (request.user.is_staff or request.user.is_superuser):
         return JsonResponse({"error": "Forbidden"}, status=403)
     return None
+
+
+def _get_staff_target_business(request):
+    business = get_current_business(request.user)
+    if business:
+        return business
+    raw = request.POST.get("business_id") or request.GET.get("business_id")
+    if raw in (None, ""):
+        return None
+    try:
+        business_id = int(raw)
+    except Exception:
+        return None
+    return Business.objects.filter(id=business_id).first()
 
 
 def _boolish(value: Any) -> bool:
@@ -468,6 +483,8 @@ def _preview(import_type: str, *, business, rows: List[Dict[str, Any]]) -> List[
     if import_type == "jurisdictions":
         return _preview_jurisdictions(rows)
     if import_type == "rates":
+        if not business:
+            raise ValueError("business_id is required for rates import.")
         return _preview_rates(business=business, rows=rows)
     if import_type == "product_rules":
         return _preview_product_rules(rows)
@@ -646,6 +663,8 @@ def _apply(import_type: str, *, business, preview_rows: List[PreviewRow]) -> Tup
     if import_type == "jurisdictions":
         return _apply_jurisdictions(preview_rows)
     if import_type == "rates":
+        if not business:
+            raise ValueError("business_id is required for rates import.")
         return _apply_rates(preview_rows, business=business)
     if import_type == "product_rules":
         return _apply_product_rules(preview_rows)
@@ -654,9 +673,6 @@ def _apply(import_type: str, *, business, preview_rows: List[PreviewRow]) -> Tup
 
 @login_required
 def api_tax_catalog_import_preview(request):
-    business = get_current_business(request.user)
-    if not business:
-        return JsonResponse({"error": "No business context"}, status=400)
     forbidden = _require_staff(request)
     if forbidden:
         return forbidden
@@ -666,6 +682,15 @@ def api_tax_catalog_import_preview(request):
     import_type = (request.POST.get("import_type") or "").strip()
     if import_type not in ("jurisdictions", "rates", "product_rules"):
         return JsonResponse({"error": "import_type must be jurisdictions, rates, or product_rules."}, status=400)
+
+    business = None
+    if import_type == "rates":
+        business = _get_staff_target_business(request)
+        if not business:
+            return JsonResponse(
+                {"error": "business_id is required for rates import (staff has no active business context)."},
+                status=400,
+            )
 
     fmt, rows, err = _parse_payload_rows(request.FILES.get("file"))
     if err:
@@ -685,9 +710,6 @@ def api_tax_catalog_import_preview(request):
 
 @login_required
 def api_tax_catalog_import_apply(request):
-    business = get_current_business(request.user)
-    if not business:
-        return JsonResponse({"error": "No business context"}, status=400)
     forbidden = _require_staff(request)
     if forbidden:
         return forbidden
@@ -697,6 +719,15 @@ def api_tax_catalog_import_apply(request):
     import_type = (request.POST.get("import_type") or "").strip()
     if import_type not in ("jurisdictions", "rates", "product_rules"):
         return JsonResponse({"error": "import_type must be jurisdictions, rates, or product_rules."}, status=400)
+
+    business = None
+    if import_type == "rates":
+        business = _get_staff_target_business(request)
+        if not business:
+            return JsonResponse(
+                {"error": "business_id is required for rates import (staff has no active business context)."},
+                status=400,
+            )
 
     fmt, rows, err = _parse_payload_rows(request.FILES.get("file"))
     if err:

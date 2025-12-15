@@ -8,6 +8,7 @@ from django.http import JsonResponse, HttpResponseBadRequest
 from django.utils.dateparse import parse_date
 
 from core.utils import get_current_business
+from core.models import Business
 from taxes.models import TaxJurisdiction, TaxProductRule, TaxRate, TaxComponent, TaxGroup
 
 
@@ -23,6 +24,29 @@ def _parse_int(value, *, default: int, min_value: int, max_value: int) -> int:
     except Exception:
         return default
     return max(min_value, min(max_value, parsed))
+
+
+def _get_staff_target_business(request, *, payload: dict | None = None):
+    """
+    Staff-only catalog endpoints sometimes operate on business-scoped models
+    (TaxGroup/TaxComponent/TaxRate). Staff users may not have a current business
+    context, so allow explicitly targeting a business via `business_id`.
+    """
+    business = get_current_business(request.user)
+    if business:
+        return business
+
+    raw = None
+    if isinstance(payload, dict):
+        raw = payload.get("business_id")
+    raw = raw or request.GET.get("business_id")
+    if raw in (None, ""):
+        return None
+    try:
+        business_id = int(raw)
+    except Exception:
+        return None
+    return Business.objects.filter(id=business_id).first()
 
 
 def _serialize_jurisdiction(j: TaxJurisdiction) -> dict:
@@ -116,9 +140,6 @@ def _check_product_rule_overlap(*, jurisdiction: TaxJurisdiction, product_code: 
 
 @login_required
 def api_tax_catalog_jurisdictions(request):
-    business = get_current_business(request.user)
-    if not business:
-        return JsonResponse({"error": "No business context"}, status=400)
     forbidden = _require_staff(request)
     if forbidden:
         return forbidden
@@ -208,9 +229,6 @@ def api_tax_catalog_jurisdictions(request):
 
 @login_required
 def api_tax_catalog_jurisdiction_detail(request, code: str):
-    business = get_current_business(request.user)
-    if not business:
-        return JsonResponse({"error": "No business context"}, status=400)
     forbidden = _require_staff(request)
     if forbidden:
         return forbidden
@@ -272,12 +290,12 @@ def api_tax_catalog_jurisdiction_detail(request, code: str):
 
 @login_required
 def api_tax_catalog_groups(request):
-    business = get_current_business(request.user)
-    if not business:
-        return JsonResponse({"error": "No business context"}, status=400)
     forbidden = _require_staff(request)
     if forbidden:
         return forbidden
+    business = _get_staff_target_business(request)
+    if not business:
+        return JsonResponse({"error": "business_id is required (staff has no active business context)."}, status=400)
 
     if request.method != "GET":
         return HttpResponseBadRequest("GET required")
@@ -298,12 +316,12 @@ def api_tax_catalog_groups(request):
 
 @login_required
 def api_tax_catalog_group_detail(request, group_id):
-    business = get_current_business(request.user)
-    if not business:
-        return JsonResponse({"error": "No business context"}, status=400)
     forbidden = _require_staff(request)
     if forbidden:
         return forbidden
+    business = _get_staff_target_business(request)
+    if not business:
+        return JsonResponse({"error": "business_id is required (staff has no active business context)."}, status=400)
 
     group = (
         TaxGroup.objects.filter(business=business, id=group_id)
@@ -346,12 +364,12 @@ def api_tax_catalog_group_detail(request, group_id):
 
 @login_required
 def api_tax_catalog_rates(request):
-    business = get_current_business(request.user)
-    if not business:
-        return JsonResponse({"error": "No business context"}, status=400)
     forbidden = _require_staff(request)
     if forbidden:
         return forbidden
+    business = _get_staff_target_business(request)
+    if not business:
+        return JsonResponse({"error": "business_id is required (staff has no active business context)."}, status=400)
 
     if request.method == "GET":
         jurisdiction_code = (request.GET.get("jurisdiction_code") or "").strip().upper()
@@ -460,12 +478,12 @@ def api_tax_catalog_rates(request):
 
 @login_required
 def api_tax_catalog_rate_detail(request, rate_id):
-    business = get_current_business(request.user)
-    if not business:
-        return JsonResponse({"error": "No business context"}, status=400)
     forbidden = _require_staff(request)
     if forbidden:
         return forbidden
+    business = _get_staff_target_business(request)
+    if not business:
+        return JsonResponse({"error": "business_id is required (staff has no active business context)."}, status=400)
 
     rate = TaxRate.objects.select_related("component", "component__jurisdiction").filter(id=rate_id, component__business=business).first()
     if not rate:
@@ -555,9 +573,6 @@ def api_tax_catalog_rate_detail(request, rate_id):
 
 @login_required
 def api_tax_catalog_product_rules(request):
-    business = get_current_business(request.user)
-    if not business:
-        return JsonResponse({"error": "No business context"}, status=400)
     forbidden = _require_staff(request)
     if forbidden:
         return forbidden
@@ -663,9 +678,6 @@ def api_tax_catalog_product_rules(request):
 
 @login_required
 def api_tax_catalog_product_rule_detail(request, rule_id):
-    business = get_current_business(request.user)
-    if not business:
-        return JsonResponse({"error": "No business context"}, status=400)
     forbidden = _require_staff(request)
     if forbidden:
         return forbidden

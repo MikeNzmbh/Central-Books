@@ -36,6 +36,17 @@ class TaxCatalogApiTests(TestCase):
         resp = self.client_non_staff.get("/api/tax/catalog/jurisdictions/")
         self.assertEqual(resp.status_code, 403)
 
+    def test_staff_without_business_can_access_global_catalog_endpoints(self):
+        staff = User.objects.create_user(username="staff_nobiz", password="pass", is_staff=True)
+        client = Client()
+        client.force_login(staff)
+
+        resp = client.get("/api/tax/catalog/jurisdictions/?limit=5")
+        self.assertEqual(resp.status_code, 200)
+
+        resp = client.get("/api/tax/catalog/product-rules/?limit=5")
+        self.assertEqual(resp.status_code, 200)
+
     def test_jurisdiction_list_filters(self):
         TaxJurisdiction.objects.get_or_create(
             code="US-CA",

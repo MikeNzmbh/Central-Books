@@ -3556,7 +3556,7 @@ def bank_feed_match_invoice(request, bank_account_id, tx_id):
                     invoice.status = Invoice.Status.PAID
                     invoice.save()
                 payment_entry = (
-                    invoice.journalentry_set.filter(description__icontains="Invoice paid")  # type: ignore[attr-defined]
+                    invoice.posted_journal_entry.filter(description__icontains="Invoice paid")
                     .order_by("-date", "-id")
                     .first()
                 )
@@ -4299,7 +4299,7 @@ def api_banking_feed_match_invoice_api(request, tx_id):
             invoice.save()
 
         payment_entry = (
-            invoice.journalentry_set.filter(description__icontains="Invoice paid")  # type: ignore[attr-defined]
+            invoice.posted_journal_entry.filter(description__icontains="Invoice paid")
             .order_by("-date", "-id")
             .first()
         )
@@ -4368,7 +4368,7 @@ def api_banking_feed_match_expense_api(request, tx_id):
 
         journal_entry = post_expense_paid(expense)
         if journal_entry is None:
-            journal_entry = expense.journalentry_set.order_by("-date", "-id").first()  # type: ignore[attr-defined]
+            journal_entry = expense.posted_journal_entry.order_by("-date", "-id").first()
 
         expense.status = Expense.Status.PAID
         expense.paid_date = bank_tx.date
@@ -4721,7 +4721,7 @@ def bank_feed_match_expense(request, bank_account_id, tx_id):
         journal_entry = post_expense_paid(expense)
         if journal_entry is None:
             journal_entry = (
-                expense.journalentry_set.order_by("-date", "-id").first()  # type: ignore[attr-defined]
+                expense.posted_journal_entry.order_by("-date", "-id").first()
             )
 
         expense.status = Expense.Status.PAID

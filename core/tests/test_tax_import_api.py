@@ -38,6 +38,19 @@ class TaxImportApiTests(TestCase):
         )
         self.assertEqual(resp.status_code, 403)
 
+    def test_staff_without_business_can_preview_jurisdictions_import(self):
+        staff = User.objects.create_user(username="import_staff_nobiz", password="pass", is_staff=True)
+        client = Client()
+        client.force_login(staff)
+
+        content = b"code,name,jurisdiction_type,country_code\nCA-ON,Ontario,PROVINCIAL,CA\n"
+        upload = SimpleUploadedFile("jur.csv", content, content_type="text/csv")
+        resp = client.post(
+            "/api/tax/catalog/import/preview/",
+            data={"import_type": "jurisdictions", "file": upload},
+        )
+        self.assertEqual(resp.status_code, 200)
+
     def test_preview_jurisdictions_csv_valid_and_invalid(self):
         TaxJurisdiction.objects.get_or_create(
             code="CA",

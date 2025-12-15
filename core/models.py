@@ -648,8 +648,6 @@ class Invoice(models.Model):
     def _recalc_payment_state(self):
         total = self.grand_total or (self.net_total + self.tax_total)
         paid = self.amount_paid or Decimal("0.00")
-        paid = max(Decimal("0.00"), min(paid, total))
-        self.amount_paid = paid
 
         allocations_total = Decimal("0.00")
         if self.pk and getattr(self, "business_id", None):
@@ -673,10 +671,22 @@ class Invoice(models.Model):
             except Exception:
                 allocations_total = Decimal("0.00")
 
+        # Preserve existing behavior: callers sometimes set status=PAID without setting
+        # amount_paid (e.g., bank-feed matching). Treat the invoice as fully settled,
+        # but only attribute the non-allocation remainder to cash.
+        if self.status == self.Status.PAID and paid < total:
+            paid = max(paid, total - allocations_total)
+
+        paid = max(Decimal("0.00"), min(paid, total))
+        self.amount_paid = paid
+
         self.balance = max(Decimal("0.00"), (total - paid - allocations_total))
         if self.status == self.Status.VOID:
             return
-        if self.status == self.Status.DRAFT:
+
+        # Preserve draft semantics only while the invoice is truly unsettled.
+        # If any payment/credit allocation has been applied, promote DRAFT → PARTIAL/PAID.
+        if self.status == self.Status.DRAFT and paid == 0 and allocations_total == 0:
             return
         if self.balance == 0:
             self.status = self.Status.PAID
@@ -701,9 +711,9 @@ class Invoice(models.Model):
 
         prev_status = getattr(self, "_original_status", None)
 
-        if self.status in (self.Status.SENT, self.Status.PAID):
+        if self.status in (self.Status.SENT, self.Status.PARTIAL, self.Status.PAID):
             post_invoice_sent(self)
-        elif prev_status in (self.Status.SENT, self.Status.PAID):
+        elif prev_status in (self.Status.SENT, self.Status.PARTIAL, self.Status.PAID):
             remove_invoice_sent_entry(self)
 
         if self.status == self.Status.PAID:

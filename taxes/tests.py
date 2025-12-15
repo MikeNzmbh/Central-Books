@@ -133,6 +133,63 @@ class TaxEngineTests(TestCase):
         self.assertEqual(result["total_tax_home_currency_cad"], Decimal("15.60"))
 
 
+class TaxReportAcceptHeaderTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="taxreport", password="pass")
+        self.business = Business.objects.create(
+            name="Tax Report Co",
+            currency="CAD",
+            owner_user=self.user,
+        )
+        seed_canadian_defaults(self.business)
+        self.client.force_login(self.user)
+
+    def test_gst_hst_report_accept_application_json_list_returns_json(self):
+        resp = self.client.get(
+            "/reports/tax/gst-hst/",
+            HTTP_ACCEPT="application/json, text/plain, */*",
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("application/json", resp["Content-Type"])
+        data = resp.json()
+        self.assertIn("summary", data)
+        self.assertIn("details", data)
+
+    def test_gst_hst_report_accept_wildcard_returns_json(self):
+        resp = self.client.get(
+            "/reports/tax/gst-hst/",
+            HTTP_ACCEPT="*/*",
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("application/json", resp["Content-Type"])
+
+    def test_gst_hst_report_accept_html_returns_html(self):
+        resp = self.client.get(
+            "/reports/tax/gst-hst/",
+            HTTP_ACCEPT="text/html,application/xhtml+xml",
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("text/html", resp["Content-Type"])
+
+    def test_us_sales_tax_report_accept_application_json_list_returns_json(self):
+        resp = self.client.get(
+            "/reports/tax/us-sales/",
+            HTTP_ACCEPT="application/json, text/plain, */*",
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("application/json", resp["Content-Type"])
+        data = resp.json()
+        self.assertIn("jurisdictions", data)
+
+    def test_us_sales_tax_report_accept_html_returns_html(self):
+        resp = self.client.get(
+            "/reports/tax/us-sales/",
+            HTTP_ACCEPT="text/html,application/xhtml+xml",
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("text/html", resp["Content-Type"])
+
+
 class TaxLifecycleIntegrationTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="flowuser", password="pass")

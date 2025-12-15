@@ -98,3 +98,4 @@ jobs:
         run: |
           cd frontend
           echo "✅ Frontend lint passed (add npm run lint if configured)"
+# CI trigger - 20251215110609
