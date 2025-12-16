@@ -3,7 +3,8 @@ from __future__ import annotations
 import json
 import logging
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
-from typing import Any, Callable
+from decimal import Decimal
+from typing import Any, Callable, Literal, TypedDict
 
 from django.conf import settings
 from pydantic import BaseModel, Field, ValidationError, field_validator
@@ -854,3 +855,162 @@ Return ONLY this JSON format:
     except Exception as exc:
         logger.warning("Surface subtitles generation failed: %s", exc)
         return None
+
+
+# ---------------------------------------------------------------------------
+# HIGH-RISK CRITIC (Generator + Critic pattern for >$5k or bulk adjustments)
+# ---------------------------------------------------------------------------
+
+class HighRiskAuditResult(TypedDict):
+    verdict: Literal["ok", "warn", "fail"]
+    reasons: list[str]
+    raw_model_response: Any | None
+    called_llm: bool
+
+
+def _coerce_business(target) -> Any:
+    if hasattr(target, "business"):
+        return getattr(target, "business")
+    if hasattr(target, "bank_account"):
+        try:
+            return target.bank_account.business  # type: ignore[attr-defined]
+        except Exception:
+            return None
+    return None
+
+
+def _persist_high_risk_audit(
+    *,
+    target,
+    business,
+    result: HighRiskAuditResult,
+    amount: Decimal,
+    currency: str,
+    is_bulk_adjustment: bool,
+):
+    try:
+        from core.models import HighRiskAudit  # Local import to avoid circulars
+    except Exception:
+        return
+
+    if not business:
+        return
+
+    raw_payload = result.get("raw_model_response")
+    if raw_payload and not isinstance(raw_payload, (dict, list)):
+        raw_payload = {"raw": raw_payload}
+    HighRiskAudit.objects.create(
+        business=business,
+        target=target,
+        amount=amount,
+        currency=currency or getattr(business, "currency", "") or "USD",
+        is_bulk_adjustment=is_bulk_adjustment,
+        verdict=result.get("verdict") or "warn",
+        reasons=result.get("reasons") or [],
+        raw_model_response=raw_payload or {},
+        model_profile=LLMProfile.HEAVY_REASONING.value,
+    )
+
+
+def audit_high_risk_transaction(
+    *,
+    amount: float | Decimal,
+    currency: str,
+    accounts: list[str] | None = None,
+    memo: str | None = None,
+    source: str | None = None,
+    is_bulk_adjustment: bool = False,
+    attach_to: Any | None = None,
+    llm_client: LLMCallable | None = None,
+    timeout_seconds: int | None = None,
+) -> HighRiskAuditResult:
+    """
+    Audit a high-risk transaction. Calls the LLM only when amount > $5k or flagged bulk.
+
+    Returns:
+        HighRiskAuditResult with verdict ok|warn|fail, reasons[], raw_model_response, called_llm flag.
+        Persists to HighRiskAudit when attach_to is provided and audit is triggered.
+    """
+    try:
+        amount_val = Decimal(str(amount or 0))
+    except Exception:
+        amount_val = Decimal("0")
+
+    should_call_llm = is_bulk_adjustment or abs(amount_val) > Decimal("5000")
+
+    if not should_call_llm:
+        return {
+            "verdict": "ok",
+            "reasons": ["Below high-risk threshold; critic not run."],
+            "raw_model_response": None,
+            "called_llm": False,
+        }
+
+    payload = {
+        "amount": float(amount_val),
+        "currency": currency,
+        "accounts": accounts or [],
+        "memo": memo or "",
+        "source": source or "",
+        "is_bulk_adjustment": is_bulk_adjustment,
+    }
+
+    system_prompt = (
+        "Audit this high-risk transaction. "
+        "Return JSON with fields: verdict (ok|warn|fail) and reasons (array of short strings). "
+        "Do not suggest posting actions or move money."
+    )
+
+    prompt = f"{system_prompt}\n\nDATA:\n{json.dumps(payload, default=str)}"
+
+    raw = _invoke_llm(
+        prompt,
+        llm_client=llm_client,
+        timeout_seconds=timeout_seconds,
+        profile=LLMProfile.HEAVY_REASONING,
+        context_tag="high_risk_audit",
+    )
+
+    verdict = "ok"
+    reasons: list[str] = []
+    parsed_payload: Any | None = None
+
+    if raw:
+        try:
+            parsed = json.loads(_strip_markdown_json(raw))
+            verdict = str(parsed.get("verdict", "ok")).lower()
+            reasons = parsed.get("reasons") or []
+            parsed_payload = parsed
+        except Exception:
+            verdict = "warn"
+            reasons = ["Critic returned a non-JSON response."]
+            parsed_payload = {"raw": raw}
+    else:
+        verdict = "warn"
+        reasons = ["Critic unavailable; please review manually."]
+
+    if verdict not in {"ok", "warn", "fail"}:
+        verdict = "warn"
+
+    result: HighRiskAuditResult = {
+        "verdict": verdict,
+        "reasons": reasons or ["No reasons provided."],
+        "raw_model_response": parsed_payload,
+        "called_llm": True,
+    }
+
+    if attach_to is not None:
+        business = _coerce_business(attach_to)
+        # Avoid duplicate audits if already present on the target
+        if hasattr(attach_to, "high_risk_audits") and getattr(attach_to, "high_risk_audits").exists():
+            return result
+        _persist_high_risk_audit(
+            target=attach_to,
+            business=business,
+            result=result,
+            amount=amount_val,
+            currency=currency,
+            is_bulk_adjustment=is_bulk_adjustment,
+        )
+
+    return result

@@ -33,7 +33,7 @@ export const CashflowReportPrintPage: React.FC<CashflowReportProps> = (props) =>
             </div>
 
             <CashflowReportPreview
-                workspaceName="CERN Books"
+                workspaceName="Clover Books"
                 currencyCode={props.baseCurrency}
                 periodLabel={props.asOfLabel}
                 generatedAt={new Date().toLocaleString()}

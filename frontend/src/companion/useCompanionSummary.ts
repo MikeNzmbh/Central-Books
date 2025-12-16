@@ -41,6 +41,11 @@ export interface CompanionCoverage {
 export interface CompanionCloseReadiness {
     status: "ready" | "not_ready";
     blocking_reasons: string[];
+    blocking_items?: {
+        reason: string;
+        task_code?: string | null;
+        surface?: string | null;
+    }[];
 }
 
 export interface CompanionPlaybookStep {
@@ -49,6 +54,8 @@ export interface CompanionPlaybookStep {
     severity: string;
     url: string;
     issue_id: number | null;
+    task_code?: string;
+    requires_premium?: boolean;
 }
 
 export interface CompanionStory {
@@ -68,6 +75,57 @@ export interface CompanionSummary {
     radar?: CompanionRadar;
     coverage?: CompanionCoverage;
     close_readiness?: CompanionCloseReadiness;
+    finance_snapshot?: {
+        cash_health: {
+            ending_cash: number;
+            monthly_burn: number;
+            runway_months: number | null;
+        };
+        revenue_expense: {
+            months: string[];
+            revenue: number[];
+            expense: number[];
+        };
+        ar_health: {
+            buckets: Record<string, number>;
+            total_overdue: number;
+        };
+        narrative?: string;
+        narrative_source?: "ai" | "auto";
+    };
+    tax?: {
+        period_key: string;
+        has_snapshot: boolean;
+        net_tax: number | null;
+        jurisdictions: Array<{
+            code: string;
+            taxable_sales: number;
+            tax_collected: number;
+            tax_on_purchases: number;
+            net_tax: number;
+            currency?: string;
+        }>;
+        anomaly_counts: {
+            low: number;
+            medium: number;
+            high: number;
+        };
+        anomalies?: Array<{
+            code: string;
+            severity: string;
+            description: string;
+            task_code: string;
+        }>;
+    };
+    tax_guardian?: {
+        status: "all_clear" | "issues";
+        issues: Array<{
+            code: string;
+            severity: string;
+            description: string;
+            task_code: string;
+        }>;
+    };
     playbook?: CompanionPlaybookStep[];
     story?: CompanionStory;
     voice?: CompanionVoice;

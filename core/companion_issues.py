@@ -8,6 +8,7 @@ from django.db.models import Sum
 from django.utils import timezone
 
 from .llm_reasoning import refine_companion_issues
+from .companion_tasks import CompanionTask, first_task_for_surface, get_task, valid_task_code
 from .models import (
     CompanionIssue,
     ReceiptDocument,
@@ -16,6 +17,12 @@ from .models import (
     BankAccount,
     Account,
 )
+from taxes.models import TaxAnomaly
+
+
+def _current_period_key() -> str:
+    today = timezone.localdate()
+    return f"{today.year}-{today.month:02d}"
 
 
 def _base_issue(surface: str, run_type: str, run_id: int | None, trace_id: str | None, title: str, description: str):
@@ -274,6 +281,7 @@ SURFACE_TO_THEME = {
     "invoices": "revenue_invoices",
     "receipts": "expenses_receipts",
     "books": "tax_compliance",
+    "tax": "tax_guardian",
 }
 
 # Point deductions per severity
@@ -292,13 +300,14 @@ MAX_AGE_PENALTY = 5
 
 def build_companion_radar(business) -> dict:
     """
-    Build a 4-axis stability score (0–100) for the AI Companion.
+    Build a 5-axis stability score (0–100) for the AI Companion.
     
     Axes:
       - cash_reconciliation: Bank account reconciliation health
       - revenue_invoices: Invoice/AR health
       - expenses_receipts: Expense/receipt classification health
       - tax_compliance: Books/GL compliance health
+      - tax_guardian: Deterministic tax anomalies (TaxAnomaly)
     
     Scoring heuristic:
       - Each axis starts at 100
@@ -310,7 +319,7 @@ def build_companion_radar(business) -> dict:
       - Floor at 0, cap at 100
     
     Returns:
-        dict with 4 axes, each containing {"score": int, "open_issues": int}
+        dict with 5 axes, each containing {"score": int, "open_issues": int}
     """
     now = timezone.now()
     since = now - timedelta(days=30)
@@ -321,6 +330,7 @@ def build_companion_radar(business) -> dict:
         "revenue_invoices": {"score": 100, "open_issues": 0},
         "expenses_receipts": {"score": 100, "open_issues": 0},
         "tax_compliance": {"score": 100, "open_issues": 0},
+        "tax_guardian": {"score": 100, "open_issues": 0},
     }
     
     # Get open issues for this business
@@ -352,6 +362,17 @@ def build_companion_radar(business) -> dict:
         
         # Apply deduction (floor at 0)
         axes[theme]["score"] = max(0, axes[theme]["score"] - total_deduction)
+
+    # Tax anomalies (deterministic, TaxAnomaly)
+    tax_anomalies = TaxAnomaly.objects.filter(
+        business=business,
+        status=TaxAnomaly.AnomalyStatus.OPEN,
+    )
+    for anomaly in tax_anomalies:
+        severity = (anomaly.severity or "low").lower()
+        deduction = SEVERITY_DEDUCTION.get(severity, 3)
+        axes["tax_guardian"]["open_issues"] += 1
+        axes["tax_guardian"]["score"] = max(0, axes["tax_guardian"]["score"] - deduction)
     
     return axes
 
@@ -480,6 +501,13 @@ UNRECONCILED_RATIO_THRESHOLD = 0.02
 class CloseReadinessResult(TypedDict):
     status: Literal["ready", "not_ready"]
     blocking_reasons: List[str]
+    blocking_items: List["CloseBlockingItem"]
+
+
+class CloseBlockingItem(TypedDict):
+    reason: str
+    task_code: str | None
+    surface: str | None
 
 
 def evaluate_period_close_readiness(business) -> CloseReadinessResult:
@@ -495,6 +523,7 @@ def evaluate_period_close_readiness(business) -> CloseReadinessResult:
         CloseReadinessResult with status and blocking_reasons list.
     """
     blocking_reasons: list[str] = []
+    blocking_items: list[CloseBlockingItem] = []
     since = timezone.now() - timedelta(days=30)
     
     # Check 1: Unreconciled bank transactions (with thresholds)
@@ -517,7 +546,9 @@ def evaluate_period_close_readiness(business) -> CloseReadinessResult:
     if total_bank_txns > 0:
         unreconciled_ratio = unreconciled_count / total_bank_txns
         if unreconciled_count >= UNRECONCILED_ABSOLUTE_THRESHOLD or unreconciled_ratio >= UNRECONCILED_RATIO_THRESHOLD:
-            blocking_reasons.append(f"{unreconciled_count} unreconciled bank transactions ({unreconciled_ratio:.1%} of total).")
+            reason = f"B1 – {unreconciled_count} unreconciled bank transactions ({unreconciled_ratio:.1%} of total)."
+            blocking_reasons.append(reason)
+            blocking_items.append({"reason": reason, "task_code": "B1", "surface": "bank"})
     
     # Check 2: Suspense/clearing account balance
     # Priority 1: Look for accounts with is_suspense=True (business-scoped)
@@ -561,7 +592,9 @@ def evaluate_period_close_readiness(business) -> CloseReadinessResult:
         for acct in suspense_with_balance:
             bal = float(acct.computed_balance or 0)
             if abs(bal) > 0.01:
-                blocking_reasons.append(f"{acct.name} has a balance of ${bal:,.2f}.")
+                reason = f"G1 – {acct.name} has a balance of ${bal:,.2f}."
+                blocking_reasons.append(reason)
+                blocking_items.append({"reason": reason, "task_code": "G1", "surface": "books"})
     
     # Check 3: High/Critical CompanionIssues in books or bank
     critical_issues = CompanionIssue.objects.filter(
@@ -573,13 +606,29 @@ def evaluate_period_close_readiness(business) -> CloseReadinessResult:
     ).count()
     
     if critical_issues > 0:
-        blocking_reasons.append(f"{critical_issues} high-severity issue(s) in Books or Banking.")
+        reason = f"C1 – {critical_issues} high-severity issue(s) in Books or Banking."
+        blocking_reasons.append(reason)
+        blocking_items.append({"reason": reason, "task_code": "C1", "surface": "close"})
+
+    # Check 4: Tax anomalies (high severity open for current period)
+    current_period_key = _current_period_key()
+    tax_blockers = TaxAnomaly.objects.filter(
+        business=business,
+        period_key=current_period_key,
+        severity=TaxAnomaly.AnomalySeverity.HIGH,
+        status=TaxAnomaly.AnomalyStatus.OPEN,
+    ).count()
+    if tax_blockers > 0:
+        reason = f"T2 – Unresolved high-severity tax anomalies for period {current_period_key}."
+        blocking_reasons.append(reason)
+        blocking_items.append({"reason": reason, "task_code": "T2", "surface": "tax"})
     
     status: Literal["ready", "not_ready"] = "ready" if not blocking_reasons else "not_ready"
     
     return {
         "status": status,
         "blocking_reasons": blocking_reasons,
+        "blocking_items": blocking_items,
     }
 
 
@@ -593,6 +642,8 @@ class PlaybookStep(TypedDict):
     severity: str
     url: str
     issue_id: int | None
+    task_code: str
+    requires_premium: bool
 
 
 # Surface to URL mapping
@@ -601,10 +652,21 @@ SURFACE_URL_MAP = {
     "receipts": "/receipts/",
     "invoices": "/invoices/ai/",
     "books": "/books-review/",
+    "tax": "/tax-guardian/",
+}
+
+TAX_ANOMALY_TASK_MAP = {
+    "T1_RATE_MISMATCH": "T1",
+    "T2_POSSIBLE_OVERCHARGE": "T1",
+    "T3_MISSING_TAX": "T2",
+    "T3_MISSING_COMPONENT": "T1",
+    "T4_ROUNDING_ANOMALY": "T3",
+    "T5_EXEMPT_TAXED": "T1",
+    "T6_NEGATIVE_BALANCE": "T2",
 }
 
 
-def _build_action_label(issue) -> str:
+def _build_action_label(issue, task: CompanionTask | None = None) -> str:
     """
     Build an action-oriented label for a playbook step.
     
@@ -664,7 +726,60 @@ def _build_action_label(issue) -> str:
             return f"Address {data['findings']} findings in books review"
     
     # Fallback: use the issue title, trimmed
+    if task:
+        return task.label
     return title[:80] if title else "Review open issue"
+
+
+def _task_for_issue(issue) -> CompanionTask | None:
+    """
+    Map an issue to a canonical Companion task.
+    """
+    data = getattr(issue, "data", {}) or {}
+    surface = getattr(issue, "surface", None)
+    title = (getattr(issue, "title", "") or "").lower()
+
+    if surface == "bank":
+        if data.get("unreconciled") or "unreconciled" in title:
+            return get_task("B1")
+        if data.get("high_risk") or data.get("duplicates"):
+            return get_task("B1")
+        return get_task("B2")
+
+    if surface == "receipts":
+        if data.get("high_risk") or data.get("errors") or data.get("warnings"):
+            return get_task("R1")
+        return get_task("R2")
+
+    if surface == "invoices":
+        if data.get("overdue_count") or data.get("high_risk") or data.get("errors"):
+            return get_task("I1B" if data.get("overdue_count") else "I1")
+        return get_task("I1")
+
+    if surface == "books":
+        if data.get("suspense_balance") or "suspense" in title:
+            return get_task("G1")
+        if data.get("findings") or data.get("journals_high_risk"):
+            return get_task("G4")
+        return get_task("G2")
+
+    return first_task_for_surface(surface) if surface else None
+
+
+def _task_or_default(surface: str, task: CompanionTask | None = None) -> CompanionTask | None:
+    return task or first_task_for_surface(surface)
+
+
+def _task_for_tax_anomaly(anomaly: TaxAnomaly) -> CompanionTask | None:
+    mapped = TAX_ANOMALY_TASK_MAP.get(anomaly.code, "T1")
+    return get_task(mapped) or first_task_for_surface("tax")
+
+
+def _label_for_tax_anomaly(anomaly: TaxAnomaly, task: CompanionTask | None) -> str:
+    desc = (anomaly.description or "").strip()
+    if desc:
+        return f"{anomaly.code}: {desc[:90]}"
+    return task.label if task else anomaly.code
 
 
 def build_companion_playbook(business, max_steps: int = 4) -> List[PlaybookStep]:
@@ -676,10 +791,11 @@ def build_companion_playbook(business, max_steps: int = 4) -> List[PlaybookStep]
       - Coverage gaps
       - Close-readiness blocking reasons
     
-    Labels are action-oriented and derived deterministically from issue context.
+    Labels are action-oriented and anchored to canonical Companion tasks
+    (task_code), with premium tasks marked via requires_premium.
     
     Returns:
-        List of PlaybookStep dicts with label, surface, severity, url, issue_id.
+        List of PlaybookStep dicts with label, surface, severity, url, issue_id, task_code.
     """
     since = timezone.now() - timedelta(days=30)
     playbook: List[PlaybookStep] = []
@@ -700,14 +816,53 @@ def build_companion_playbook(business, max_steps: int = 4) -> List[PlaybookStep]
     # Sort by severity
     open_issues.sort(key=lambda i: (severity_order.get(i.severity, 3), -i.created_at.timestamp()))
     
-    for issue in open_issues[:max_steps]:
+    for issue in open_issues:
+        if len(playbook) >= max_steps:
+            break
+        task = _task_or_default(issue.surface, _task_for_issue(issue))
+        if not task or not valid_task_code(task.code):
+            continue
         playbook.append({
-            "label": _build_action_label(issue),  # Action-oriented label
+            "label": _build_action_label(issue, task),  # Action-oriented label
             "surface": issue.surface,
             "severity": issue.severity,
             "url": SURFACE_URL_MAP.get(issue.surface, "/companion/"),
             "issue_id": issue.id,
+            "task_code": task.code,
+            "requires_premium": task.requires_premium,
         })
+
+    # Priority 1b: Tax anomalies (deterministic)
+    if len(playbook) < max_steps:
+        sev_order = {
+            TaxAnomaly.AnomalySeverity.HIGH: 0,
+            TaxAnomaly.AnomalySeverity.MEDIUM: 1,
+            TaxAnomaly.AnomalySeverity.LOW: 2,
+        }
+        tax_anomalies = list(
+            TaxAnomaly.objects.filter(
+                business=business,
+                status=TaxAnomaly.AnomalyStatus.OPEN,
+            )
+        )
+        tax_anomalies.sort(key=lambda a: sev_order.get(a.severity, 3))
+        for anomaly in tax_anomalies:
+            if len(playbook) >= max_steps:
+                break
+            task = _task_for_tax_anomaly(anomaly)
+            if not task or not valid_task_code(task.code):
+                continue
+            playbook.append(
+                {
+                    "label": _label_for_tax_anomaly(anomaly, task),
+                    "surface": "tax",
+                    "severity": anomaly.severity,
+                    "url": SURFACE_URL_MAP.get("tax", "/companion/"),
+                    "issue_id": None,
+                    "task_code": task.code,
+                    "requires_premium": task.requires_premium,
+                }
+            )
     
     # Priority 2: Add coverage gap action if we have room
     if len(playbook) < max_steps:
@@ -719,22 +874,31 @@ def build_companion_playbook(business, max_steps: int = 4) -> List[PlaybookStep]
             if axis["coverage_percent"] < 80:
                 uncovered = axis["total_items"] - axis["covered_items"]
                 label_map = {
-                    "receipts": f"Process {uncovered} pending receipts",
-                    "invoices": f"Follow up on {uncovered} draft/unpaid invoices",
-                    "banking": f"Match {uncovered} unmatched bank transactions",
+                    "receipts": f"Process {uncovered} pending receipts" if uncovered > 0 else "Post approved receipts",
+                    "invoices": f"Follow up on {uncovered} draft/unpaid invoices" if uncovered > 0 else "Match payments to invoices",
+                    "banking": f"Match {uncovered} unmatched bank transactions" if uncovered > 0 else "Review unreconciled transactions",
                 }
                 surface_map = {
                     "receipts": "receipts",
                     "invoices": "invoices",
                     "banking": "bank",
                 }
-                
-                playbook.append({
-                    "label": label_map.get(domain, f"Review {domain}"),
-                    "surface": surface_map.get(domain, domain),
-                    "severity": "medium",
-                    "url": SURFACE_URL_MAP.get(surface_map.get(domain, domain), "/companion/"),
-                    "issue_id": None,
-                })
+                coverage_task_code_map = {
+                    "receipts": "R2",
+                    "invoices": "I1",
+                    "banking": "B1",
+                }
+                surface = surface_map.get(domain, domain)
+                task = _task_or_default(surface, get_task(coverage_task_code_map.get(domain, "")))
+                if task and valid_task_code(task.code):
+                    playbook.append({
+                        "label": label_map.get(domain, task.label),
+                        "surface": surface,
+                        "severity": "medium",
+                        "url": SURFACE_URL_MAP.get(surface, "/companion/"),
+                        "issue_id": None,
+                        "task_code": task.code,
+                        "requires_premium": task.requires_premium,
+                    })
     
     return playbook[:max_steps]

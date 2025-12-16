@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import CentralBooksLoginPage from "./LoginPage";
+import CloverBooksLoginPage from "./LoginPage";
 import "../index.css";
 
 /**
@@ -60,7 +60,7 @@ function LoginApp() {
   }
 
   return (
-    <CentralBooksLoginPage
+    <CloverBooksLoginPage
       action="/login/"
       csrfToken={config?.csrfToken}
       nextUrl={config?.nextUrl}

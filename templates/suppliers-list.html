@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% load static mb_extras %}
+
+{% block title %}Suppliers | Clover Books{% endblock %}
+
+{% block content %}
+<div id="suppliers-root"></div>
+
+{% vite_asset 'suppliers-list' 'css' as suppliers_css %}
+{% if suppliers_css %}
+<link rel="stylesheet" href="{% static suppliers_css %}">
+{% endif %}
+{% vite_asset 'suppliers-list' as suppliers_js %}
+{% if suppliers_js %}
+<script type="module" src="{% static suppliers_js %}"></script>
+{% endif %}
+{% endblock %}

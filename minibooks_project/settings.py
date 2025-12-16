@@ -123,6 +123,7 @@ INSTALLED_APPS = [
     # Project apps
     "core",
     "taxes",
+    "reversals",
     "internal_admin",
     "companion",
 ]

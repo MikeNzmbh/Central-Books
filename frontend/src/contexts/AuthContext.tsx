@@ -1,4 +1,4 @@
-// Authentication Context for CERN Books
+// Authentication Context for Clover Books
 // Provides user authentication state across the React application
 
 import React, { createContext, useContext, useState, useEffect } from "react";
@@ -7,6 +7,21 @@ import { parseCookies } from "../utils/cookies";
 export interface InternalAdmin {
   role: string;
   canAccessInternalAdmin: boolean;
+}
+
+// RBAC v1: Workspace membership with role and permissions
+export interface Workspace {
+  businessId: number;
+  businessName: string;
+  role: string;
+  roleLabel: string;
+  roleDescription: string;
+  roleColor: string;
+  permissions: string[];
+  permissionLevels?: Record<string, string>;
+  isOwner: boolean;
+  department: string | null;
+  region: string | null;
 }
 
 export interface User {
@@ -22,6 +37,7 @@ export interface User {
   is_staff?: boolean;
   is_superuser?: boolean;
   internalAdmin?: InternalAdmin | null;
+  workspace?: Workspace | null; // RBAC v1
 }
 
 export interface AuthState {

@@ -33,7 +33,7 @@ This is what the Agentic Accounting OS provides.
 
 ## Proposed Solution
 
-I've built a working prototype of an **agentic accounting engine** that sits on top of an existing bookkeeping SaaS (CERN Books, a Django-based invoicing and expense tracking app).
+I've built a working prototype of an **agentic accounting engine** that sits on top of an existing bookkeeping SaaS (Clover Books, a Django-based invoicing and expense tracking app).
 
 ### What It Does
 

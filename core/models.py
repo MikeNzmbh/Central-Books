@@ -1,4 +1,5 @@
 from decimal import Decimal
+import re
 import uuid
 from typing import TYPE_CHECKING, Optional
 from types import SimpleNamespace
@@ -33,6 +34,39 @@ class Business(models.Model):
     is_tax_registered = models.BooleanField(default=False)
     tax_country = models.CharField(max_length=2, default="CA", blank=True)
     tax_region = models.CharField(max_length=10, blank=True, default="")
+    class TaxRegimeCA(models.TextChoices):
+        GST_ONLY = "GST_ONLY", "GST only"
+        HST_ONLY = "HST_ONLY", "HST only (HST province)"
+        GST_QST = "GST_QST", "GST + QST (Quebec)"
+        GST_PST = "GST_PST", "GST + PST (non-harmonized)"
+
+    tax_regime_ca = models.CharField(
+        max_length=16,
+        choices=TaxRegimeCA.choices,
+        blank=True,
+        null=True,
+        help_text="Only relevant when tax_country = 'CA'.",
+    )
+    gst_hst_number = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="Canadian GST/HST registration number (e.g. 123456789RT0001).",
+    )
+    qst_number = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="Quebec QST registration number (e.g. 1234567890TQ0001).",
+    )
+    us_sales_tax_id = models.CharField(
+        max_length=40,
+        blank=True,
+        help_text="US state sales tax permit or registration ID.",
+    )
+    default_nexus_jurisdictions = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="List of jurisdiction codes where the business collects sales tax (e.g. ['US-CA','US-NY']).",
+    )
     
     # Email configuration for sending invoices
     email_from = models.EmailField(
@@ -48,6 +82,20 @@ class Business(models.Model):
     ai_companion_enabled = models.BooleanField(
         default=False,
         help_text="Allow the AI companion to assist with extraction, classification, and anomaly detection (never auto-posts).",
+    )
+    class TaxFilingFrequency(models.TextChoices):
+        MONTHLY = "MONTHLY", "Monthly"
+        QUARTERLY = "QUARTERLY", "Quarterly"
+        ANNUAL = "ANNUAL", "Annual"
+
+    tax_filing_frequency = models.CharField(
+        max_length=16,
+        choices=TaxFilingFrequency.choices,
+        default=TaxFilingFrequency.QUARTERLY,
+    )
+    tax_filing_due_day = models.PositiveSmallIntegerField(
+        default=30,
+        help_text="Day of month when tax return is due (e.g., 30 = end of next month).",
     )
 
     class Meta:
@@ -422,6 +470,12 @@ class Item(models.Model):
 
 
 class Invoice(models.Model):
+    class PlaceOfSupplyHint(models.TextChoices):
+        AUTO = "AUTO", "Auto"
+        TPP = "TPP", "Goods (TPP)"
+        SERVICE = "SERVICE", "Service"
+        IPP = "IPP", "Intangible (IPP)"
+
     class Status(models.TextChoices):
         DRAFT = "DRAFT", "Draft"
         SENT = "SENT", "Sent"
@@ -438,6 +492,17 @@ class Invoice(models.Model):
         Customer,
         on_delete=models.PROTECT,
         related_name="invoices",
+    )
+    # Deterministic place-of-supply inputs (Tax Engine v1 sourcing layer)
+    ship_from_jurisdiction_code = models.CharField(max_length=20, blank=True, default="")
+    ship_to_jurisdiction_code = models.CharField(max_length=20, blank=True, default="")
+    customer_location_jurisdiction_code = models.CharField(max_length=20, blank=True, default="")
+    place_of_supply_hint = models.CharField(
+        max_length=12,
+        choices=PlaceOfSupplyHint.choices,
+        default=PlaceOfSupplyHint.AUTO,
+        blank=True,
+        help_text="Optional override to guide place-of-supply logic (AUTO/TPP/SERVICE/IPP).",
     )
     invoice_number = models.CharField(max_length=50)
     issue_date = models.DateField(default=timezone.now)
@@ -535,6 +600,7 @@ class Invoice(models.Model):
         super().__init__(*args, **kwargs)
         self._original_status = self.status
         self._skip_tax_sync = False
+        self._skip_paid_posting = False
 
     def mark_email_sent(self, to_email: str):
         self.email_to = to_email
@@ -543,9 +609,10 @@ class Invoice(models.Model):
         self.save(update_fields=["email_to", "email_sent_at", "email_last_error"])
 
     def recalc_totals(self):
-        net = self.total_amount or Decimal("0.00")
-        self.subtotal = net
+        input_amount = self.total_amount or Decimal("0.00")
+        net = input_amount
         tax = self.tax_amount or Decimal("0.00")
+        gross = None
 
         if self.tax_group_id:
             from taxes.services import TaxEngine
@@ -554,43 +621,77 @@ class Invoice(models.Model):
             fx_rate = Decimal("1.00")
             result = TaxEngine.calculate_for_line(
                 business=self.business,
-                transaction_line=SimpleNamespace(net_amount=net),
+                transaction_line=SimpleNamespace(net_amount=input_amount),
                 tax_group=self.tax_group,
                 txn_date=self.issue_date or timezone.now().date(),
                 currency=currency,
                 fx_rate=fx_rate,
                 persist=False,
             )
-            tax_txn = result["total_tax_txn_currency"]
-            tax = tax_txn
-            self.tax_amount = tax_txn
-            self.tax_total = tax_txn
+            tax = result["total_tax_txn_currency"]
+            net = result.get("net_amount_txn_currency") or input_amount
+            gross = result.get("gross_amount_txn_currency")
+            self.tax_amount = tax
+            self.tax_total = tax
         elif self.tax_rate and self.tax_rate.percentage:
-            tax = (net * (self.tax_rate.percentage / Decimal("100"))).quantize(Decimal("0.01"))
+            tax = (input_amount * (self.tax_rate.percentage / Decimal("100"))).quantize(Decimal("0.01"))
             self.tax_total = tax
         else:
             self.tax_total = tax
 
         self.tax_amount = tax
+        self.subtotal = net
         self.net_total = net
-        self.grand_total = net + tax
+        self.grand_total = gross if gross is not None else net + tax
         self._recalc_payment_state()
 
     def _recalc_payment_state(self):
         total = self.grand_total or (self.net_total + self.tax_total)
         paid = self.amount_paid or Decimal("0.00")
+
+        allocations_total = Decimal("0.00")
+        if self.pk and getattr(self, "business_id", None):
+            try:
+                from django.contrib.contenttypes.models import ContentType
+                from django.db.models import Sum
+
+                from reversals.models import Allocation
+
+                invoice_ct = ContentType.objects.get_for_model(Invoice)
+                allocations_total = (
+                    Allocation.objects.filter(
+                        business_id=self.business_id,
+                        status=Allocation.Status.ACTIVE,
+                        target_content_type=invoice_ct,
+                        target_object_id=self.pk,
+                    ).aggregate(total=Sum("amount"))["total"]
+                    or Decimal("0.00")
+                )
+                allocations_total = Decimal(allocations_total)
+            except Exception:
+                allocations_total = Decimal("0.00")
+
+        # Preserve existing behavior: callers sometimes set status=PAID without setting
+        # amount_paid (e.g., bank-feed matching). Treat the invoice as fully settled,
+        # but only attribute the non-allocation remainder to cash.
         if self.status == self.Status.PAID and paid < total:
-            paid = total
+            paid = max(paid, total - allocations_total)
+
         paid = max(Decimal("0.00"), min(paid, total))
         self.amount_paid = paid
-        self.balance = total - paid
+
+        self.balance = max(Decimal("0.00"), (total - paid - allocations_total))
         if self.status == self.Status.VOID:
             return
-        if paid == 0:
-            if self.status != self.Status.DRAFT:
-                self.status = self.Status.SENT
-        elif self.balance == 0:
+
+        # Preserve draft semantics only while the invoice is truly unsettled.
+        # If any payment/credit allocation has been applied, promote DRAFT → PARTIAL/PAID.
+        if self.status == self.Status.DRAFT and paid == 0 and allocations_total == 0:
+            return
+        if self.balance == 0:
             self.status = self.Status.PAID
+        elif self.balance == total:
+            self.status = self.Status.SENT
         else:
             self.status = self.Status.PARTIAL
 
@@ -610,13 +711,15 @@ class Invoice(models.Model):
 
         prev_status = getattr(self, "_original_status", None)
 
-        if self.status in (self.Status.SENT, self.Status.PAID):
+        if self.status in (self.Status.SENT, self.Status.PARTIAL, self.Status.PAID):
             post_invoice_sent(self)
-        elif prev_status in (self.Status.SENT, self.Status.PAID):
+        elif prev_status in (self.Status.SENT, self.Status.PARTIAL, self.Status.PAID):
             remove_invoice_sent_entry(self)
 
         if self.status == self.Status.PAID:
-            post_invoice_paid(self)
+            total = self.grand_total or (self.net_total + self.tax_total)
+            if (self.amount_paid or Decimal("0.00")) >= (total or Decimal("0.00")) and not self._skip_paid_posting:
+                post_invoice_paid(self)
         elif prev_status == self.Status.PAID:
             remove_invoice_paid_entry(self)
 
@@ -625,6 +728,19 @@ class Invoice(models.Model):
     @property
     def net_amount(self) -> Decimal:
         return self.net_total or self.amount or Decimal("0.00")
+
+    @property
+    def product_code(self) -> str:
+        """
+        Lightweight product code used by deterministic TaxProductRule matching.
+        Prefers Item SKU; falls back to a slugified item name.
+        """
+        if getattr(self, "item", None):
+            raw = (getattr(self.item, "sku", "") or getattr(self.item, "name", "") or "").strip()
+            if raw:
+                code = re.sub(r"[^A-Za-z0-9]+", "_", raw).strip("_").upper()
+                return (code[:32] or "GENERAL")
+        return "GENERAL"
 
     def _sync_tax_details(self):
         """
@@ -646,6 +762,9 @@ class Invoice(models.Model):
 
         currency = getattr(self.business, "currency", "CAD") or "CAD"
         fx_rate = Decimal("1.00")
+        amount_override = None
+        if getattr(self.tax_group, "tax_treatment", None) == "INCLUDED":
+            amount_override = self.grand_total or self.total_amount or self.net_total
         # Persist details; totals already applied to fields during recalc.
         TaxEngine.calculate_for_line(
             business=self.business,
@@ -654,6 +773,7 @@ class Invoice(models.Model):
             txn_date=self.issue_date or timezone.now().date(),
             currency=currency,
             fx_rate=fx_rate,
+            amount_override=amount_override,
             persist=True,
         )
 
@@ -824,9 +944,10 @@ class Expense(models.Model):
         self._skip_tax_sync = False
 
     def recalc_totals(self):
-        net = self.amount or Decimal("0.00")
-        self.subtotal = net
+        input_amount = self.amount or Decimal("0.00")
+        net = input_amount
         tax = self.tax_amount or Decimal("0.00")
+        gross = None
         if self.tax_group_id:
             from taxes.services import TaxEngine
 
@@ -834,7 +955,7 @@ class Expense(models.Model):
             fx_rate = Decimal("1.00")
             result = TaxEngine.calculate_for_line(
                 business=self.business,
-                transaction_line=SimpleNamespace(net_amount=net),
+                transaction_line=SimpleNamespace(net_amount=input_amount),
                 tax_group=self.tax_group,
                 txn_date=self.date or timezone.now().date(),
                 currency=currency,
@@ -842,13 +963,29 @@ class Expense(models.Model):
                 persist=False,
             )
             tax = result["total_tax_txn_currency"]
+            net = result.get("net_amount_txn_currency") or input_amount
+            gross = result.get("gross_amount_txn_currency")
         elif self.tax_rate and self.tax_rate.percentage:
-            tax = (net * (self.tax_rate.percentage / Decimal("100"))).quantize(Decimal("0.01"))
+            tax = (input_amount * (self.tax_rate.percentage / Decimal("100"))).quantize(Decimal("0.01"))
         self.tax_amount = tax
+        self.subtotal = net
         self.net_total = net
         self.tax_total = tax
-        self.grand_total = net + tax
+        self.grand_total = gross if gross is not None else net + tax
         self._recalc_payment_state()
+
+    @property
+    def product_code(self) -> str:
+        """
+        Lightweight product code used by deterministic TaxProductRule matching.
+        Prefers Category.code; falls back to a slugified category name.
+        """
+        if getattr(self, "category", None):
+            raw = (getattr(self.category, "code", "") or getattr(self.category, "name", "") or "").strip()
+            if raw:
+                code = re.sub(r"[^A-Za-z0-9]+", "_", raw).strip("_").upper()
+                return (code[:32] or "GENERAL")
+        return "GENERAL"
 
     def _recalc_payment_state(self):
         total = self.grand_total or (self.net_total + self.tax_total)
@@ -935,6 +1072,9 @@ class Expense(models.Model):
 
         currency = getattr(self.business, "currency", "CAD") or "CAD"
         fx_rate = Decimal("1.00")
+        amount_override = None
+        if getattr(self.tax_group, "tax_treatment", None) == "INCLUDED":
+            amount_override = self.grand_total or self.amount or self.net_total
         # Persist details; totals already applied to fields during recalc.
         TaxEngine.calculate_for_line(
             business=self.business,
@@ -943,6 +1083,7 @@ class Expense(models.Model):
             txn_date=self.date or timezone.now().date(),
             currency=currency,
             fx_rate=fx_rate,
+            amount_override=amount_override,
             persist=True,
         )
 
@@ -976,6 +1117,10 @@ class JournalEntry(models.Model):
         null=True,
         blank=True,
         db_index=True,
+    )
+    high_risk_audits = GenericRelation(
+        "core.HighRiskAudit",
+        related_query_name="journal_entry_target",
     )
 
     class Meta:
@@ -1296,6 +1441,10 @@ class BankTransaction(models.Model):
         blank=True,
         related_name="bank_transactions",
     )
+    high_risk_audits = GenericRelation(
+        "core.HighRiskAudit",
+        related_query_name="bank_transaction_target",
+    )
 
     class Meta:
         unique_together = ("bank_account", "external_id")
@@ -1393,6 +1542,37 @@ class BankReconciliationMatch(models.Model):
             models.Index(fields=["bank_transaction", "reconciled_at"]),
             models.Index(fields=["journal_entry"]),
         ]
+
+
+class HighRiskAudit(models.Model):
+    class Verdict(models.TextChoices):
+        OK = "ok", "OK"
+        WARN = "warn", "Warn"
+        FAIL = "fail", "Fail"
+        SKIP = "skip", "Skip"
+
+    business = models.ForeignKey(
+        "core.Business",
+        on_delete=models.CASCADE,
+        related_name="high_risk_audits",
+    )
+    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
+    object_id = models.PositiveIntegerField()
+    target = GenericForeignKey("content_type", "object_id")
+    amount = models.DecimalField(max_digits=19, decimal_places=4)
+    currency = models.CharField(max_length=8, default="USD")
+    is_bulk_adjustment = models.BooleanField(default=False)
+    verdict = models.CharField(max_length=8, choices=Verdict.choices, default=Verdict.OK)
+    reasons = models.JSONField(default=list, blank=True)
+    raw_model_response = models.JSONField(default=dict, blank=True)
+    model_profile = models.CharField(max_length=64, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.get_verdict_display()} @ {self.created_at:%Y-%m-%d}"
 
 
 class ReceiptRun(models.Model):
@@ -1808,3 +1988,237 @@ class CompanionStoryState(models.Model):
     def __str__(self):
         status = "dirty" if self.needs_regeneration else "clean"
         return f"{self.business.name} ({status})"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#    RBAC: Workspace Membership
+# ─────────────────────────────────────────────────────────────────────────────
+
+class WorkspaceMembership(models.Model):
+    """
+    Links users to businesses with assigned roles.
+    
+    This is the core model for RBAC v1. Each user can have one membership
+    per business, with a single role. Future ABAC scoping will use the
+    department/region fields.
+    
+    Aligned with Gemini RBAC Blueprint:
+    - Supports per-workspace roles
+    - Enables field-level masking based on role
+    - Prepares for ABAC attribute scoping
+    """
+    
+    class RoleChoices(models.TextChoices):
+        OWNER = "OWNER", "Owner"
+        SYSTEM_ADMIN = "SYSTEM_ADMIN", "System Admin"
+        CONTROLLER = "CONTROLLER", "Controller"
+        CASH_MANAGER = "CASH_MANAGER", "Cash Manager"
+        AP_SPECIALIST = "AP_SPECIALIST", "AP Specialist"
+        AR_SPECIALIST = "AR_SPECIALIST", "AR Specialist"
+        BOOKKEEPER = "BOOKKEEPER", "Bookkeeper"
+        VIEW_ONLY = "VIEW_ONLY", "View Only"
+        EXTERNAL_ACCOUNTANT = "EXTERNAL_ACCOUNTANT", "External Accountant"
+        AUDITOR = "AUDITOR", "Auditor"
+    
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="workspace_memberships",
+    )
+    business = models.ForeignKey(
+        "core.Business",
+        on_delete=models.CASCADE,
+        related_name="memberships",
+    )
+    role = models.CharField(
+        max_length=32,
+        choices=RoleChoices.choices,
+        default=RoleChoices.BOOKKEEPER,
+    )
+
+    # RBAC v2: Optional link to a configurable role definition (per-workspace).
+    # Kept nullable for backwards-compatibility with RBAC v1 role strings.
+    role_definition = models.ForeignKey(
+        "core.RoleDefinition",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="memberships",
+    )
+
+    # RBAC v2 / ABAC-ready attributes (department, region, etc.).
+    attributes = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="ABAC attributes for scoping (e.g. department, region).",
+    )
+    
+    # Future ABAC attributes
+    department = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Department for ABAC scoping (e.g., 'Marketing', 'Engineering').",
+    )
+    region = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Region for ABAC scoping (e.g., 'US-East', 'CA-ON').",
+    )
+    
+    # Access control
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Inactive memberships are ignored for permission checks.",
+    )
+    expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Optional expiration for time-boxed access (e.g., external accountants).",
+    )
+    
+    # Audit fields
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_memberships",
+    )
+    
+    class Meta:
+        verbose_name = "Workspace Membership"
+        verbose_name_plural = "Workspace Memberships"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "business"],
+                name="unique_user_business_membership",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["business", "is_active"]),
+            models.Index(fields=["user", "is_active"]),
+            models.Index(fields=["business", "role"]),
+            models.Index(fields=["business", "role_definition"]),
+        ]
+        ordering = ["-created_at"]
+    
+    def __str__(self):
+        return f"{self.user.username} - {self.business.name} ({self.role})"
+    
+    @property
+    def is_expired(self) -> bool:
+        """Check if this membership has expired."""
+        if not self.expires_at:
+            return False
+        return timezone.now() > self.expires_at
+    
+    @property
+    def is_effective(self) -> bool:
+        """Check if this membership is currently active and not expired."""
+        return self.is_active and not self.is_expired
+
+
+class RoleDefinition(models.Model):
+    """
+    RBAC v2: Configurable role definition (per workspace/business).
+
+    Stores permission levels + optional scope constraints for each action.
+    """
+
+    business = models.ForeignKey(
+        "core.Business",
+        on_delete=models.CASCADE,
+        related_name="role_definitions",
+    )
+    key = models.SlugField(
+        max_length=64,
+        help_text="Stable key (e.g. OWNER, CONTROLLER, custom_slug).",
+    )
+    label = models.CharField(max_length=128)
+    is_builtin = models.BooleanField(
+        default=False,
+        help_text="Built-in roles cannot be deleted.",
+    )
+    permissions = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text='Dict: action -> {"level": "none|view|edit|approve", "scope": {...}}',
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["business", "key"],
+                name="unique_role_definition_per_business",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["business", "is_builtin"]),
+            models.Index(fields=["business", "key"]),
+        ]
+        ordering = ["key"]
+
+    def __str__(self) -> str:
+        return f"{self.business.name} - {self.key}"
+
+
+class UserPermissionOverride(models.Model):
+    """
+    RBAC v2: Per-user overrides layered on top of the role definition.
+
+    Example: "AP Specialist but ALSO can view bank balance for account X".
+    """
+
+    class Effect(models.TextChoices):
+        ALLOW = "ALLOW", "Allow"
+        DENY = "DENY", "Deny"
+
+    class LevelChoices(models.TextChoices):
+        NONE = "none", "None"
+        VIEW = "view", "View"
+        EDIT = "edit", "Edit"
+        APPROVE = "approve", "Approve"
+
+    membership = models.ForeignKey(
+        WorkspaceMembership,
+        on_delete=models.CASCADE,
+        related_name="permission_overrides",
+    )
+    action = models.CharField(max_length=128, db_index=True)
+    effect = models.CharField(max_length=8, choices=Effect.choices)
+    level_override = models.CharField(
+        max_length=16,
+        choices=LevelChoices.choices,
+        null=True,
+        blank=True,
+        help_text="Optional override level (none/view/edit/approve).",
+    )
+    scope_override = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="Optional scope override JSON.",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["membership", "action"],
+                name="unique_permission_override_per_membership_action",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["membership", "effect"]),
+            models.Index(fields=["membership", "action"]),
+        ]
+        ordering = ["action"]
+
+    def __str__(self) -> str:
+        return f"{self.membership_id} {self.effect} {self.action}"

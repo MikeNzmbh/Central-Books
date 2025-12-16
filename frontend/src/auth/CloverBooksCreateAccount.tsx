@@ -1,6 +1,6 @@
 import React from "react";
 
-interface CentralBooksCreateAccountProps {
+interface CloverBooksCreateAccountProps {
   action?: string;
   csrfToken?: string;
   errors?: string[];
@@ -8,7 +8,7 @@ interface CentralBooksCreateAccountProps {
   initialBusinessName?: string;
 }
 
-const CentralBooksCreateAccount: React.FC<CentralBooksCreateAccountProps> = ({
+const CloverBooksCreateAccount: React.FC<CloverBooksCreateAccountProps> = ({
   action = "/signup/",
   csrfToken,
   errors = [],
@@ -26,11 +26,11 @@ const CentralBooksCreateAccount: React.FC<CentralBooksCreateAccountProps> = ({
           <div className="space-y-6">
             <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-slate-100">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-              <span>CERN Books workspace</span>
+              <span>Clover Books workspace</span>
             </div>
             <div className="space-y-3">
               <h1 className="text-3xl font-semibold tracking-tight">
-                Create your CERN Books account
+                Create your Clover Books account
               </h1>
               <p className="text-sm text-slate-200/80 max-w-sm">
                 Spin up a clean, lightweight accounting workspace. Perfect for small studios, contractors, and solo founders.
@@ -75,7 +75,7 @@ const CentralBooksCreateAccount: React.FC<CentralBooksCreateAccountProps> = ({
                 MB
               </div>
               <div className="flex flex-col">
-                <span className="text-sm font-medium text-slate-900">CERN Books</span>
+                <span className="text-sm font-medium text-slate-900">Clover Books</span>
               </div>
             </div>
             <h2 className="text-xl sm:text-2xl font-semibold tracking-tight text-slate-900 mt-4">Create your account</h2>
@@ -231,7 +231,7 @@ const CentralBooksCreateAccount: React.FC<CentralBooksCreateAccountProps> = ({
             </button>
 
             <span className="text-xs text-slate-500">
-              Already using CERN Books?{" "}
+              Already using Clover Books?{" "}
               <a href="/login/" className="font-medium text-slate-900 hover:underline">
                 Sign in
               </a>
@@ -243,4 +243,4 @@ const CentralBooksCreateAccount: React.FC<CentralBooksCreateAccountProps> = ({
   );
 };
 
-export default CentralBooksCreateAccount;
+export default CloverBooksCreateAccount;

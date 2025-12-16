@@ -2,7 +2,7 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import CentralBooksDashboard from "./CentralBooksDashboard";
+import CloverBooksDashboard from "./CloverBooksDashboard";
 
 vi.mock("../contexts/AuthContext", () => ({
   useAuth: () => ({ logout: vi.fn() }),
@@ -12,10 +12,10 @@ vi.mock("../companion/CompanionPanel", () => ({
   default: () => <div data-testid="companion-panel" />,
 }));
 
-describe("CentralBooksDashboard P&L card", () => {
+describe("CloverBooksDashboard P&L card", () => {
   it("shows explanatory message when there is no ledger activity in the period", () => {
     render(
-      <CentralBooksDashboard
+      <CloverBooksDashboard
         metrics={{
           revenue_month: 0,
           expenses_month: 0,
@@ -35,7 +35,7 @@ describe("CentralBooksDashboard P&L card", () => {
 
   it("renders P&L values and comparison when data exists", () => {
     render(
-      <CentralBooksDashboard
+      <CloverBooksDashboard
         metrics={{
           revenue_month: 1200,
           expenses_month: 400,

@@ -1,4 +1,4 @@
-# Central Books — AI Companion Brief
+# Clover Books — AI Companion Brief
 
 *Technical overview of AI stack and safety design for residency reviewers*
 
@@ -6,7 +6,7 @@
 
 ## AI Stack Overview
 
-Central Books uses a **dual-provider architecture**:
+Clover Books uses a **dual-provider architecture**:
 
 | Provider | Model | Use Case | Latency |
 |----------|-------|----------|---------|

@@ -29,17 +29,22 @@ const Sidebar: React.FC<SidebarProps> = ({
     activeRoute = "",
 }) => {
     const { logout } = useAuth();
+    const currentPath = typeof window !== "undefined" ? window.location.pathname : "";
 
     return (
         <aside className="sticky top-0 flex h-screen w-[280px] flex-col border-r border-slate-200 bg-slate-50/80 px-6 pt-6 pb-4">
             {/* Brand */}
-            <a href="/dashboard/" className="flex items-center gap-3 pb-4 no-underline">
-                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-900 text-sm font-semibold text-white shadow-md shadow-slate-900/25">
-                    {businessInitials}
+            <a href="/dashboard/" className="flex items-center gap-3 pb-4 border-b border-slate-100 no-underline">
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-900 p-1.5 overflow-hidden shadow-md shadow-slate-900/25">
+                    <img
+                        src="/static/branding/clover-logo-dark-bg.png"
+                        alt="Clover"
+                        className="h-7 w-7 object-contain"
+                    />
                 </div>
                 <div className="flex flex-col leading-tight">
-                    <span className="text-sm font-semibold tracking-tight text-slate-900">CERN Books</span>
-                    <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-slate-400">
+                    <span className="text-sm font-semibold tracking-[0.12em] text-slate-900 uppercase" style={{ fontFamily: "'MuseoModerno', system-ui, sans-serif" }}>CLOVER</span>
+                    <span className="text-[11px] font-medium text-slate-400">
                         {businessName}
                     </span>
                 </div>
@@ -125,11 +130,17 @@ const Sidebar: React.FC<SidebarProps> = ({
                 </SidebarSection>
 
                 <SidebarSection label="Reports">
-                    <NavItem href="/reports/profit-loss/" active={activeRoute === "report_pnl"}>
+                    <NavItem href="/reports/pl-shadow/" active={activeRoute === "report_pnl" || activeRoute === "pl_shadow"}>
                         Profit & Loss
                     </NavItem>
                     <NavItem href="/reports/cashflow/" active={activeRoute === "cashflow_report"}>
                         Cashflow
+                    </NavItem>
+                    <NavItem
+                        href="/ai-companion/tax"
+                        active={activeRoute === "companion_overview_page" && currentPath.startsWith("/ai-companion/tax")}
+                    >
+                        Tax Guardian
                     </NavItem>
                     <NavItem href="/accounts/" active={activeRoute === "account_list"}>
                         Chart of Accounts
@@ -137,7 +148,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 </SidebarSection>
 
                 <SidebarSection label="Account">
-                    <NavItem href="/account/settings/" active={activeRoute === "account_settings"}>
+                    <NavItem href="/settings/account/" active={activeRoute === "account_settings"}>
                         Account settings
                     </NavItem>
                 </SidebarSection>

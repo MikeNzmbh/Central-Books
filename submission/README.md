@@ -1,12 +1,12 @@
 # Agentic Accounting OS — Residency Submission
 
-> An autonomous accounting engine built on top of CERN Books SaaS
+> An autonomous accounting engine built on top of Clover Books SaaS
 
 ---
 
 ## What Is This?
 
-The **Agentic Accounting OS** is a multi-agent system that automates bookkeeping, reconciliation, compliance, and audit. It sits alongside an existing Django-based accounting SaaS (CERN Books) and adds an intelligent, workflow-driven layer for processing financial documents.
+The **Agentic Accounting OS** is a multi-agent system that automates bookkeeping, reconciliation, compliance, and audit. It sits alongside an existing Django-based accounting SaaS (Clover Books) and adds an intelligent, workflow-driven layer for processing financial documents.
 
 This is **not a chatbot**. It's an autonomous pipeline that:
 - Ingests receipts, invoices, and bank statements

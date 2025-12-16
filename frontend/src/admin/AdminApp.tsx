@@ -261,7 +261,7 @@ const OverviewSection: React.FC<{ role: Role }> = ({ role }) => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Internal admin</p>
-          <h1 className="text-2xl sm:text-3xl font-semibold text-slate-900 mt-1">CERN Books control center</h1>
+          <h1 className="text-2xl sm:text-3xl font-semibold text-slate-900 mt-1">Clover Books control center</h1>
           <p className="text-sm text-slate-600 max-w-2xl mt-1.5">
             High-level view across tenants, ledgers, banking, and AI monitors. This panel is visible only to
             internal staff; all actions are fully audited.
@@ -616,7 +616,7 @@ const TopBar: React.FC<{ currentSection: NavSectionId }> = ({ currentSection }) 
             CB
           </div>
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">CERN Books · Admin</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Clover Books · Admin</p>
             <p className="text-xs text-slate-700">{sectionLabel ?? "Overview"}</p>
           </div>
         </div>
@@ -679,7 +679,7 @@ const Sidebar: React.FC<{
         <LogoutButton />
         <div className="text-[11px] text-slate-600">
           <p>Everything you do here leaves a trail.</p>
-          <p className="mt-0.5">Built for internal ops · CERN Books</p>
+          <p className="mt-0.5">Built for internal ops · Clover Books</p>
         </div>
       </div>
     </aside>

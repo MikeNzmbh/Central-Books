@@ -32,11 +32,7 @@ from django.views.decorators.http import require_POST, require_http_methods
 from django.views.generic import ListView, TemplateView, CreateView, UpdateView, View
 from django.urls import reverse, reverse_lazy, NoReverseMatch
 from django.utils.dateparse import parse_date
-try:
-    from weasyprint import HTML
-except Exception as exc:  # pragma: no cover - optional dependency in some envs
-    HTML = None
-    logging.getLogger(__name__).warning("weasyprint unavailable; PDF generation will be skipped. (%s)", exc)
+from .pdf_utils import generate_invoice_pdf
 from django.utils.text import slugify
 
 from .forms import (
@@ -2677,22 +2673,16 @@ def invoice_send_email_view(request, pk):
     # Optional CC flag from caller
     cc_me_flag = request.POST.get("cc_me") in {"1", "true", "on", "yes"}
 
-    # Render PDF attachment
+    # Render PDF attachment using reportlab
     pdf_content = None
-    if HTML:
-        try:
-            html_invoice = render_to_string("invoices/public_invoice_pdf.html", {"invoice": invoice}, request=request)
-            pdf_io = io.BytesIO()
-            HTML(string=html_invoice, base_url=request.build_absolute_uri("/")).write_pdf(pdf_io)
-            pdf_io.seek(0)
-            pdf_content = pdf_io.read()
-        except Exception as pdf_exc:  # pragma: no cover - avoid blocking send on PDF errors
-            invoice.email_last_error = str(pdf_exc)
-            invoice.save(update_fields=["email_last_error"])
-            logger = logging.getLogger(__name__)
-            logger.info("Skipping invoice PDF attachment because rendering failed: %s", pdf_exc)
-    else:
-        logging.getLogger(__name__).info("Skipping invoice PDF attachment because weasyprint is unavailable.")
+    try:
+        pdf_io = generate_invoice_pdf(invoice)
+        pdf_content = pdf_io.read()
+    except Exception as pdf_exc:  # pragma: no cover - avoid blocking send on PDF errors
+        invoice.email_last_error = str(pdf_exc)
+        invoice.save(update_fields=["email_last_error"])
+        logger = logging.getLogger(__name__)
+        logger.info("Skipping invoice PDF attachment because rendering failed: %s", pdf_exc)
 
     log = InvoiceEmailLog.objects.create(
         invoice=invoice,
@@ -3566,7 +3556,7 @@ def bank_feed_match_invoice(request, bank_account_id, tx_id):
                     invoice.status = Invoice.Status.PAID
                     invoice.save()
                 payment_entry = (
-                    invoice.journalentry_set.filter(description__icontains="Invoice paid")  # type: ignore[attr-defined]
+                    invoice.posted_journal_entry.filter(description__icontains="Invoice paid")
                     .order_by("-date", "-id")
                     .first()
                 )
@@ -3651,6 +3641,10 @@ def api_banking_overview(request):
     if business is None:
         return JsonResponse({"detail": "No business"}, status=400)
 
+    # RBAC: Check if user can view bank balances (field-level masking)
+    from .permissions import has_permission
+    can_view_balance = has_permission(request.user, business, "bank.accounts.view_balance")
+
     accounts = (
         BankAccount.objects.filter(business=business)
         .select_related("account")
@@ -3680,6 +3674,9 @@ def api_banking_overview(request):
         else:
             feed_status = "OK"
 
+        # RBAC: Mask balance for users without bank.accounts.view_balance permission
+        ledger_balance = str(account.current_balance) if can_view_balance else None
+
         account_payload.append(
             {
                 "id": account.id,
@@ -3688,7 +3685,8 @@ def api_banking_overview(request):
                 "bank": account.bank_name or "",
                 "currency": business.currency,
                 "ledger_linked": bool(account.account_id),
-                "ledger_balance": str(account.current_balance),
+                "ledger_balance": ledger_balance,
+                "balance_masked": not can_view_balance,  # Frontend knows balance is hidden
                 "feed_status": feed_status,
                 "last_import_at": (
                     timezone.localtime(account.last_imported_at).isoformat()
@@ -3723,6 +3721,9 @@ def api_banking_feed_transactions(request):
     business = get_current_business(request.user)
     if business is None:
         return JsonResponse({"detail": "No business"}, status=400)
+
+    from .permissions import has_permission
+    can_view_balance = has_permission(request.user, business, "bank.accounts.view_balance")
 
     account_id = request.GET.get("account_id")
     if not account_id:
@@ -3850,13 +3851,14 @@ def api_banking_feed_transactions(request):
         "id": bank_account.id,
         "name": bank_account.name,
         "last4": bank_account.account_number_mask or "",
-        "ledger_balance": str(bank_account.current_balance),
+        "ledger_balance": str(bank_account.current_balance) if can_view_balance else None,
+        "balance_masked": not can_view_balance,
     }
 
     return JsonResponse(
         {
             "account": account_payload,
-            "balance": float(bank_account.current_balance),
+            "balance": float(bank_account.current_balance) if can_view_balance else None,
             "status_counts": status_counts,
             "transactions": tx_payload,
         }
@@ -4309,7 +4311,7 @@ def api_banking_feed_match_invoice_api(request, tx_id):
             invoice.save()
 
         payment_entry = (
-            invoice.journalentry_set.filter(description__icontains="Invoice paid")  # type: ignore[attr-defined]
+            invoice.posted_journal_entry.filter(description__icontains="Invoice paid")
             .order_by("-date", "-id")
             .first()
         )
@@ -4378,7 +4380,7 @@ def api_banking_feed_match_expense_api(request, tx_id):
 
         journal_entry = post_expense_paid(expense)
         if journal_entry is None:
-            journal_entry = expense.journalentry_set.order_by("-date", "-id").first()  # type: ignore[attr-defined]
+            journal_entry = expense.posted_journal_entry.order_by("-date", "-id").first()
 
         expense.status = Expense.Status.PAID
         expense.paid_date = bank_tx.date
@@ -4731,7 +4733,7 @@ def bank_feed_match_expense(request, bank_account_id, tx_id):
         journal_entry = post_expense_paid(expense)
         if journal_entry is None:
             journal_entry = (
-                expense.journalentry_set.order_by("-date", "-id").first()  # type: ignore[attr-defined]
+                expense.posted_journal_entry.order_by("-date", "-id").first()
             )
 
         expense.status = Expense.Status.PAID

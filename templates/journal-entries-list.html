@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% load static mb_extras %}
+
+{% block title %}Journal Entries | Clover Books{% endblock %}
+
+{% block content %}
+<div id="journal-entries-root"></div>
+
+{% vite_asset 'journal-entries' 'css' as journal_css %}
+{% if journal_css %}
+<link rel="stylesheet" href="{% static journal_css %}">
+{% endif %}
+{% vite_asset 'journal-entries' as journal_js %}
+{% if journal_js %}
+<script type="module" src="{% static journal_js %}"></script>
+{% endif %}
+{% endblock %}

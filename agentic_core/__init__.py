@@ -14,7 +14,7 @@ It is designed to be extended with additional agents and workflows in future pha
 """
 
 __version__ = "0.1.0"
-__author__ = "CERN Books / CentralBooks Team"
+__author__ = "Clover Books / CloverBooks Team"
 
 # Re-export key classes for convenient imports
 from agentic_core.models import (

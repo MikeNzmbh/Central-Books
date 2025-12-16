@@ -176,7 +176,7 @@ export const ReconciliationReportPage: React.FC<ReconciliationReportPageProps> =
             </div>
 
             <ReconciliationReportPreview
-                workspaceName="CERN Books"
+                workspaceName="Clover Books"
                 currencyCode={session.bank_account.currency}
                 accountName={session.bank_account.name}
                 periodLabel={session.period.label}

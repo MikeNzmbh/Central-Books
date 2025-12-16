@@ -1,11 +1,11 @@
 import React from "react";
 
-interface CentralBooksWelcomeOnboardingProps {
+interface CloverBooksWelcomeOnboardingProps {
   onStartBooks?: () => void;
   onUploadSampleCsv?: () => void;
 }
 
-const CentralBooksWelcomeOnboarding: React.FC<CentralBooksWelcomeOnboardingProps> = ({
+const CloverBooksWelcomeOnboarding: React.FC<CloverBooksWelcomeOnboardingProps> = ({
   onStartBooks,
   onUploadSampleCsv,
 }) => {
@@ -18,14 +18,14 @@ const CentralBooksWelcomeOnboarding: React.FC<CentralBooksWelcomeOnboardingProps
           <div className="space-y-4">
             <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              <span>CERN Books · Welcome</span>
+              <span>Clover Books · Welcome</span>
             </div>
             <div className="space-y-3">
               <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight text-slate-900">
                 Welcome to your new finance workspace.
               </h1>
               <p className="text-sm text-slate-500">
-                Start by connecting a bank, importing a CSV, or exploring with sample data. CERN Books keeps your invoices, expenses, and ledger in sync so you always see a clean picture of your business.
+                Start by connecting a bank, importing a CSV, or exploring with sample data. Clover Books keeps your invoices, expenses, and ledger in sync so you always see a clean picture of your business.
               </p>
             </div>
           </div>
@@ -208,4 +208,4 @@ const CentralBooksWelcomeOnboarding: React.FC<CentralBooksWelcomeOnboardingProps
   );
 };
 
-export default CentralBooksWelcomeOnboarding;
+export default CloverBooksWelcomeOnboarding;

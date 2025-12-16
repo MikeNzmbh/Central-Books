@@ -21,6 +21,7 @@ from core.services.bank_reconciliation import (
 )
 from core.services.bank_matching import BankMatchingEngine
 from core.reconciliation import recompute_bank_transaction_status
+from core.llm_reasoning import audit_high_risk_transaction
 from core.models import (
     BankAccount,
     BankTransaction,
@@ -356,6 +357,19 @@ def _serialize_tx(tx: BankTransaction, session: ReconciliationSession | None = N
     in_session = session and tx.reconciliation_session_id == session.id
     rec_status = BankTransaction.RECO_STATUS_RECONCILED if (in_session and tx.status in RECONCILED_STATUSES) else BankTransaction.RECO_STATUS_UNRECONCILED
 
+    latest_audit = None
+    audits_rel = getattr(tx, "high_risk_audits", None)
+    try:
+        audit_obj = audits_rel.order_by("-created_at").first() if audits_rel is not None else None
+    except Exception:
+        audit_obj = None
+    if audit_obj:
+        latest_audit = {
+            "verdict": audit_obj.verdict,
+            "reasons": audit_obj.reasons or [],
+            "created_at": audit_obj.created_at.isoformat(),
+        }
+
     return {
         "id": tx.id,
         "date": tx.date.isoformat() if tx.date else "",
@@ -368,6 +382,7 @@ def _serialize_tx(tx: BankTransaction, session: ReconciliationSession | None = N
         "match_confidence": float(tx.suggestion_confidence) / 100.0 if tx.suggestion_confidence else None,
         "engine_reason": tx.suggestion_reason,
         "includedInSession": bool(in_session),
+        "high_risk_audit": latest_audit,
     }
 
 
@@ -381,6 +396,7 @@ def _session_feed(session: ReconciliationSession) -> dict:
         )
         .filter(Q(reconciliation_session__isnull=True) | Q(reconciliation_session=session))
         .select_related("customer", "supplier")
+        .prefetch_related("high_risk_audits")
         .order_by("-date", "-id")
     )
 
@@ -596,6 +612,42 @@ def _create_simple_entry_for_tx(session: ReconciliationSession, bank_tx: BankTra
     return je
 
 
+def _maybe_audit_high_risk_transaction(bank_tx: BankTransaction, *, is_bulk_adjustment: bool = False):
+    """
+    Trigger the high-risk critic for large or bulk transactions (no auto-posting).
+    Skips when AI Companion is disabled or an audit already exists.
+    """
+    business = getattr(bank_tx.bank_account, "business", None)
+    if not business or not getattr(business, "ai_companion_enabled", False):
+        return None
+    try:
+        if bank_tx.high_risk_audits.exists():  # type: ignore[attr-defined]
+            return None
+    except Exception:
+        # If relation missing, fail open (no audit)
+        return None
+
+    linked_accounts = []
+    if bank_tx.bank_account and bank_tx.bank_account.account:
+        linked_accounts.append(bank_tx.bank_account.account.code)
+    if bank_tx.category and bank_tx.category.account:
+        linked_accounts.append(bank_tx.category.account.code)
+
+    amount_val = abs(bank_tx.amount or Decimal("0"))
+    if amount_val <= Decimal("5000") and not is_bulk_adjustment:
+        return None
+
+    return audit_high_risk_transaction(
+        amount=float(amount_val),
+        currency=business.currency or "USD",
+        accounts=linked_accounts,
+        memo=bank_tx.description or "",
+        source="bank_reconciliation",
+        is_bulk_adjustment=is_bulk_adjustment,
+        attach_to=bank_tx,
+    )
+
+
 def _apply_match(session: ReconciliationSession, bank_tx: BankTransaction, journal_entry: JournalEntry, user):
     """
     Link a bank transaction to a journal entry and mark both sides reconciled.
@@ -634,6 +686,7 @@ def _apply_match(session: ReconciliationSession, bank_tx: BankTransaction, journ
             reconciled_at=ts,
             reconciliation_session=session,
         )
+    _maybe_audit_high_risk_transaction(bank_tx)
     return match
 
 
@@ -1035,6 +1088,77 @@ def api_reconciliation_reopen_session(request: HttpRequest, session_id: int):
     return JsonResponse(_session_payload(session, include_periods=True))
 
 
+@login_required
+@require_POST
+def api_reconciliation_delete_session(request: HttpRequest, session_id: int):
+    """
+    Delete a reconciliation session and reset all associated transactions.
+    This allows the user to start over for a period.
+    """
+    business, error = _ensure_business(request)
+    if error:
+        return error
+
+    session = get_object_or_404(ReconciliationSession, pk=session_id, business=business)
+    
+    # Reset all transactions associated with this session
+    # This unlinks them from the session and resets their status to NEW
+    affected_txs = BankTransaction.objects.filter(reconciliation_session=session)
+    for tx in affected_txs:
+        tx.reconciliation_session = None
+        tx.is_reconciled = False
+        tx.reconciled_at = None
+        tx.status = BankTransaction.TransactionStatus.NEW
+        tx.reconciliation_status = BankTransaction.RECO_STATUS_UNRECONCILED
+        tx.allocated_amount = Decimal("0.00")
+        tx.save(update_fields=[
+            "reconciliation_session",
+            "is_reconciled",
+            "reconciled_at",
+            "status",
+            "reconciliation_status",
+            "allocated_amount",
+        ])
+    
+    # Delete matches associated with transactions in this period
+    BankReconciliationMatch.objects.filter(
+        bank_transaction__bank_account=session.bank_account,
+        bank_transaction__date__gte=session.statement_start_date,
+        bank_transaction__date__lte=session.statement_end_date,
+    ).delete()
+    
+    # Also reset journal line reconciliation flags
+    JournalLine.objects.filter(reconciliation_session=session).update(
+        is_reconciled=False,
+        reconciled_at=None,
+        reconciliation_session=None,
+    )
+    
+    # Store period info before deleting
+    bank_account_id = session.bank_account_id
+    period_start = session.statement_start_date.isoformat()
+    period_end = session.statement_end_date.isoformat()
+    
+    # Delete the session
+    session.delete()
+
+    logger.info(
+        "reconciliation.session_deleted",
+        extra={
+            "session_id": session_id,
+            "bank_account_id": bank_account_id,
+            "user_id": request.user.id,
+        },
+    )
+
+    return JsonResponse({
+        "ok": True,
+        "message": "Session deleted. You can now start a fresh reconciliation for this period.",
+        "bank_account_id": bank_account_id,
+        "period_start": period_start,
+        "period_end": period_end,
+    })
+
 def _mark_reconciled(bank_tx: BankTransaction, journal_entry, session: ReconciliationSession | None = None):
     ts = timezone.now()
     target_session = session or _session_for_tx(bank_tx)
@@ -1378,6 +1502,7 @@ def api_reconciliation_add_as_new(request: HttpRequest):
     
     bank_tx_id = body.get("bank_transaction_id")
     session_id = body.get("session_id")
+    is_bulk_adjustment = bool(body.get("is_bulk_adjustment", False))
     
     if not bank_tx_id:
         return _json_error("bank_transaction_id is required")
@@ -1399,6 +1524,7 @@ def api_reconciliation_add_as_new(request: HttpRequest):
         _assert_tx_in_session_period(bank_tx, session)
         je = _create_simple_entry_for_tx(session, bank_tx) if session else _create_simple_entry_for_tx_no_session(business, bank_tx)
         _mark_reconciled(bank_tx, je, session=session)
+        _maybe_audit_high_risk_transaction(bank_tx, is_bulk_adjustment=is_bulk_adjustment)
         recompute_bank_transaction_status(bank_tx)
         return JsonResponse({
             "status": "ok",

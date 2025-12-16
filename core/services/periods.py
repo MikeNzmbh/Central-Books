@@ -109,6 +109,18 @@ def resolve_period(
         except Exception:
             normalized = "this_month"
 
+    # Handle month_YYYY_MM format from dashboard P&L picker
+    if normalized.startswith("month_"):
+        try:
+            parts = normalized.split("_")  # ["month", "2025", "12"]
+            year = int(parts[1])
+            month_num = int(parts[2])
+            parsed_start = date(year, month_num, 1)
+            parsed_end = _month_end(parsed_start)
+            normalized = "custom"
+        except Exception:
+            normalized = "this_month"
+
     month, day = _parse_fiscal_start(fiscal_year_start)
     label_prefix = PRESET_LABELS.get(normalized, PRESET_LABELS["custom"])
 

@@ -1,16 +1,18 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
+import { BrowserRouter } from "react-router-dom";
 import "../index.css";
-import ExpensesListPage from "./ExpensesListPage";
+import { TransactionsPageContent } from "../transactions/TransactionsPage";
 
 const rootEl = document.getElementById("expenses-list-root");
 
 if (rootEl) {
-    const defaultCurrency = rootEl.dataset.defaultCurrency || "USD";
     const root = createRoot(rootEl);
     root.render(
         <React.StrictMode>
-            <ExpensesListPage defaultCurrency={defaultCurrency} />
+            <BrowserRouter>
+                <TransactionsPageContent kind="expense" />
+            </BrowserRouter>
         </React.StrictMode>
     );
 } else {

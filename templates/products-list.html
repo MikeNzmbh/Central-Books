@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% load static mb_extras %}
+
+{% block title %}Products & Services | Clover Books{% endblock %}
+
+{% block content %}
+<div id="products-root"></div>
+
+{% vite_asset 'products-list' 'css' as products_css %}
+{% if products_css %}
+<link rel="stylesheet" href="{% static products_css %}">
+{% endif %}
+{% vite_asset 'products-list' as products_js %}
+{% if products_js %}
+<script type="module" src="{% static products_js %}"></script>
+{% endif %}
+{% endblock %}

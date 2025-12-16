@@ -1,6 +1,6 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
-import CentralBooksCreateAccount from "./CentralBooksCreateAccount";
+import CloverBooksCreateAccount from "./CloverBooksCreateAccount";
 import "../index.css";
 
 type SignupPayload = {
@@ -19,7 +19,7 @@ if (rootEl && dataEl) {
     const payload = JSON.parse(dataEl.textContent || "{}") as SignupPayload;
     const root = createRoot(rootEl);
     root.render(
-      <CentralBooksCreateAccount
+      <CloverBooksCreateAccount
         action={payload.action}
         csrfToken={payload.csrfToken}
         errors={payload.errors}

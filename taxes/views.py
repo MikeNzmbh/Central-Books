@@ -16,6 +16,23 @@ def _parse_date(value: str, default: date) -> date:
         return default
 
 
+def _wants_json(request: HttpRequest) -> bool:
+    """
+    Content negotiation for report endpoints that can return HTML or JSON.
+
+    Many clients send Accept like "application/json, text/plain, */*" (axios) or "*/*" (fetch),
+    so avoid strict equality checks.
+    """
+    if (request.GET.get("format") or "").lower() == "json":
+        return True
+    accept = (request.headers.get("Accept") or "").lower()
+    if "application/json" in accept:
+        return True
+    if accept.strip() == "*/*":
+        return True
+    return False
+
+
 @login_required
 def gst_hst_report(request: HttpRequest) -> HttpResponse:
     business = get_current_business(request.user)
@@ -25,7 +42,7 @@ def gst_hst_report(request: HttpRequest) -> HttpResponse:
     today = date.today()
     start_param = request.GET.get("start_date")
     end_param = request.GET.get("end_date")
-    jurisdiction = (request.GET.get("jurisdiction") or "ALL").upper()
+    jurisdiction = (request.GET.get("jurisdiction") or "CRA").upper()
 
     start_date = _parse_date(start_param, today.replace(day=1)) if start_param else today.replace(day=1)
     end_date = _parse_date(end_param, today)
@@ -35,6 +52,32 @@ def gst_hst_report(request: HttpRequest) -> HttpResponse:
         start_date=start_date,
         end_date=end_date,
         jurisdiction=None if jurisdiction == "ALL" else jurisdiction,
+    )
+    payload = {
+        "period": {"start": start_date.isoformat(), "end": end_date.isoformat()},
+        "jurisdiction": summary["jurisdiction"],
+        "summary": {
+            "line_101_taxable_sales": str(summary["line_101_taxable_sales"]),
+            "line_105_tax_collected": str(summary["line_105_tax_collected"]),
+            "line_108_itcs": str(summary["line_108_itcs"]),
+            "line_109_net_tax": str(summary["line_109_net_tax"]),
+        },
+        "details": summary["details"],
+    }
+
+    if _wants_json(request):
+        return JsonResponse(payload)
+
+    return render(
+        request,
+        "reports/gst_hst.html",
+        {
+            "business": business,
+            "period": payload["period"],
+            "jurisdiction": summary["jurisdiction"],
+            "summary": summary,
+            "details": summary["details"],
+        },
     )
 
 @login_required
@@ -63,7 +106,7 @@ def us_sales_tax_report(request: HttpRequest) -> HttpResponse:
         "disclaimer": summary["disclaimer"],
     }
 
-    if request.headers.get("Accept") == "application/json" or request.GET.get("format") == "json":
+    if _wants_json(request):
         return JsonResponse(payload)
 
     return render(
@@ -75,31 +118,5 @@ def us_sales_tax_report(request: HttpRequest) -> HttpResponse:
             "jurisdictions": summary["jurisdictions"],
             "totals": summary["totals"],
             "disclaimer": summary["disclaimer"],
-        },
-    )
-    response_payload = {
-        "period": {"start": start_date.isoformat(), "end": end_date.isoformat()},
-        "jurisdiction": summary["jurisdiction"],
-        "summary": {
-            "line_101_taxable_sales": str(summary["line_101_taxable_sales"]),
-            "line_105_tax_collected": str(summary["line_105_tax_collected"]),
-            "line_108_itcs": str(summary["line_108_itcs"]),
-            "line_109_net_tax": str(summary["line_109_net_tax"]),
-        },
-        "details": summary["details"],
-    }
-
-    if request.headers.get("Accept") == "application/json" or request.GET.get("format") == "json":
-        return JsonResponse(response_payload)
-
-    return render(
-        request,
-        "reports/gst_hst.html",
-        {
-            "business": business,
-            "period": response_payload["period"],
-            "jurisdiction": response_payload["jurisdiction"],
-            "summary": summary,
-            "details": summary["details"],
         },
     )

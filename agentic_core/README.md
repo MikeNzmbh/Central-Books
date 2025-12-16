@@ -262,7 +262,7 @@ for step in trace.steps:
 
 ## License
 
-Internal use only. Part of the CERN Books / CentralBooks project.
+Internal use only. Part of the Clover Books / CloverBooks project.
 
 ---
 

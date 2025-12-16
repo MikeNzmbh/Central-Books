@@ -195,6 +195,7 @@ const CompanionStrip: React.FC<CompanionStripProps> = ({ context, className, use
   const {
     isLoading: contextLoading,
     error: contextError,
+    contextInsights,
     contextActions,
     markContextSeen,
   } = useCompanionContext(context);
@@ -260,11 +261,18 @@ const CompanionStrip: React.FC<CompanionStripProps> = ({ context, className, use
     };
   }, [userName, hasError, summary, context]);
 
-  // Build suggestions from actions
-  const suggestions: CompanionSuggestion[] = contextActions.slice(0, 3).map((action, idx) => ({
-    id: `action-${idx}`,
-    label: action.summary || action.short_title || action.action_type || "Take action",
-  }));
+  // Build suggestions: prefer actions, fall back to insights.
+  const suggestions: CompanionSuggestion[] = (contextActions.length ? contextActions : contextInsights)
+    .slice(0, 3)
+    .map((item: any, idx) => ({
+      id: `${contextActions.length ? "action" : "insight"}-${idx}`,
+      label:
+        item?.summary ||
+        item?.short_title ||
+        item?.action_type ||
+        item?.title ||
+        "Review item",
+    }));
 
   return (
     <div className={`companion-glow ${className || ""}`} data-testid="companion-strip-glow">

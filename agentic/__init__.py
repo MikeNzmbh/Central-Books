@@ -14,7 +14,7 @@ This is scaffolding for the OpenAI Residency build. No active execution yet.
 """
 
 __version__ = "0.1.0"
-__author__ = "CERN Books / CentralBooks Team"
+__author__ = "Clover Books / CloverBooks Team"
 
 # Package will export key components once implemented
 __all__ = [

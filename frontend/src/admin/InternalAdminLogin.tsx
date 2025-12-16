@@ -55,7 +55,7 @@ export const InternalAdminLogin: React.FC = () => {
             CB
           </div>
           <h1 className="text-2xl font-semibold text-slate-900">Internal admin</h1>
-          <p className="text-sm text-slate-600">Sign in to CERN Books admin</p>
+          <p className="text-sm text-slate-600">Sign in to Clover Books admin</p>
         </div>
         <form
           onSubmit={handleSubmit}
@@ -93,7 +93,7 @@ export const InternalAdminLogin: React.FC = () => {
             disabled={loading}
             className="w-full rounded-full bg-emerald-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-70"
           >
-            {loading ? "Signing in…" : "Sign in to CERN Books admin"}
+            {loading ? "Signing in…" : "Sign in to Clover Books admin"}
           </button>
           <p className="text-xs text-center text-slate-500">
             Internal staff only. Activity is monitored.

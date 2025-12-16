@@ -89,6 +89,13 @@ class CompanionOverviewView(APIView):
             health_payload = HealthIndexSerializer(snapshot).data if snapshot else None
             raw_metrics = snapshot.raw_metrics if snapshot else gather_workspace_metrics(workspace)
 
+            severity_order = Case(
+                When(severity="critical", then=0),
+                When(severity="warning", then=1),
+                default=2,
+                output_field=IntegerField(),
+            )
+
             insights = []
             insights_data = []
             if profile.enable_suggestions:
@@ -101,12 +108,6 @@ class CompanionOverviewView(APIView):
                     except Exception as exc:  # pragma: no cover - defensive
                         logger.warning("Failed to generate sample insights: %s", exc)
 
-                severity_order = Case(
-                    When(severity="critical", then=0),
-                    When(severity="warning", then=1),
-                    default=2,
-                    output_field=IntegerField(),
-                )
                 insights = (
                     CompanionInsight.objects.filter(workspace=workspace, is_dismissed=False)
                     .order_by(severity_order, "-created_at")[:5]
@@ -142,14 +143,26 @@ class CompanionOverviewView(APIView):
                 CompanionInsight.CONTEXT_RECONCILIATION,
                 CompanionInsight.CONTEXT_INVOICES,
                 CompanionInsight.CONTEXT_EXPENSES,
+                CompanionInsight.CONTEXT_REPORTS,
+                CompanionInsight.CONTEXT_TAX_FX,
                 CompanionInsight.CONTEXT_DASHBOARD,
             }
             if context_filter in valid_contexts:
                 last_seen_at = get_last_seen_value(profile, context_filter)
                 new_actions_count = get_new_actions_count(workspace, context_filter, last_seen_at)
                 has_new_actions = new_actions_count > 0
-                context_insights = [i for i in insights if getattr(i, "context", CompanionInsight.CONTEXT_DASHBOARD) == context_filter]
-                context_actions = [a for a in actions_qs if getattr(a, "context", CompanionSuggestedAction.CONTEXT_DASHBOARD) == context_filter]
+                if profile.enable_suggestions:
+                    context_insights = list(
+                        CompanionInsight.objects.filter(
+                            workspace=workspace,
+                            is_dismissed=False,
+                            context=context_filter,
+                        )
+                        .order_by(severity_order, "-created_at")[:5]
+                    )
+                else:
+                    context_insights = []
+                context_actions = list(actions_qs.filter(context=context_filter))
                 evaluation = None
                 if context_filter == CompanionInsight.CONTEXT_INVOICES:
                     evaluation = evaluate_invoices_context(workspace, raw_metrics)
@@ -304,6 +317,8 @@ class CompanionContextSeenView(APIView):
         CompanionSuggestedAction.CONTEXT_RECONCILIATION,
         CompanionSuggestedAction.CONTEXT_INVOICES,
         CompanionSuggestedAction.CONTEXT_EXPENSES,
+        CompanionSuggestedAction.CONTEXT_REPORTS,
+        CompanionSuggestedAction.CONTEXT_TAX_FX,
         CompanionSuggestedAction.CONTEXT_DASHBOARD,
     }
 

@@ -84,15 +84,58 @@ interface CompanionCoverage {
 interface CloseReadiness {
   status: "ready" | "not_ready";
   blocking_reasons: string[];
+  blocking_items?: { reason: string; task_code?: string | null; surface?: string | null }[];
+}
+
+interface FinanceSnapshot {
+  cash_health: { ending_cash: number; monthly_burn: number; runway_months: number | null };
+  revenue_expense: { months: string[]; revenue: number[]; expense: number[] };
+  ar_health: { buckets: Record<string, number>; total_overdue: number };
+  narrative?: string;
+  narrative_source?: "ai" | "auto";
+}
+
+interface TaxGuardianIssue {
+  code: string;
+  severity: string;
+  description: string;
+  task_code: string;
+}
+
+interface TaxGuardian {
+  status: "all_clear" | "issues";
+  issues: TaxGuardianIssue[];
+}
+
+interface TaxSummary {
+  period_key: string;
+  has_snapshot: boolean;
+  net_tax: number | null;
+  jurisdictions: Array<{
+    code: string;
+    taxable_sales: number;
+    tax_collected: number;
+    tax_on_purchases: number;
+    net_tax: number;
+    currency?: string;
+  }>;
+  anomaly_counts: {
+    low: number;
+    medium: number;
+    high: number;
+  };
+  anomalies?: TaxGuardianIssue[];
 }
 
 // Playbook step type
 interface PlaybookStep {
   label: string;
-  surface: "receipts" | "invoices" | "bank" | "books";
+  surface: "receipts" | "invoices" | "bank" | "books" | "tax";
   severity: "low" | "medium" | "high";
   url: string;
   issue_id?: number | null;
+  task_code?: string;
+  requires_premium?: boolean;
 }
 
 interface CompanionSummary {
@@ -123,6 +166,9 @@ interface CompanionSummary {
   story?: CompanionStory;
   coverage?: CompanionCoverage;
   close_readiness?: CloseReadiness;
+  finance_snapshot?: FinanceSnapshot;
+  tax?: TaxSummary;
+  tax_guardian?: TaxGuardian;
   playbook?: PlaybookStep[];
 }
 
@@ -267,6 +313,15 @@ const formatTimeAgo = (isoDate: string): string => {
   return `${diffDays} days ago`;
 };
 
+export const formatCurrency = (value: number | null | undefined, currency: string = "USD") => {
+  const num = typeof value === "number" ? value : 0;
+  try {
+    return new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 0 }).format(num);
+  } catch {
+    return `$${num.toFixed(0)}`;
+  }
+};
+
 // --- MAIN COMPONENT -------------------------------------------------------
 
 const CompanionOverviewPage: React.FC = () => {
@@ -275,14 +330,29 @@ const CompanionOverviewPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [issues, setIssues] = useState<CompanionIssue[]>([]);
+  const totalTaxAnomalies =
+    summary?.tax
+      ? (summary.tax.anomaly_counts?.low || 0) +
+      (summary.tax.anomaly_counts?.medium || 0) +
+      (summary.tax.anomaly_counts?.high || 0)
+      : summary?.tax_guardian?.issues?.length || 0;
+  const taxStatus = totalTaxAnomalies > 0 ? "issues" : "all_clear";
 
   const loadSummary = async () => {
     setLoading(true);
     try {
       // Fetch both APIs in parallel - summary for surfaces, issues for checklist
       const [summaryRes, issuesRes] = await Promise.all([
-        fetch("/api/agentic/companion/summary"),
-        fetch("/api/agentic/companion/issues?status=open"),
+        fetch("/api/agentic/companion/summary", {
+          method: "GET",
+          credentials: "same-origin",
+          headers: { Accept: "application/json" },
+        }),
+        fetch("/api/agentic/companion/issues?status=open", {
+          method: "GET",
+          credentials: "same-origin",
+          headers: { Accept: "application/json" },
+        }),
       ]);
 
       const summaryText = await summaryRes.text();
@@ -290,7 +360,8 @@ const CompanionOverviewPage: React.FC = () => {
       try {
         summaryJson = JSON.parse(summaryText);
       } catch {
-        throw new Error("Server returned an unexpected response.");
+        const status = summaryRes.status ? ` (status ${summaryRes.status})` : "";
+        throw new Error(`Server returned an unexpected response${status}.`);
       }
       if (!summaryRes.ok) throw new Error(summaryJson.error || "Failed to load summary");
       setSummary(summaryJson);
@@ -686,13 +757,130 @@ const CompanionOverviewPage: React.FC = () => {
                           {step.label}
                         </Link>
                       </div>
-                      <span className="shrink-0 text-[0.65rem] uppercase tracking-wide text-slate-500">
-                        {step.surface}
-                      </span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {step.requires_premium && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 text-slate-600 px-2 py-0.5 text-[10px] font-semibold border border-slate-200">
+                            Premium
+                          </span>
+                        )}
+                        <span className="text-[0.65rem] uppercase tracking-wide text-slate-500">
+                          {step.surface}
+                        </span>
+                      </div>
                     </li>
                   );
                 })}
               </ul>
+            </motion.section>
+          )}
+
+          {/* Finance Companion */}
+          {summary?.finance_snapshot && (
+            <motion.section
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.28 }}
+              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm"
+            >
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Finance Companion
+                </h3>
+                {summary.finance_snapshot.narrative && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 text-[10px] font-semibold">
+                    ✨ AI
+                  </span>
+                )}
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide text-slate-500 font-semibold">Ending cash</p>
+                  <p className="text-base font-bold text-slate-900">
+                    {formatCurrency(summary.finance_snapshot.cash_health?.ending_cash)}
+                  </p>
+                  <p className="text-[11px] text-slate-500">
+                    Burn ~{formatCurrency(summary.finance_snapshot.cash_health?.monthly_burn)} / mo
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide text-slate-500 font-semibold">Runway</p>
+                  <p className="text-base font-bold text-slate-900">
+                    {summary.finance_snapshot.cash_health?.runway_months
+                      ? `${summary.finance_snapshot.cash_health.runway_months.toFixed(1)} mo`
+                      : "N/A"}
+                  </p>
+                  <p className="text-[11px] text-slate-500">
+                    Overdue AR: {formatCurrency(summary.finance_snapshot.ar_health?.total_overdue)}
+                  </p>
+                </div>
+              </div>
+              {summary.finance_snapshot.narrative && (
+                <p className="mt-2 text-xs text-slate-600 leading-relaxed">
+                  {summary.finance_snapshot.narrative}
+                </p>
+              )}
+            </motion.section>
+          )}
+
+          {/* Tax Guardian */}
+          {(summary?.tax || summary?.tax_guardian) && (
+            <motion.section
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm hover:ring-1 hover:ring-emerald-200 transition-all"
+            >
+              <div className="flex items-center justify-between">
+                <Link to={`/tax${summary.tax?.period_key ? `?period=${summary.tax.period_key}` : ""}`} className="text-xs font-semibold uppercase tracking-wide text-slate-500 hover:text-emerald-700">
+                  Tax Guardian
+                </Link>
+                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${taxStatus === "all_clear"
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  : "bg-amber-50 text-amber-700 border-amber-200"
+                  }`}>
+                  {taxStatus === "all_clear" ? "All clear" : "Issues"}
+                </span>
+              </div>
+              {summary.tax && (
+                <div className="mt-2 text-xs text-slate-700 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <Link to={`/tax?period=${summary.tax.period_key}`} className="font-semibold hover:text-emerald-700">
+                      Period {summary.tax.period_key}
+                    </Link>
+                    {summary.tax.net_tax !== null && (
+                      <span className="text-slate-600">
+                        Net tax: {formatCurrency(summary.tax.net_tax || 0)}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 text-[11px] text-slate-600">
+                    <Link to={`/tax?period=${summary.tax.period_key}&severity=low`} className="inline-flex items-center gap-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 hover:bg-emerald-100 transition-colors">
+                      Low {summary.tax.anomaly_counts.low ?? 0}
+                    </Link>
+                    <Link to={`/tax?period=${summary.tax.period_key}&severity=medium`} className="inline-flex items-center gap-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 hover:bg-amber-100 transition-colors">
+                      Med {summary.tax.anomaly_counts.medium ?? 0}
+                    </Link>
+                    <Link to={`/tax?period=${summary.tax.period_key}&severity=high`} className="inline-flex items-center gap-1 rounded-full bg-red-50 text-red-700 border border-red-200 px-2 py-0.5 hover:bg-red-100 transition-colors">
+                      High {summary.tax.anomaly_counts.high ?? 0}
+                    </Link>
+                  </div>
+                  {summary.tax.anomalies && summary.tax.anomalies.length > 0 && (
+                    <ul className="mt-1 space-y-1">
+                      {summary.tax.anomalies.slice(0, 3).map((issue, idx) => (
+                        <li key={idx} className="flex items-start gap-2">
+                          <span className="text-amber-500 mt-0.5">•</span>
+                          <span className="flex-1">
+                            <span className="font-semibold">{issue.code}</span>: {issue.description}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <Link to={`/tax?period=${summary.tax.period_key}`} className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-emerald-900 mt-2">
+                    View details →
+                  </Link>
+                </div>
+              )}
             </motion.section>
           )}
         </div>

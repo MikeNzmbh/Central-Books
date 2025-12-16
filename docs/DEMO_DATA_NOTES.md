@@ -1,4 +1,4 @@
-# Central Books — Demo Data Notes
+# Clover Books — Demo Data Notes
 
 *How demo data is set up for testing and demonstrations*
 
@@ -6,7 +6,7 @@
 
 ## Overview
 
-Central Books uses SQLite locally (`db.sqlite3`) with sample data for development and demos.
+Clover Books uses SQLite locally (`db.sqlite3`) with sample data for development and demos.
 
 ---
 
@@ -16,7 +16,7 @@ The local database includes:
 
 | Entity | Count | Notes |
 |--------|-------|-------|
-| Business | 1 | "CERN Books" (user's active business) |
+| Business | 1 | "Clover Books" (user's active business) |
 | Users | 1 | Mike Nzamurambaho (mbahomike123@gmail.com) |
 | Accounts | ~20+ | Standard chart of accounts |
 | Expense Categories | 5 | Rent, Software, Travel, Marketing, Utilities |

@@ -105,6 +105,35 @@ class CompanionApiTests(TestCase):
         self.assertIsNotNone(matching)
         self.assertEqual(matching.get("context"), CompanionInsight.CONTEXT_RECONCILIATION)
 
+    def test_overview_context_tax_fx_returns_context_insights(self):
+        # Fill the global top-5 insights with non-tax items.
+        for idx in range(6):
+            CompanionInsight.objects.create(
+                workspace=self.workspace,
+                domain="other",
+                title=f"Other insight {idx}",
+                body="Body",
+                severity="critical",
+                context=CompanionInsight.CONTEXT_BANK,
+            )
+
+        tax_insight = CompanionInsight.objects.create(
+            workspace=self.workspace,
+            domain="tax_filing",
+            title="Tax filing due soon — 2025-04",
+            body="Due soon.",
+            severity="warning",
+            context=CompanionInsight.CONTEXT_TAX_FX,
+        )
+
+        response = self.client.get(reverse("companion:overview") + "?context=tax_fx")
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload.get("context"), CompanionInsight.CONTEXT_TAX_FX)
+        titles = [i["title"] for i in payload.get("insights") or []]
+        self.assertIn(tax_insight.title, titles)
+        self.assertTrue(all(i.get("context") == CompanionInsight.CONTEXT_TAX_FX for i in payload.get("insights") or []))
+
     @override_settings(COMPANION_LLM_ENABLED=False)
     def test_llm_disabled_returns_null_summary(self):
         response = self.client.get(reverse("companion:overview"))
@@ -232,6 +261,16 @@ class CompanionApiTests(TestCase):
         follow = self.client.get(reverse("companion:overview") + "?context=bank").json()
         self.assertFalse(follow.get("has_new_actions"))
         self.assertEqual(follow.get("new_actions_count"), 0)
+
+    def test_mark_context_seen_tax_fx(self):
+        res = self.client.post(
+            reverse("companion:context_seen"),
+            data=json.dumps({"context": "tax_fx"}),
+            content_type="application/json",
+        )
+        self.assertEqual(res.status_code, 200)
+        profile = WorkspaceCompanionProfile.objects.get(workspace=self.workspace)
+        self.assertIsNotNone(profile.last_seen_tax_fx_at)
 
     def test_context_seen_invalid_context_rejected(self):
         res = self.client.post(
@@ -727,8 +766,26 @@ class CompanionDeterministicSuggestionTests(TestCase):
     def test_expense_spike_category_action(self):
         category = Category.objects.create(business=self.workspace, name="Travel", type=Category.CategoryType.EXPENSE)
         today = timezone.now().date()
-        Expense.objects.create(business=self.workspace, category=category, supplier=self.supplier, date=today - timedelta(days=60), amount=Decimal("100.00"))
-        Expense.objects.create(business=self.workspace, category=category, supplier=self.supplier, date=today - timedelta(days=10), amount=Decimal("300.00"))
+        first_of_month = today.replace(day=1)
+        last_month_end = first_of_month - timedelta(days=1)
+        last_month_start = last_month_end.replace(day=1)
+        prev_month_end = last_month_start - timedelta(days=1)
+        prev_month_start = prev_month_end.replace(day=1)
+
+        Expense.objects.create(
+            business=self.workspace,
+            category=category,
+            supplier=self.supplier,
+            date=prev_month_start + timedelta(days=1),
+            amount=Decimal("100.00"),
+        )
+        Expense.objects.create(
+            business=self.workspace,
+            category=category,
+            supplier=self.supplier,
+            date=last_month_start + timedelta(days=1),
+            amount=Decimal("300.00"),
+        )
         actions = generate_expense_spike_category_review(self.workspace, threshold_pct=50)
         self.assertTrue(actions)
         self.assertEqual(actions[0].action_type, CompanionSuggestedAction.ACTION_SPIKE_EXPENSE_CATEGORY_REVIEW)
