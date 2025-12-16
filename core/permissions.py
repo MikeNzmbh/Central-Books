@@ -200,12 +200,16 @@ def get_membership(request: "HttpRequest") -> Optional["WorkspaceMembership"]:
     
     # Get the user's active membership (for now, first one)
     # Future: support switching workspaces
-    return (
-        WorkspaceMembership.objects
-        .filter(user=user, is_active=True)
-        .select_related("business")
-        .first()
-    )
+    # Wrapped in try/except for resilience during migration rollout
+    try:
+        return (
+            WorkspaceMembership.objects
+            .filter(user=user, is_active=True)
+            .select_related("business")
+            .first()
+        )
+    except Exception:
+        return None
 
 
 def get_user_role(request: "HttpRequest") -> Optional[Role]:

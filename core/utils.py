@@ -27,15 +27,20 @@ def get_current_business(user):
         return owned_business
     
     # Check for membership (non-owner access)
-    membership = (
-        WorkspaceMembership.objects
-        .filter(user=user, is_active=True)
-        .select_related("business")
-        .order_by("id")
-        .first()
-    )
-    if membership and membership.is_effective:
-        return membership.business
+    # Wrapped in try/except for resilience during migration rollout
+    try:
+        membership = (
+            WorkspaceMembership.objects
+            .filter(user=user, is_active=True)
+            .select_related("business")
+            .order_by("id")
+            .first()
+        )
+        if membership and membership.is_effective:
+            return membership.business
+    except Exception:
+        # WorkspaceMembership table might not exist yet during migration
+        pass
     
     return None
 
