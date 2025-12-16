@@ -3722,6 +3722,9 @@ def api_banking_feed_transactions(request):
     if business is None:
         return JsonResponse({"detail": "No business"}, status=400)
 
+    from .permissions import has_permission
+    can_view_balance = has_permission(request.user, business, "bank.accounts.view_balance")
+
     account_id = request.GET.get("account_id")
     if not account_id:
         return JsonResponse({"detail": "account_id is required"}, status=400)
@@ -3848,13 +3851,14 @@ def api_banking_feed_transactions(request):
         "id": bank_account.id,
         "name": bank_account.name,
         "last4": bank_account.account_number_mask or "",
-        "ledger_balance": str(bank_account.current_balance),
+        "ledger_balance": str(bank_account.current_balance) if can_view_balance else None,
+        "balance_masked": not can_view_balance,
     }
 
     return JsonResponse(
         {
             "account": account_payload,
-            "balance": float(bank_account.current_balance),
+            "balance": float(bank_account.current_balance) if can_view_balance else None,
             "status_counts": status_counts,
             "transactions": tx_payload,
         }

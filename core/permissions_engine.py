@@ -66,6 +66,18 @@ def _resolve_role_definition(membership):
         return role_def
     from .models import RoleDefinition
 
+    role_def = RoleDefinition.objects.filter(business_id=membership.business_id, key=membership.role).first()
+    if role_def:
+        return role_def
+
+    # Business created after seed migration: lazily ensure built-ins exist.
+    try:
+        from .rbac_seeding import ensure_builtin_role_definitions
+
+        ensure_builtin_role_definitions(membership.business)
+    except Exception:
+        return None
+
     return RoleDefinition.objects.filter(business_id=membership.business_id, key=membership.role).first()
 
 
@@ -145,6 +157,23 @@ def evaluate_permission(
     role_def = _resolve_role_definition(membership)
 
     base_level, base_scope = _get_role_entry(role_def, action)
+    if role_def is None and membership:
+        # Backwards-compatible fallback to RBAC v1 mapping when role definitions
+        # have not been created yet for a business.
+        try:
+            from .permissions import PERMISSIONS, Role
+            from .rbac_seeding import ACTION_CANONICAL, guess_level
+
+            user_role = Role(membership.role)
+            for candidate in equivalent_actions(action):
+                allowed_roles = PERMISSIONS.get(candidate)
+                if allowed_roles and user_role in allowed_roles:
+                    canonical_action = ACTION_CANONICAL.get(candidate, candidate)
+                    base_level = _normalize_level(guess_level(canonical_action))
+                    base_scope = {"type": "all"}
+                    break
+        except Exception:
+            pass
 
     override = _get_override_entry(membership, action)
     if override and override.effect == "DENY":
@@ -181,7 +210,22 @@ def get_effective_permission_matrix(user, business) -> dict[str, dict[str, Any]]
     """
     membership = _resolve_membership(user, business)
     role_def = _resolve_role_definition(membership)
-    permissions = (role_def.permissions or {}) if role_def else {}
+    permissions = dict(role_def.permissions or {}) if role_def else {}
+
+    if not permissions and membership:
+        # Backwards-compatible fallback to RBAC v1 mapping.
+        try:
+            from .permissions import PERMISSIONS, Role
+            from .rbac_seeding import ACTION_CANONICAL, guess_level
+
+            user_role = Role(membership.role)
+            for action, roles in (PERMISSIONS or {}).items():
+                if user_role not in roles:
+                    continue
+                canonical_action = ACTION_CANONICAL.get(action, action)
+                permissions[canonical_action] = {"level": guess_level(canonical_action), "scope": {"type": "all"}}
+        except Exception:
+            pass
 
     out: dict[str, dict[str, Any]] = {}
     for action, entry in permissions.items():

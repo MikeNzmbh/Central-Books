@@ -521,11 +521,6 @@ const AccountSettingsPage: React.FC<AccountSettingsProps> = ({
           <Card
             title="Roles & permissions"
             subtitle="Configure role templates, custom roles, and guardrails."
-            badge={
-              <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] text-slate-600">
-                RBAC v2
-              </span>
-            }
           >
             <RolesSettingsPage />
           </Card>
