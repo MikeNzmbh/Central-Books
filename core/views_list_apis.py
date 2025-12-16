@@ -842,3 +842,144 @@ def api_journal_entry_list(request):
         "source_choices": source_choices,
         "currency": business.currency,
     })
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#    Expense Pay API
+# ─────────────────────────────────────────────────────────────────────────────
+
+@login_required
+def api_expense_pay(request, expense_id: int):
+    """
+    POST /api/expenses/<expense_id>/pay/
+    
+    Mark an expense as paid, optionally updating category and account.
+    Creates journal entry for the payment.
+    
+    Request body (JSON):
+    - category_id: optional int - update expense category
+    - account_id: optional int - COA account for the expense line
+    - tax_amount: optional decimal - override tax amount
+    - paid_date: optional date string (YYYY-MM-DD)
+    - bank_account_id: optional int - bank account used for payment
+    """
+    import json
+    from django.views.decorators.csrf import csrf_exempt
+    from .models import Account, BankAccount
+    
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+    
+    business = get_current_business(request.user)
+    if business is None:
+        return JsonResponse({"error": "No business context"}, status=400)
+    
+    try:
+        expense = Expense.objects.get(pk=expense_id, business=business)
+    except Expense.DoesNotExist:
+        return JsonResponse({"error": "Expense not found"}, status=404)
+    
+    if expense.status == Expense.Status.PAID:
+        return JsonResponse({"error": "Expense is already paid"}, status=400)
+    
+    # Parse request body
+    try:
+        data = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        data = {}
+    
+    # Update category if provided
+    category_id = data.get("category_id")
+    if category_id:
+        try:
+            category = Category.objects.get(pk=category_id, business=business)
+            expense.category = category
+        except Category.DoesNotExist:
+            return JsonResponse({"error": "Category not found"}, status=400)
+    
+    # Update tax amount if provided
+    tax_amount = data.get("tax_amount")
+    if tax_amount is not None:
+        try:
+            expense.tax_amount = Decimal(str(tax_amount))
+        except Exception:
+            return JsonResponse({"error": "Invalid tax amount"}, status=400)
+    
+    # Get paid date
+    paid_date_str = data.get("paid_date")
+    paid_date = None
+    if paid_date_str:
+        paid_date = parse_date(paid_date_str)
+    
+    # Mark as paid (this triggers journal entry creation via model save)
+    expense.mark_paid(paid_on=paid_date)
+    expense.save()
+    
+    return JsonResponse({
+        "success": True,
+        "expense_id": expense.id,
+        "status": expense.status,
+        "amount_paid": str(expense.amount_paid),
+        "paid_date": expense.paid_date.isoformat() if expense.paid_date else None,
+    })
+
+
+@login_required
+def api_expense_detail(request, expense_id: int):
+    """
+    GET /api/expenses/<expense_id>/
+    
+    Get detailed expense information including line items and history.
+    """
+    if request.method != "GET":
+        return JsonResponse({"error": "GET required"}, status=405)
+    
+    business = get_current_business(request.user)
+    if business is None:
+        return JsonResponse({"error": "No business context"}, status=400)
+    
+    try:
+        expense = Expense.objects.select_related("supplier", "category", "category__account").get(
+            pk=expense_id, business=business
+        )
+    except Expense.DoesNotExist:
+        return JsonResponse({"error": "Expense not found"}, status=404)
+    
+    # Get COA accounts for dropdown
+    accounts = Account.objects.filter(
+        business=business,
+        type__in=[Account.AccountType.EXPENSE, Account.AccountType.COGS],
+    ).order_by("code").values("id", "code", "name")
+    
+    # Get expense categories for dropdown
+    categories = Category.objects.filter(
+        business=business,
+        type=Category.CategoryType.EXPENSE,
+    ).order_by("name").values("id", "name")
+    
+    return JsonResponse({
+        "expense": {
+            "id": expense.id,
+            "description": expense.description,
+            "supplier_id": expense.supplier_id,
+            "supplier_name": expense.supplier.name if expense.supplier else None,
+            "category_id": expense.category_id,
+            "category_name": expense.category.name if expense.category else None,
+            "account_id": expense.category.account_id if expense.category else None,
+            "account_label": f"{expense.category.account.code} • {expense.category.account.name}" if expense.category and expense.category.account else None,
+            "status": expense.status,
+            "date": expense.date.isoformat() if expense.date else None,
+            "due_date": expense.due_date.isoformat() if expense.due_date else None,
+            "amount": str(expense.amount) if expense.amount else "0.00",
+            "tax_amount": str(expense.tax_amount) if expense.tax_amount else "0.00",
+            "net_total": str(expense.net_total) if expense.net_total else "0.00",
+            "tax_total": str(expense.tax_total) if expense.tax_total else "0.00",
+            "grand_total": str(expense.grand_total) if expense.grand_total else "0.00",
+            "balance": str(expense.balance) if expense.balance else "0.00",
+            "amount_paid": str(expense.amount_paid) if expense.amount_paid else "0.00",
+            "paid_date": expense.paid_date.isoformat() if expense.paid_date else None,
+        },
+        "accounts": list(accounts),
+        "categories": list(categories),
+        "currency": business.currency,
+    })

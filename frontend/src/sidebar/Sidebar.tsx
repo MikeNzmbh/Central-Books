@@ -148,7 +148,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 </SidebarSection>
 
                 <SidebarSection label="Account">
-                    <NavItem href="/account/settings/" active={activeRoute === "account_settings"}>
+                    <NavItem href="/settings/account/" active={activeRoute === "account_settings"}>
                         Account settings
                     </NavItem>
                 </SidebarSection>

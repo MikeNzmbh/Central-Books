@@ -1,4 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import TeamManagement from "./TeamManagement";
+import RolesSettingsPage from "./RolesSettingsPage";
+import { usePermissions } from "../hooks/usePermissions";
 
 type Choice = {
   value: string;
@@ -225,6 +228,8 @@ const Card: React.FC<{ title: string; subtitle: string; children: React.ReactNod
 const TABS = [
   { id: "profile", label: "Profile" },
   { id: "business", label: "Business" },
+  { id: "team", label: "Team", requiresOwner: true },
+  { id: "roles", label: "Roles", requiresOwner: true },
   { id: "taxes", label: "Taxes" },
   { id: "security", label: "Security" },
   { id: "sessions", label: "Sessions" },
@@ -240,6 +245,9 @@ const AccountSettingsPage: React.FC<AccountSettingsProps> = ({
   messages,
   taxSettings: taxSettingsInitial,
 }) => {
+  // RBAC v1: Get ownership status for permission-based UI
+  const { isOwner } = usePermissions();
+
   const [activeTab, setActiveTab] = useState<string>("profile");
   const [taxSettings, setTaxSettings] = useState<TaxSettingsPayload>(
     taxSettingsInitial || {
@@ -492,6 +500,34 @@ const AccountSettingsPage: React.FC<AccountSettingsProps> = ({
             }
           >
             <FormSection form={passwordForm} csrfToken={csrfToken} action={postUrls.password} legend="Password" />
+          </Card>
+        );
+      case "team":
+        return (
+          <Card
+            title="Team"
+            subtitle="Manage who has access to your workspace and their roles."
+            badge={
+              <span className="inline-flex items-center rounded-full border border-purple-200 bg-purple-50 px-3 py-1 text-[11px] text-purple-700">
+                RBAC v1
+              </span>
+            }
+          >
+            <TeamManagement />
+          </Card>
+        );
+      case "roles":
+        return (
+          <Card
+            title="Roles & permissions"
+            subtitle="Configure role templates, custom roles, and guardrails."
+            badge={
+              <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] text-slate-600">
+                RBAC v2
+              </span>
+            }
+          >
+            <RolesSettingsPage />
           </Card>
         );
       case "taxes":
@@ -763,7 +799,11 @@ const AccountSettingsPage: React.FC<AccountSettingsProps> = ({
         <div className="grid gap-6 lg:grid-cols-[220px,1fr]">
           <aside className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
             <nav className="flex flex-col gap-2">
-              {TABS.map((tab) => (
+              {TABS.filter((tab) => {
+                // Only show Team tab if user is owner
+                if (tab.requiresOwner && !isOwner) return false;
+                return true;
+              }).map((tab) => (
                 <button
                   key={tab.id}
                   type="button"

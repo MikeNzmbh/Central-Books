@@ -17,6 +17,7 @@ def current_user(request):
     """
     Return the current authenticated user's data.
     Used by React frontend to determine auth state and display user info.
+    Also includes RBAC role and permissions for the active workspace.
     """
     user = request.user
     
@@ -65,10 +66,54 @@ def current_user(request):
     
     user_data["internalAdmin"] = internal_admin_data
     
+    # RBAC: Add workspace role and permissions (v1-compatible, powered by v2 engine)
+    from .utils import get_current_business
+    from .permissions import get_user_permissions, get_role_info, Role
+    from .permissions_engine import get_effective_permission_matrix
+    
+    business = get_current_business(user)
+    workspace_data = None
+    
+    if business:
+        from .models import WorkspaceMembership
+        membership = WorkspaceMembership.objects.filter(
+            user=user,
+            business=business,
+            is_active=True
+        ).first()
+        
+        if membership and membership.is_effective:
+            try:
+                role = Role(membership.role)
+                role_info = get_role_info(role)
+            except ValueError:
+                role = None
+                role_info = {"label": "Unknown", "description": "", "color": "gray"}
+            
+            permissions = get_user_permissions(user, business)
+            permission_matrix = get_effective_permission_matrix(user, business)
+            
+            workspace_data = {
+                "businessId": business.id,
+                "businessName": business.name,
+                "role": membership.role,
+                "roleLabel": role_info.get("label", membership.role),
+                "roleDescription": role_info.get("description", ""),
+                "roleColor": role_info.get("color", "gray"),
+                "permissions": permissions,
+                "permissionLevels": {k: v.get("level") for k, v in permission_matrix.items()},
+                "isOwner": membership.role == "OWNER",
+                "department": membership.department or None,
+                "region": membership.region or None,
+            }
+    
+    user_data["workspace"] = workspace_data
+    
     logger.info(
-        "current_user: authenticated user_id=%s email=%s from=%s",
+        "current_user: authenticated user_id=%s email=%s role=%s from=%s",
         user.pk,
         user.email,
+        workspace_data.get("role") if workspace_data else "no_workspace",
         request.META.get("REMOTE_ADDR")
     )
     
@@ -174,4 +219,3 @@ def api_auth_config(request):
         "nextUrl": next_url,
         "loginUrl": "/api/auth/login/",
     })
-

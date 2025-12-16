@@ -11,6 +11,8 @@ from . import views_dashboard  # Dashboard API (Option B architecture)
 from . import views_monitoring  # Monitoring agent Slack endpoint
 from . import views_auth  # Auth API endpoints
 from . import views_list_apis  # Invoice/Expense list APIs (Option B)
+from . import views_memberships  # RBAC Membership Management API
+from . import views_roles  # RBAC v2 Role Settings API
 from .views import (
     ItemCreateView,
     ItemUpdateView,
@@ -65,6 +67,12 @@ urlpatterns = [
     path("login/", views.login_view, name="login"),
     path("logout/", views.logout_view, name="logout"),
     path("business/setup/", views.business_setup, name="business_setup"),
+    # Backwards-compatible route (older frontend link)
+    path(
+        "account/settings/",
+        RedirectView.as_view(pattern_name="account_settings", permanent=False),
+        name="account_settings_legacy",
+    ),
     path("settings/account/", views.account_settings, name="account_settings"),
     path("dashboard/", views.dashboard, name="dashboard"),
     
@@ -119,6 +127,8 @@ urlpatterns = [
     path("expenses/<int:pk>/pdf/", views.expense_pdf_view, name="expense_pdf"),
     # Expense List API (Option B)
     path("api/expenses/list/", views_list_apis.api_expense_list, name="api_expense_list"),
+    path("api/expenses/<int:expense_id>/", views_list_apis.api_expense_detail, name="api_expense_detail"),
+    path("api/expenses/<int:expense_id>/pay/", views_list_apis.api_expense_pay, name="api_expense_pay"),
     # React List Pages (backwards-compatible redirects to main routes)
     path("invoices/react/", RedirectView.as_view(pattern_name="invoice_list", permanent=False)),
     path("expenses/react/", RedirectView.as_view(pattern_name="expense_list", permanent=False)),
@@ -421,6 +431,20 @@ urlpatterns = [
     path("api/journal/list/", views_list_apis.api_journal_entry_list, name="api_journal_entry_list"),
     # Slack monitoring slash command endpoint
     path("slack/monitoring/report/", views_monitoring.slack_monitoring_report, name="slack_monitoring_report"),
+    # RBAC Workspace Membership API (v1)
+    path("api/workspace/memberships/", views_memberships.api_memberships_list, name="api_memberships_list"),
+    path("api/workspace/memberships/create/", views_memberships.api_memberships_create, name="api_memberships_create"),
+    path("api/workspace/memberships/<int:membership_id>/", views_memberships.api_membership_detail, name="api_membership_detail"),
+    path("api/workspace/roles/", views_memberships.api_roles_list, name="api_roles_list"),
+    # RBAC v2 Settings API
+    path("api/settings/roles/", views_roles.api_roles_collection, name="api_settings_roles"),
+    path("api/settings/roles/<int:role_id>/", views_roles.api_role_resource, name="api_settings_role"),
+    path("api/settings/users/", views_roles.api_settings_users_list, name="api_settings_users"),
+    path(
+        "api/settings/users/<int:user_id>/membership/",
+        views_roles.api_settings_user_membership_update,
+        name="api_settings_user_membership_update",
+    ),
 ]
 
 # Add agentic API endpoints

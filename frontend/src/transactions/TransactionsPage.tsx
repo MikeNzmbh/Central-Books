@@ -52,6 +52,15 @@ function classNames(...classes: (string | false | null | undefined)[]) {
     return classes.filter(Boolean).join(" ");
 }
 
+function getCsrfToken(): string {
+    const cookies = document.cookie.split(";").reduce((acc, cookie) => {
+        const [key, value] = cookie.trim().split("=");
+        acc[key] = value;
+        return acc;
+    }, {} as Record<string, string>);
+    return cookies.csrftoken || "";
+}
+
 // -----------------------------------------------------------------------------
 // Extended Types & Mock Data
 // -----------------------------------------------------------------------------
@@ -184,12 +193,129 @@ const StatusPill: React.FC<{ status: string }> = ({ status }) => {
 
 // CompanionPanel removed - now using shared CompanionStrip component
 
+interface PayBillFormState {
+    isOpen: boolean;
+    categoryId: string;
+    accountId: string;
+    taxAmount: string;
+    paidDate: string;
+    isSubmitting: boolean;
+    error: string | null;
+}
+
+interface ExpenseDetail {
+    id: number;
+    description: string;
+    supplier_name: string | null;
+    category_id: number | null;
+    category_name: string | null;
+    account_id: number | null;
+    account_label: string | null;
+    status: string;
+    date: string | null;
+    due_date: string | null;
+    amount: string;
+    tax_amount: string;
+    net_total: string;
+    tax_total: string;
+    grand_total: string;
+    balance: string;
+}
+
+interface CategoryOption {
+    id: number;
+    name: string;
+}
+
+interface AccountOption {
+    id: number;
+    code: string;
+    name: string;
+}
+
 const TransactionDrawer: React.FC<{
     transaction: TransactionRow | null;
     kind: TransactionKind;
-    onClose: () => void
-}> = ({ transaction, kind, onClose }) => {
+    onClose: () => void;
+    onPaymentComplete?: () => void;
+}> = ({ transaction, kind, onClose, onPaymentComplete }) => {
+    const [payBillForm, setPayBillForm] = useState<PayBillFormState>({
+        isOpen: false,
+        categoryId: "",
+        accountId: "",
+        taxAmount: "",
+        paidDate: new Date().toISOString().split("T")[0],
+        isSubmitting: false,
+        error: null,
+    });
+    const [expenseDetail, setExpenseDetail] = useState<ExpenseDetail | null>(null);
+    const [categories, setCategories] = useState<CategoryOption[]>([]);
+    const [accounts, setAccounts] = useState<AccountOption[]>([]);
+    const [loadingDetail, setLoadingDetail] = useState(false);
+
+    // Load expense detail when Pay Bill is clicked
+    const loadExpenseDetail = async () => {
+        if (!transaction) return;
+        setLoadingDetail(true);
+        try {
+            const resp = await fetch(`/api/expenses/${transaction.id}/`);
+            if (!resp.ok) throw new Error("Failed to load expense");
+            const data = await resp.json();
+            setExpenseDetail(data.expense);
+            setCategories(data.categories || []);
+            setAccounts(data.accounts || []);
+            setPayBillForm((prev) => ({
+                ...prev,
+                isOpen: true,
+                categoryId: data.expense.category_id?.toString() || "",
+                taxAmount: data.expense.tax_amount || "0.00",
+            }));
+        } catch (err) {
+            setPayBillForm((prev) => ({
+                ...prev,
+                error: err instanceof Error ? err.message : "Failed to load expense",
+            }));
+        } finally {
+            setLoadingDetail(false);
+        }
+    };
+
+    const handlePayBill = async () => {
+        if (!transaction) return;
+        setPayBillForm((prev) => ({ ...prev, isSubmitting: true, error: null }));
+        try {
+            const resp = await fetch(`/api/expenses/${transaction.id}/pay/`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": getCsrfToken(),
+                },
+                body: JSON.stringify({
+                    category_id: payBillForm.categoryId || null,
+                    tax_amount: payBillForm.taxAmount || null,
+                    paid_date: payBillForm.paidDate || null,
+                }),
+            });
+            if (!resp.ok) {
+                const data = await resp.json();
+                throw new Error(data.error || "Failed to pay bill");
+            }
+            // Success - close drawer and refresh
+            setPayBillForm((prev) => ({ ...prev, isSubmitting: false, isOpen: false }));
+            onPaymentComplete?.();
+            onClose();
+        } catch (err) {
+            setPayBillForm((prev) => ({
+                ...prev,
+                isSubmitting: false,
+                error: err instanceof Error ? err.message : "Payment failed",
+            }));
+        }
+    };
+
     if (!transaction) return null;
+
+    const isPaid = transaction.status.toLowerCase() === "paid";
 
     return (
         <>
@@ -225,6 +351,90 @@ const TransactionDrawer: React.FC<{
                                 </p>
                             </div>
                         </div>
+
+                        {/* Pay Bill Form */}
+                        {payBillForm.isOpen && kind === "expense" && (
+                            <div className="mb-8 rounded-xl border-2 border-indigo-200 bg-indigo-50/50 p-4 space-y-4">
+                                <h4 className="text-xs font-bold uppercase tracking-widest text-indigo-600">Pay This Bill</h4>
+
+                                {payBillForm.error && (
+                                    <div className="rounded-lg bg-rose-50 border border-rose-200 p-3 text-xs text-rose-700">
+                                        {payBillForm.error}
+                                    </div>
+                                )}
+
+                                {/* Category Selection */}
+                                <div>
+                                    <label className="block text-xs font-medium text-slate-600 mb-1">Category</label>
+                                    <select
+                                        value={payBillForm.categoryId}
+                                        onChange={(e) => setPayBillForm((prev) => ({ ...prev, categoryId: e.target.value }))}
+                                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                                    >
+                                        <option value="">Select category...</option>
+                                        {categories.map((cat) => (
+                                            <option key={cat.id} value={cat.id}>{cat.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* COA Account Selection */}
+                                <div>
+                                    <label className="block text-xs font-medium text-slate-600 mb-1">COA Account</label>
+                                    <select
+                                        value={payBillForm.accountId}
+                                        onChange={(e) => setPayBillForm((prev) => ({ ...prev, accountId: e.target.value }))}
+                                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                                    >
+                                        <option value="">Select account...</option>
+                                        {accounts.map((acc) => (
+                                            <option key={acc.id} value={acc.id}>{acc.code} • {acc.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* Tax Amount */}
+                                <div>
+                                    <label className="block text-xs font-medium text-slate-600 mb-1">Tax Amount</label>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        value={payBillForm.taxAmount}
+                                        onChange={(e) => setPayBillForm((prev) => ({ ...prev, taxAmount: e.target.value }))}
+                                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                                        placeholder="0.00"
+                                    />
+                                </div>
+
+                                {/* Payment Date */}
+                                <div>
+                                    <label className="block text-xs font-medium text-slate-600 mb-1">Payment Date</label>
+                                    <input
+                                        type="date"
+                                        value={payBillForm.paidDate}
+                                        onChange={(e) => setPayBillForm((prev) => ({ ...prev, paidDate: e.target.value }))}
+                                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                                    />
+                                </div>
+
+                                {/* Form Actions */}
+                                <div className="flex gap-2 pt-2">
+                                    <button
+                                        onClick={() => setPayBillForm((prev) => ({ ...prev, isOpen: false }))}
+                                        className="flex-1 rounded-lg border border-slate-200 bg-white py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handlePayBill}
+                                        disabled={payBillForm.isSubmitting}
+                                        className="flex-1 rounded-lg bg-indigo-600 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+                                    >
+                                        {payBillForm.isSubmitting ? "Processing..." : "Confirm Payment"}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Line Items */}
                         <div className="mb-8 space-y-4">
@@ -283,17 +493,40 @@ const TransactionDrawer: React.FC<{
                                 <FileText className="h-3.5 w-3.5" />
                                 Download PDF
                             </button>
-                            <button className="flex items-center justify-center gap-2 rounded-xl bg-slate-900 py-2.5 text-xs font-semibold text-white hover:bg-slate-800">
-                                {kind === "invoice" ? (
-                                    <>
-                                        <Send className="h-3.5 w-3.5" /> Resend Invoice
-                                    </>
-                                ) : (
-                                    <>
-                                        <CreditCard className="h-3.5 w-3.5" /> Pay Bill
-                                    </>
-                                )}
-                            </button>
+                            {kind === "invoice" ? (
+                                <button className="flex items-center justify-center gap-2 rounded-xl bg-slate-900 py-2.5 text-xs font-semibold text-white hover:bg-slate-800">
+                                    <Send className="h-3.5 w-3.5" /> Resend Invoice
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={loadExpenseDetail}
+                                    disabled={isPaid || loadingDetail || payBillForm.isOpen}
+                                    className={classNames(
+                                        "flex items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-semibold",
+                                        isPaid
+                                            ? "bg-emerald-100 text-emerald-700 cursor-not-allowed"
+                                            : payBillForm.isOpen
+                                                ? "bg-indigo-100 text-indigo-700"
+                                                : "bg-slate-900 text-white hover:bg-slate-800"
+                                    )}
+                                >
+                                    {loadingDetail ? (
+                                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                                    ) : isPaid ? (
+                                        <>
+                                            <Check className="h-3.5 w-3.5" /> Paid
+                                        </>
+                                    ) : payBillForm.isOpen ? (
+                                        <>
+                                            <CreditCard className="h-3.5 w-3.5" /> Filling...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <CreditCard className="h-3.5 w-3.5" /> Pay Bill
+                                        </>
+                                    )}
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -301,6 +534,7 @@ const TransactionDrawer: React.FC<{
         </>
     );
 };
+
 
 const BulkActionBar: React.FC<{ count: number; onClear: () => void }> = ({ count, onClear }) => {
     if (count === 0) return null;

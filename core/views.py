@@ -3641,6 +3641,10 @@ def api_banking_overview(request):
     if business is None:
         return JsonResponse({"detail": "No business"}, status=400)
 
+    # RBAC: Check if user can view bank balances (field-level masking)
+    from .permissions import has_permission
+    can_view_balance = has_permission(request.user, business, "bank.accounts.view_balance")
+
     accounts = (
         BankAccount.objects.filter(business=business)
         .select_related("account")
@@ -3670,6 +3674,9 @@ def api_banking_overview(request):
         else:
             feed_status = "OK"
 
+        # RBAC: Mask balance for users without bank.accounts.view_balance permission
+        ledger_balance = str(account.current_balance) if can_view_balance else None
+
         account_payload.append(
             {
                 "id": account.id,
@@ -3678,7 +3685,8 @@ def api_banking_overview(request):
                 "bank": account.bank_name or "",
                 "currency": business.currency,
                 "ledger_linked": bool(account.account_id),
-                "ledger_balance": str(account.current_balance),
+                "ledger_balance": ledger_balance,
+                "balance_masked": not can_view_balance,  # Frontend knows balance is hidden
                 "feed_status": feed_status,
                 "last_import_at": (
                     timezone.localtime(account.last_imported_at).isoformat()

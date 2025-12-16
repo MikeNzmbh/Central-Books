@@ -1988,3 +1988,237 @@ class CompanionStoryState(models.Model):
     def __str__(self):
         status = "dirty" if self.needs_regeneration else "clean"
         return f"{self.business.name} ({status})"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#    RBAC: Workspace Membership
+# ─────────────────────────────────────────────────────────────────────────────
+
+class WorkspaceMembership(models.Model):
+    """
+    Links users to businesses with assigned roles.
+    
+    This is the core model for RBAC v1. Each user can have one membership
+    per business, with a single role. Future ABAC scoping will use the
+    department/region fields.
+    
+    Aligned with Gemini RBAC Blueprint:
+    - Supports per-workspace roles
+    - Enables field-level masking based on role
+    - Prepares for ABAC attribute scoping
+    """
+    
+    class RoleChoices(models.TextChoices):
+        OWNER = "OWNER", "Owner"
+        SYSTEM_ADMIN = "SYSTEM_ADMIN", "System Admin"
+        CONTROLLER = "CONTROLLER", "Controller"
+        CASH_MANAGER = "CASH_MANAGER", "Cash Manager"
+        AP_SPECIALIST = "AP_SPECIALIST", "AP Specialist"
+        AR_SPECIALIST = "AR_SPECIALIST", "AR Specialist"
+        BOOKKEEPER = "BOOKKEEPER", "Bookkeeper"
+        VIEW_ONLY = "VIEW_ONLY", "View Only"
+        EXTERNAL_ACCOUNTANT = "EXTERNAL_ACCOUNTANT", "External Accountant"
+        AUDITOR = "AUDITOR", "Auditor"
+    
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="workspace_memberships",
+    )
+    business = models.ForeignKey(
+        "core.Business",
+        on_delete=models.CASCADE,
+        related_name="memberships",
+    )
+    role = models.CharField(
+        max_length=32,
+        choices=RoleChoices.choices,
+        default=RoleChoices.BOOKKEEPER,
+    )
+
+    # RBAC v2: Optional link to a configurable role definition (per-workspace).
+    # Kept nullable for backwards-compatibility with RBAC v1 role strings.
+    role_definition = models.ForeignKey(
+        "core.RoleDefinition",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="memberships",
+    )
+
+    # RBAC v2 / ABAC-ready attributes (department, region, etc.).
+    attributes = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="ABAC attributes for scoping (e.g. department, region).",
+    )
+    
+    # Future ABAC attributes
+    department = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Department for ABAC scoping (e.g., 'Marketing', 'Engineering').",
+    )
+    region = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Region for ABAC scoping (e.g., 'US-East', 'CA-ON').",
+    )
+    
+    # Access control
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Inactive memberships are ignored for permission checks.",
+    )
+    expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Optional expiration for time-boxed access (e.g., external accountants).",
+    )
+    
+    # Audit fields
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_memberships",
+    )
+    
+    class Meta:
+        verbose_name = "Workspace Membership"
+        verbose_name_plural = "Workspace Memberships"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "business"],
+                name="unique_user_business_membership",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["business", "is_active"]),
+            models.Index(fields=["user", "is_active"]),
+            models.Index(fields=["business", "role"]),
+            models.Index(fields=["business", "role_definition"]),
+        ]
+        ordering = ["-created_at"]
+    
+    def __str__(self):
+        return f"{self.user.username} - {self.business.name} ({self.role})"
+    
+    @property
+    def is_expired(self) -> bool:
+        """Check if this membership has expired."""
+        if not self.expires_at:
+            return False
+        return timezone.now() > self.expires_at
+    
+    @property
+    def is_effective(self) -> bool:
+        """Check if this membership is currently active and not expired."""
+        return self.is_active and not self.is_expired
+
+
+class RoleDefinition(models.Model):
+    """
+    RBAC v2: Configurable role definition (per workspace/business).
+
+    Stores permission levels + optional scope constraints for each action.
+    """
+
+    business = models.ForeignKey(
+        "core.Business",
+        on_delete=models.CASCADE,
+        related_name="role_definitions",
+    )
+    key = models.SlugField(
+        max_length=64,
+        help_text="Stable key (e.g. OWNER, CONTROLLER, custom_slug).",
+    )
+    label = models.CharField(max_length=128)
+    is_builtin = models.BooleanField(
+        default=False,
+        help_text="Built-in roles cannot be deleted.",
+    )
+    permissions = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text='Dict: action -> {"level": "none|view|edit|approve", "scope": {...}}',
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["business", "key"],
+                name="unique_role_definition_per_business",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["business", "is_builtin"]),
+            models.Index(fields=["business", "key"]),
+        ]
+        ordering = ["key"]
+
+    def __str__(self) -> str:
+        return f"{self.business.name} - {self.key}"
+
+
+class UserPermissionOverride(models.Model):
+    """
+    RBAC v2: Per-user overrides layered on top of the role definition.
+
+    Example: "AP Specialist but ALSO can view bank balance for account X".
+    """
+
+    class Effect(models.TextChoices):
+        ALLOW = "ALLOW", "Allow"
+        DENY = "DENY", "Deny"
+
+    class LevelChoices(models.TextChoices):
+        NONE = "none", "None"
+        VIEW = "view", "View"
+        EDIT = "edit", "Edit"
+        APPROVE = "approve", "Approve"
+
+    membership = models.ForeignKey(
+        WorkspaceMembership,
+        on_delete=models.CASCADE,
+        related_name="permission_overrides",
+    )
+    action = models.CharField(max_length=128, db_index=True)
+    effect = models.CharField(max_length=8, choices=Effect.choices)
+    level_override = models.CharField(
+        max_length=16,
+        choices=LevelChoices.choices,
+        null=True,
+        blank=True,
+        help_text="Optional override level (none/view/edit/approve).",
+    )
+    scope_override = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="Optional scope override JSON.",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["membership", "action"],
+                name="unique_permission_override_per_membership_action",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["membership", "effect"]),
+            models.Index(fields=["membership", "action"]),
+        ]
+        ordering = ["action"]
+
+    def __str__(self) -> str:
+        return f"{self.membership_id} {self.effect} {self.action}"

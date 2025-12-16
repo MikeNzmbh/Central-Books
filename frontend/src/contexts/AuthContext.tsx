@@ -9,6 +9,21 @@ export interface InternalAdmin {
   canAccessInternalAdmin: boolean;
 }
 
+// RBAC v1: Workspace membership with role and permissions
+export interface Workspace {
+  businessId: number;
+  businessName: string;
+  role: string;
+  roleLabel: string;
+  roleDescription: string;
+  roleColor: string;
+  permissions: string[];
+  permissionLevels?: Record<string, string>;
+  isOwner: boolean;
+  department: string | null;
+  region: string | null;
+}
+
 export interface User {
   id: number;
   email: string;
@@ -22,6 +37,7 @@ export interface User {
   is_staff?: boolean;
   is_superuser?: boolean;
   internalAdmin?: InternalAdmin | null;
+  workspace?: Workspace | null; // RBAC v1
 }
 
 export interface AuthState {

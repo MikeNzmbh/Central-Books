@@ -390,18 +390,32 @@ def api_companion_summary(request):
     # This is the PRIMARY AI insight - deterministic is fallback only
     if business.ai_companion_enabled:
         # Get actual invoice metrics for more accurate AI insights
-        from .models import Invoice
+        from .models import Invoice, Expense
         today = timezone.now().date()
         invoices_qs = Invoice.objects.filter(business=business)
+        
+        # Overdue = SENT or PARTIAL status with due_date in the past
         overdue_invoices = invoices_qs.filter(
-            status__in=['SENT', 'sent'],
+            status__in=[Invoice.Status.SENT, Invoice.Status.PARTIAL],
             due_date__lt=today
         )
         overdue_count = overdue_invoices.count()
-        overdue_amount = overdue_invoices.aggregate(total=models.Sum("total_amount")).get("total") or Decimal("0")
-        unpaid_invoices = invoices_qs.filter(status__in=['SENT', 'sent', 'DRAFT', 'draft'])
+        # Use balance field (not total_amount) for accurate overdue amount
+        overdue_amount = overdue_invoices.aggregate(total=models.Sum("balance")).get("total") or Decimal("0")
+        
+        # Unpaid = SENT, PARTIAL, or DRAFT (not yet collected)
+        unpaid_invoices = invoices_qs.filter(status__in=[Invoice.Status.SENT, Invoice.Status.PARTIAL, Invoice.Status.DRAFT])
         unpaid_count = unpaid_invoices.count()
-        unpaid_amount = unpaid_invoices.aggregate(total=models.Sum("total_amount")).get("total") or Decimal("0")
+        unpaid_amount = unpaid_invoices.aggregate(total=models.Sum("balance")).get("total") or Decimal("0")
+        
+        # Get expense metrics too
+        expenses_qs = Expense.objects.filter(business=business)
+        unpaid_expenses = expenses_qs.filter(status=Expense.Status.UNPAID)
+        unpaid_expenses_count = unpaid_expenses.count()
+        unpaid_expenses_amount = unpaid_expenses.aggregate(total=models.Sum("balance")).get("total") or Decimal("0")
+        overdue_expenses = unpaid_expenses.filter(due_date__lt=today)
+        overdue_expenses_count = overdue_expenses.count()
+        overdue_expenses_amount = overdue_expenses.aggregate(total=models.Sum("balance")).get("total") or Decimal("0")
         
         surfaces_data = {
             "receipts": {
@@ -418,6 +432,12 @@ def api_companion_summary(request):
                 "unpaid_count": unpaid_count,
                 "unpaid_amount": float(unpaid_amount),
             },
+            "expenses": {
+                "unpaid_count": unpaid_expenses_count,
+                "unpaid_amount": float(unpaid_expenses_amount),
+                "overdue_count": overdue_expenses_count,
+                "overdue_amount": float(overdue_expenses_amount),
+            },
             "books": {
                 "open_issues": summary["surfaces"]["books_review"]["open_issues_count"],
                 "recent_runs": len(summary["surfaces"]["books_review"]["recent_runs"]),
@@ -429,6 +449,7 @@ def api_companion_summary(request):
                 "coverage_percent": coverage.get("banking", {}).get("coverage_percent", 0) if coverage else 0,
             },
         }
+
         
         user_name = request.user.first_name if request.user.first_name else None
         subtitles_result = generate_surface_subtitles(

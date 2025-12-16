@@ -10,15 +10,34 @@ def get_current_business(user):
     """
     Return the primary Business for this user, or None.
 
-    App-level rule: at most one active Business per user.
-    If multiple Business rows exist for a user (e.g. created in admin),
-    we return the oldest (lowest id) as the primary.
+    RBAC v1: Returns business if user is either:
+    1. The owner (Business.owner_user)
+    2. Has an active WorkspaceMembership
+    
+    If multiple Business rows exist for a user, we return the owned one first,
+    otherwise the first membership business.
     """
     if not user or not getattr(user, "is_authenticated", False):
         return None
-    from .models import Business  # local import to avoid circular deps
+    from .models import Business, WorkspaceMembership  # local import to avoid circular deps
 
-    return Business.objects.filter(owner_user=user).order_by("id").first()
+    # First check if user owns a business
+    owned_business = Business.objects.filter(owner_user=user).order_by("id").first()
+    if owned_business:
+        return owned_business
+    
+    # Check for membership (non-owner access)
+    membership = (
+        WorkspaceMembership.objects
+        .filter(user=user, is_active=True)
+        .select_related("business")
+        .order_by("id")
+        .first()
+    )
+    if membership and membership.is_effective:
+        return membership.business
+    
+    return None
 
 
 def business_required(view_func):

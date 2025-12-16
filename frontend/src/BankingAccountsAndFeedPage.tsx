@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { usePermissions } from "./hooks/usePermissions";
 import {
   Banknote,
   RefreshCw,
@@ -31,8 +32,9 @@ interface BankAccount {
   institution: string;
   currency: string;
   last4: string;
-  balance: number;
-  clearedBalance: number;
+  balance: number | null; // null when balance is masked by RBAC
+  clearedBalance: number | null; // null when balance is masked by RBAC
+  balanceMasked?: boolean; // true if user cannot view balances
   lastSync: string;
   status: "ok" | "warning" | "error";
   unreconciledCount: number;
@@ -157,6 +159,9 @@ const BankingAccountsAndFeedPage: React.FC<BankingAccountsAndFeedPageProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
+  // RBAC v1: Check if user can view bank balances
+  const { canViewBankBalance } = usePermissions();
+
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
   const [statusFilter, setStatusFilter] = useState<FeedStatus>("for_review");
   const [search, setSearch] = useState("");
@@ -175,8 +180,10 @@ const BankingAccountsAndFeedPage: React.FC<BankingAccountsAndFeedPageProps> = ({
       institution: acc.bank || "Bank",
       currency: acc.currency || "CAD",
       last4: acc.last4 || "••••",
-      balance: Number(acc.ledger_balance || 0),
-      clearedBalance: Number(acc.cleared_balance || acc.ledger_balance || 0),
+      // RBAC v1: Use masked balance from API if balance_masked is true
+      balance: acc.balance_masked ? null : Number(acc.ledger_balance || 0),
+      clearedBalance: acc.balance_masked ? null : Number(acc.cleared_balance || acc.ledger_balance || 0),
+      balanceMasked: acc.balance_masked || false,
       lastSync: formatRelativeTime(acc.last_import_at),
       status: acc.new_count > 5 ? "warning" : "ok",
       unreconciledCount: acc.new_count || 0,
@@ -397,10 +404,14 @@ const BankingAccountsAndFeedPage: React.FC<BankingAccountsAndFeedPageProps> = ({
                     <div>
                       <div className="text-[10px] uppercase tracking-[0.16em] opacity-70">Current balance</div>
                       <div className="text-lg font-bold tracking-tight">
-                        {formatCurrency(account.balance, account.currency)}
+                        {account.balanceMasked || account.balance === null
+                          ? <span className="opacity-60">••••••</span>
+                          : formatCurrency(account.balance, account.currency)}
                       </div>
                       <div className={cn("mt-1 text-[11px] tracking-wide", isActive ? "text-slate-100/80" : "text-slate-500")}>
-                        Cleared {formatCurrency(account.clearedBalance, account.currency)}
+                        {account.balanceMasked || account.clearedBalance === null
+                          ? "Cleared ••••••"
+                          : `Cleared ${formatCurrency(account.clearedBalance, account.currency)}`}
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-1">
