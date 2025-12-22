@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import TopMetricsRow from "../components/overwatch/TopMetricsRow";
 import {
   Activity,
   AlertTriangle,
@@ -504,8 +505,8 @@ const CompanionOverviewPage: React.FC = () => {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-slate-50/50 font-sans text-slate-900 pb-12">
+	  return (
+	    <div className="min-h-screen bg-slate-50/50 font-sans text-slate-900 pb-12">
 
       {/* Subtle Mesh Gradient Background */}
       <div className="fixed inset-0 z-0 pointer-events-none opacity-40">
@@ -545,6 +546,13 @@ const CompanionOverviewPage: React.FC = () => {
               <Settings className="w-4 h-4" />
               Configure
             </a>
+            <Link
+              to="/proposals"
+              className="h-9 px-4 rounded-lg bg-white border border-slate-200 text-slate-600 text-sm font-medium shadow-sm hover:bg-slate-50 hover:border-slate-300 transition-all flex items-center gap-2"
+            >
+              <FileText className="w-4 h-4" />
+              Proposals
+            </Link>
             <button
               onClick={loadSummary}
               disabled={loading}
@@ -556,18 +564,20 @@ const CompanionOverviewPage: React.FC = () => {
           </div>
         </motion.header>
 
-        {summary && !summary.ai_companion_enabled && (
-          <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 text-amber-800 px-4 py-3 text-sm">
-            AI Companion is disabled in Settings.{" "}
-            <a className="underline font-semibold" href="/settings/account">Go to settings</a>
-          </div>
-        )}
+	        {summary && !summary.ai_companion_enabled && (
+	          <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 text-amber-800 px-4 py-3 text-sm">
+	            AI Companion is disabled in Settings.{" "}
+	            <a className="underline font-semibold" href="/settings/account">Go to settings</a>
+	          </div>
+	        )}
 
-        {/* --- Risk Radar Section --- */}
-        {summary?.radar && (
-          <motion.section
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
+	        <TopMetricsRow className="mb-6" />
+
+	        {/* --- Risk Radar Section --- */}
+	        {summary?.radar && (
+	          <motion.section
+	            initial={{ opacity: 0, y: 10 }}
+	            animate={{ opacity: 1, y: 0 }}
             className="mb-6"
           >
             <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">

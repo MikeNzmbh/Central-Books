@@ -195,10 +195,10 @@ const ExpenseDrawer: React.FC<ExpenseDrawerProps> = ({ expense, currency, onClos
                                 key={tab}
                                 onClick={() => setActiveTab(tab)}
                                 className={cn(
-                                    "px-4 py-3 text-xs font-semibold capitalize border-b-2 transition-colors",
+                                    "px-4 py-3 text-xs font-semibold capitalize border-b-2 border-transparent transition-colors",
                                     activeTab === tab
-                                        ? "border-slate-900 text-slate-900"
-                                        : "border-transparent text-slate-500 hover:text-slate-700"
+                                        ? "mb-accent-underline text-slate-900"
+                                        : "text-slate-500 hover:text-slate-700"
                                 )}
                             >
                                 {tab}

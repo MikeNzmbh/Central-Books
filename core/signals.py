@@ -5,7 +5,7 @@ import logging
 from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 
-from core.models import Invoice, Expense, BankTransaction, ReceiptRun, ReceiptDocument
+from core.models import BankTransaction, Business, Expense, Invoice, ReceiptDocument, ReceiptRun, WorkspaceMembership
 
 logger = logging.getLogger(__name__)
 
@@ -69,3 +69,26 @@ def bank_transaction_saved(sender, instance, **kwargs):
 def bank_transaction_deleted(sender, instance, **kwargs):
     _mark_dirty(instance)
 
+
+@receiver(post_save, sender=Business)
+def ensure_owner_membership(sender, instance: Business, created: bool, **kwargs):
+    """
+    RBAC v2 requires an explicit WorkspaceMembership row to evaluate permissions.
+
+    Keep the owner's membership present and set to OWNER.
+    """
+    owner_id = getattr(instance, "owner_user_id", None)
+    if not owner_id:
+        return
+    membership, created_membership = WorkspaceMembership.objects.get_or_create(
+        user_id=owner_id,
+        business_id=instance.id,
+        defaults={"role": WorkspaceMembership.RoleChoices.OWNER, "is_active": True},
+    )
+    if not created_membership and (
+        membership.role != WorkspaceMembership.RoleChoices.OWNER or not membership.is_active
+    ):
+        WorkspaceMembership.objects.filter(id=membership.id).update(
+            role=WorkspaceMembership.RoleChoices.OWNER,
+            is_active=True,
+        )

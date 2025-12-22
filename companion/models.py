@@ -1,3 +1,10 @@
+from __future__ import annotations
+
+import uuid
+
+from django.conf import settings
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
 CONTEXT_DASHBOARD = "dashboard"
@@ -213,3 +220,333 @@ class CompanionSuggestedAction(models.Model):
         if not self.short_title:
             self.short_title = (self.summary or self.action_type)[:64]
         super().save(*args, **kwargs)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Companion v2: Shadow Ledger + Safe Accountant Mode
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class WorkspaceAISettings(models.Model):
+    """
+    Kill switch + operating mode for Companion v2.
+
+    This is the control-plane record the backend checks before allowing:
+    - Any Companion write to the Shadow Ledger (proposals)
+    - Any Companion command dispatch (apply/promote)
+    """
+
+    class AIMode(models.TextChoices):
+        SHADOW_ONLY = "shadow_only", "Shadow only"
+        SUGGEST_ONLY = "suggest_only", "Suggest only"
+        DRAFTS = "drafts", "Drafts"
+        AUTOPILOT_LIMITED = "autopilot_limited", "Limited autopilot"
+
+    workspace = models.OneToOneField(
+        "core.Business",
+        on_delete=models.CASCADE,
+        related_name="ai_settings",
+    )
+    ai_enabled = models.BooleanField(default=False)
+    kill_switch = models.BooleanField(
+        default=False,
+        help_text="Emergency stop for this workspace. When enabled, Companion cannot propose or apply.",
+    )
+    ai_mode = models.CharField(max_length=32, choices=AIMode.choices, default=AIMode.SHADOW_ONLY, db_index=True)
+
+    # Circuit breaker thresholds (workspace overrides).
+    velocity_limit_per_minute = models.PositiveIntegerField(
+        default=120,
+        help_text="If Companion proposes/applies more than this per minute, pause further actions.",
+    )
+    value_breaker_threshold = models.DecimalField(
+        max_digits=19,
+        decimal_places=2,
+        default=5000,
+        help_text="If a single transaction exceeds this absolute amount, force Tier-2 review (no auto-apply).",
+    )
+    anomaly_stddev_threshold = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        default=3,
+        help_text="If amount is > N stddev from vendor baseline, mark as high risk (proposal only).",
+    )
+    trust_downgrade_rejection_rate = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0.30,
+        help_text="If user rejects more than this share of suggestions, downgrade from autopilot to suggest-only.",
+    )
+
+    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self) -> str:
+        return f"AI settings for workspace {self.workspace_id}"
+
+
+class BusinessPolicy(models.Model):
+    """
+    BusinessProfile v2: live policy constraints for Companion.
+
+    Stored separately from core.Business to keep the accounting data model stable
+    while evolving AI policy semantics.
+    """
+
+    class RiskAppetite(models.TextChoices):
+        CONSERVATIVE = "conservative", "Conservative"
+        STANDARD = "standard", "Standard"
+        AGGRESSIVE = "aggressive", "Aggressive"
+
+    workspace = models.OneToOneField(
+        "core.Business",
+        on_delete=models.CASCADE,
+        related_name="business_policy",
+    )
+    materiality_threshold = models.DecimalField(
+        max_digits=19,
+        decimal_places=2,
+        default=1,
+        help_text="Write-off / rounding tolerance for tiny differences (in workspace currency).",
+    )
+    risk_appetite = models.CharField(max_length=16, choices=RiskAppetite.choices, default=RiskAppetite.STANDARD)
+    commingling_risk_vendors = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Vendors requiring extra friction / mandatory review (e.g. Amazon, Target, Costco).",
+    )
+    related_entities = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="List of related workspace IDs / entities for intercompany awareness.",
+    )
+    intercompany_enabled = models.BooleanField(default=False)
+    sector_archetype = models.CharField(
+        max_length=64,
+        blank=True,
+        default="",
+        help_text="Industry archetype (SaaS, e-commerce, construction, agency, etc.).",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self) -> str:
+        return f"Business policy for workspace {self.workspace_id}"
+
+
+class ProvisionalLedgerEvent(models.Model):
+    """
+    Shadow Ledger (Stream B) event for Companion drafts/proposals.
+
+    These events never affect financial statements directly.
+    They can be wiped/replayed without touching the canonical ledger.
+    """
+
+    class Status(models.TextChoices):
+        PROPOSED = "proposed", "Proposed"
+        APPLIED = "applied", "Applied"
+        REJECTED = "rejected", "Rejected"
+        SUPERSEDED = "superseded", "Superseded"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    workspace = models.ForeignKey(
+        "core.Business",
+        on_delete=models.CASCADE,
+        related_name="shadow_events",
+    )
+    # Propose* command_id (from the command payload), used for audit/debug correlation.
+    command_id = models.UUIDField(null=True, blank=True, db_index=True)
+    # Optional direct pointer for the common case (banking/reconciliation).
+    bank_transaction = models.ForeignKey(
+        "core.BankTransaction",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="companion_shadow_events",
+    )
+    # Primary command record that produced this shadow event (usually the Propose* command).
+    source_command = models.OneToOneField(
+        "companion.AICommandRecord",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="source_shadow_event",
+    )
+    event_type = models.CharField(max_length=128, db_index=True)
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.PROPOSED, db_index=True)
+
+    # Optional subject pointer (bank transaction, receipt, invoice, etc.).
+    subject_content_type = models.ForeignKey(ContentType, on_delete=models.SET_NULL, null=True, blank=True)
+    subject_object_id = models.PositiveIntegerField(null=True, blank=True)
+    subject = GenericForeignKey("subject_content_type", "subject_object_id")
+
+    data = models.JSONField(default=dict, blank=True)
+
+    # Explainability & governance metadata (duplicated into typed fields for queryability).
+    actor = models.CharField(max_length=128, default="system_companion_v2")
+    confidence_score = models.DecimalField(max_digits=8, decimal_places=4, null=True, blank=True)
+    logic_trace_id = models.CharField(max_length=255, blank=True, default="", db_index=True)
+    rationale = models.TextField(blank=True, default="")
+    business_profile_constraint = models.CharField(max_length=128, blank=True, default="")
+    human_in_the_loop = models.JSONField(default=dict, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_shadow_events",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["workspace", "status", "created_at"]),
+            models.Index(fields=["workspace", "event_type", "created_at"]),
+            models.Index(fields=["workspace", "subject_content_type", "subject_object_id"]),
+        ]
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.event_type} ({self.status}) {self.id}"
+
+
+class AICommandRecord(models.Model):
+    """
+    Command-sourcing record for Companion actions (intent).
+
+    Propose* commands validate -> append to Shadow Ledger.
+    Apply* commands validate -> mutate canonical ledger -> append provenance.
+    """
+
+    class Status(models.TextChoices):
+        ACCEPTED = "accepted", "Accepted"
+        REJECTED = "rejected", "Rejected"
+        ERRORED = "errored", "Errored"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    workspace = models.ForeignKey("core.Business", on_delete=models.CASCADE, related_name="ai_commands")
+    command_type = models.CharField(max_length=128, db_index=True)
+    payload = models.JSONField(default=dict, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    actor = models.CharField(max_length=128, default="system_companion_v2", db_index=True)
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.ACCEPTED, db_index=True)
+    error_message = models.TextField(blank=True, default="")
+
+    shadow_event = models.ForeignKey(
+        ProvisionalLedgerEvent,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="command_records",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="ai_command_records",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.command_type} ({self.status}) {self.id}"
+
+
+class CanonicalLedgerProvenance(models.Model):
+    """
+    Provenance/explainability link from canonical objects to a shadow event.
+
+    This provides the "why did Companion do this?" audit trail for:
+    - Journal entries created/adjusted
+    - Bank matches applied
+    - Categorization changes
+    """
+
+    workspace = models.ForeignKey("core.Business", on_delete=models.CASCADE, related_name="canonical_provenance")
+    shadow_event = models.ForeignKey(
+        ProvisionalLedgerEvent,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="canonical_promotions",
+    )
+    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
+    object_id = models.PositiveIntegerField()
+    target = GenericForeignKey("content_type", "object_id")
+
+    actor = models.CharField(max_length=128, default="system_companion_v2")
+    applied_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="ai_canonical_provenance",
+    )
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["workspace", "content_type", "object_id"]),
+            models.Index(fields=["workspace", "shadow_event"]),
+            models.Index(fields=["workspace", "created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"Provenance {self.workspace_id} {self.content_type_id}:{self.object_id}"
+
+
+class AICircuitBreakerEvent(models.Model):
+    class Breaker(models.TextChoices):
+        KILL_SWITCH = "kill_switch", "Kill switch"
+        VELOCITY = "velocity", "Velocity"
+        VALUE = "value", "Value"
+        ANOMALY = "anomaly", "Anomaly"
+        TRUST = "trust", "Trust"
+
+    workspace = models.ForeignKey("core.Business", on_delete=models.CASCADE, related_name="ai_breaker_events")
+    breaker = models.CharField(max_length=16, choices=Breaker.choices, db_index=True)
+    action = models.CharField(max_length=128, blank=True, default="")
+    details = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.breaker} for {self.workspace_id} @ {self.created_at:%Y-%m-%d}"
+
+
+class AIIntegrityReport(models.Model):
+    """
+    Weekly integrity report generated by the adversarial auditor ("Checker").
+    """
+
+    workspace = models.ForeignKey("core.Business", on_delete=models.CASCADE, related_name="ai_integrity_reports")
+    period_start = models.DateField()
+    period_end = models.DateField()
+    summary = models.JSONField(default=dict, blank=True)
+    flagged_items = models.JSONField(default=list, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["workspace", "period_start", "period_end"],
+                name="uniq_ai_integrity_report_period",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["workspace", "created_at"]),
+            models.Index(fields=["workspace", "period_start", "period_end"]),
+        ]
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"Integrity report {self.workspace_id} {self.period_start}..{self.period_end}"

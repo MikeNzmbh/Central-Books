@@ -1,6 +1,7 @@
 import React from "react";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import CompanionOverviewPage from "./CompanionOverviewPage";
 
 const summaryPayload = {
@@ -48,7 +49,11 @@ describe("CompanionOverviewPage", () => {
   });
 
   it("renders surface tiles and risk badges", async () => {
-    render(<CompanionOverviewPage />);
+    render(
+      <MemoryRouter>
+        <CompanionOverviewPage />
+      </MemoryRouter>
+    );
     await waitFor(() => expect(screen.getByText(/Financial Overwatch/i)).toBeInTheDocument());
     // Use getAllByText since Receipts appears in multiple places
     expect(screen.getAllByText(/Receipts/i).length).toBeGreaterThan(0);
@@ -60,7 +65,11 @@ describe("CompanionOverviewPage", () => {
     (globalThis.fetch as any) = vi.fn(() =>
       Promise.resolve(new Response(JSON.stringify({ ...summaryPayload, ai_companion_enabled: false })))
     );
-    render(<CompanionOverviewPage />);
+    render(
+      <MemoryRouter>
+        <CompanionOverviewPage />
+      </MemoryRouter>
+    );
     await waitFor(() => expect(screen.getByText(/AI Companion is disabled/i)).toBeInTheDocument());
   });
 });

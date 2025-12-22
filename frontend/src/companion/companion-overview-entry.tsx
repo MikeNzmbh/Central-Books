@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import "../index.css";
 import { AuthProvider } from "../contexts/AuthContext";
 import CompanionOverviewPage from "./CompanionOverviewPage";
+import CompanionProposalsPage from "./CompanionProposalsPage";
 import TaxGuardianPage from "./TaxGuardianPage";
 import TaxSettingsPage from "./TaxSettingsPage";
 import TaxProductRulesPage from "./TaxProductRulesPage";
@@ -51,6 +52,7 @@ if (rootEl) {
           <BrowserRouter basename="/ai-companion">
             <Routes>
               <Route path="/" element={<CompanionOverviewPage />} />
+              <Route path="/proposals" element={<CompanionProposalsPage />} />
               <Route path="/tax" element={<TaxGuardianPage />} />
               <Route path="/tax/settings" element={<TaxSettingsPage />} />
               <Route path="/tax/product-rules" element={<TaxProductRulesPage />} />

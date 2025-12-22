@@ -149,7 +149,7 @@ const RiskBadge: React.FC<{ level: RiskLevel; score: number | null }> = ({ level
   return (
     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${config.bg}`}>
       <span className={`w-2 h-2 rounded-full ${config.dot}`} />
-      {config.label}{suffix}
+      {config.label}<span className="font-mono-soft">{suffix}</span>
     </span>
   );
 };
@@ -194,8 +194,8 @@ const JournalLinesPreview: React.FC<{ lines?: JournalLine[]; date?: string; desc
           {lines.map((line, idx) => (
             <tr key={idx} className="border-b border-slate-50">
               <td className="py-1 text-slate-700">{line.account_name || `Account #${line.account_id}`}</td>
-              <td className="py-1 text-right text-slate-700">{parseFloat(line.debit) > 0 ? line.debit : "—"}</td>
-              <td className="py-1 text-right text-slate-700">{parseFloat(line.credit) > 0 ? line.credit : "—"}</td>
+              <td className="py-1 text-right text-slate-700 font-mono-soft">{parseFloat(line.debit) > 0 ? line.debit : "—"}</td>
+              <td className="py-1 text-right text-slate-700 font-mono-soft">{parseFloat(line.credit) > 0 ? line.credit : "—"}</td>
             </tr>
           ))}
         </tbody>
@@ -473,7 +473,7 @@ const InvoiceDocumentCard: React.FC<{
           </button>
         </div>
         {doc.posted_journal_entry_id && (
-          <div className="text-xs text-slate-600">Posted JE #{doc.posted_journal_entry_id}</div>
+          <div className="text-xs text-slate-600">Posted JE #<span className="font-mono-soft">{doc.posted_journal_entry_id}</span></div>
         )}
       </div>
 
@@ -675,7 +675,7 @@ const InvoicesPage: React.FC<{ defaultCurrency: string }> = ({ defaultCurrency }
               <p className="text-xs text-slate-500">PDF, JPG, PNG, HEIC supported</p>
             </div>
             <div className="text-xs text-slate-500">
-              Total size: {prettyBytes(totalUploadSize)} · Files: {upload.files.length}
+              Total size: <span className="font-mono-soft">{prettyBytes(totalUploadSize)}</span> · Files: <span className="font-mono-soft">{upload.files.length}</span>
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
@@ -737,7 +737,7 @@ const InvoicesPage: React.FC<{ defaultCurrency: string }> = ({ defaultCurrency }
                   <svg className="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
-                  {file.name} · {prettyBytes(file.size)}
+                  {file.name} · <span className="font-mono-soft">{prettyBytes(file.size)}</span>
                 </span>
               ))}
               {upload.files.length === 0 && <span className="text-xs text-slate-400">No files selected yet</span>}
@@ -786,11 +786,11 @@ const InvoicesPage: React.FC<{ defaultCurrency: string }> = ({ defaultCurrency }
                   <tbody>
                     {pagedRuns.map((run) => (
                       <tr key={run.id} className="border-t border-slate-100">
-                        <td className="py-2 font-semibold text-slate-800">#{run.id}</td>
+                        <td className="py-2 font-semibold text-slate-800 font-mono-soft">#{run.id}</td>
                         <td className="text-slate-600">{formatDateTime(run.created_at)}</td>
-                        <td className="text-slate-600">{run.total_documents}</td>
+                        <td className="text-slate-600 font-mono-soft">{run.total_documents}</td>
                         <td className="text-slate-600">{run.status}</td>
-                        <td className="text-slate-600">{run.error_count}</td>
+                        <td className="text-slate-600 font-mono-soft">{run.error_count}</td>
                         <td>
                           <button
                             className="text-xs font-semibold text-sky-700 hover:text-sky-900"

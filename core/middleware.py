@@ -1,12 +1,38 @@
 import logging
+import uuid
 from typing import Callable
 
 from django.conf import settings
 from django.http import HttpRequest, HttpResponse
-from django.http import HttpResponse, HttpResponseForbidden
+from django.http import HttpResponseForbidden
 
 
 oauth_logger = logging.getLogger("oauth.google")
+
+
+class RequestIDMiddleware:
+    """
+    Ensure every request has a stable request ID for correlation.
+
+    - Accepts incoming `X-Request-ID` when present (up to 128 chars).
+    - Generates a UUID4 hex when missing/invalid.
+    - Exposes it as `request.request_id` and returns it as `X-Request-ID` response header.
+    """
+
+    def __init__(self, get_response: Callable[[HttpRequest], HttpResponse]) -> None:
+        self.get_response = get_response
+
+    def __call__(self, request: HttpRequest) -> HttpResponse:
+        request_id = (request.META.get("HTTP_X_REQUEST_ID") or "").strip()
+        if not request_id or len(request_id) > 128:
+            request_id = uuid.uuid4().hex
+
+        setattr(request, "request_id", request_id)
+        response = self.get_response(request)
+
+        if "X-Request-ID" not in response.headers:
+            response.headers["X-Request-ID"] = request_id
+        return response
 
 
 class GoogleOAuthLoggingMiddleware:

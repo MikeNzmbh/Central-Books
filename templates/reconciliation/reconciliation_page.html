@@ -33,16 +33,8 @@
 <link rel="stylesheet" href="{% static css_path %}">
 {% endif %}
 
-<!-- Companion strip assets -->
-{% vite_asset 'companion-strip' as companion_js %}
-{% if companion_js %}
-<script type="module" src="{% static companion_js %}"></script>
-{% endif %}
-
-{% vite_asset 'companion-strip' 'css' as companion_css %}
-{% if companion_css %}
-<link rel="stylesheet" href="{% static companion_css %}">
-{% endif %}
+<!-- NOTE: Companion strip is rendered by ReconciliationPage.tsx, NOT here -->
+<!-- Do not add companion-strip assets or data-companion-context div -->
 
 <script>
   window.addEventListener("reconciliation-app-mounted", () => {

@@ -4,6 +4,10 @@ import { render, cleanup, waitFor, fireEvent, screen } from "@testing-library/re
 
 import ReconciliationPage from "./ReconciliationPage";
 
+vi.mock("../hooks/usePermissions", () => ({
+  usePermissions: () => ({ can: () => true }),
+}));
+
 const buildResponse = (data: any, status = 200) => ({
   ok: status >= 200 && status < 300,
   status,
@@ -20,6 +24,12 @@ describe("ReconciliationPage", () => {
 
   const baseAccount = [{ id: "1", name: "Checking", currency: "USD" }];
   const basePeriods = [{ id: "2024-01", label: "Jan 2024", start_date: "2024-01-01", end_date: "2024-01-31", is_current: false, is_locked: false }];
+
+  const startReconciliation = async () => {
+    const startButton = await screen.findByRole("button", { name: /Start Reconciliation/i });
+    await waitFor(() => expect(startButton).not.toBeDisabled());
+    fireEvent.click(startButton);
+  };
 
   it("loads session for selected period", async () => {
     const periods = [
@@ -56,6 +66,7 @@ describe("ReconciliationPage", () => {
     global.fetch = fetchMock;
 
     render(<ReconciliationPage />);
+    await startReconciliation();
 
     await waitFor(() => {
       const called = fetchMock.mock.calls.some(call => String(call[0]).includes("start=2024-02-01"));
@@ -105,6 +116,7 @@ describe("ReconciliationPage", () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
 
     render(<ReconciliationPage />);
+    await startReconciliation();
 
     await screen.findByText("Reopen period");
     fireEvent.click(screen.getByText("Reopen period"));
@@ -192,6 +204,7 @@ describe("ReconciliationPage", () => {
     global.fetch = fetchMock;
 
     render(<ReconciliationPage />);
+    await startReconciliation();
 
     // Verify status badges are shown (new UI uses badges instead of helper text)
     await screen.findByText("New item");
@@ -238,6 +251,7 @@ describe("ReconciliationPage", () => {
     global.fetch = fetchMock;
 
     render(<ReconciliationPage />);
+    await startReconciliation();
     await waitFor(() => expect(screen.getByText("Complete period")).toBeInTheDocument());
 
     fireEvent.click(await screen.findByText("Complete period"));
@@ -340,10 +354,11 @@ describe("ReconciliationPage", () => {
     global.fetch = fetchMock;
 
     render(<ReconciliationPage />);
+    await startReconciliation();
 
     await screen.findByText(/matched/i);
-    const undoButton = screen.getByRole("button", { name: /Undo/i });
-    fireEvent.click(undoButton);
+    const unmatchButton = screen.getByRole("button", { name: /Unmatch/i });
+    fireEvent.click(unmatchButton);
 
     await waitFor(() => expect(unmatchCalled).toBe(true));
     // After unmatch, status should show NEW badge
@@ -419,6 +434,7 @@ describe("ReconciliationPage", () => {
     global.fetch = fetchMock;
 
     render(<ReconciliationPage />);
+    await startReconciliation();
     await screen.findByText("To exclude");
 
     const checkbox = screen.getByRole("checkbox");
@@ -482,12 +498,13 @@ describe("ReconciliationPage", () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
 
     render(<ReconciliationPage />);
+    await startReconciliation();
 
     await screen.findByText("Locked item");
-    expect(screen.getByText("Undo")).toBeDisabled();
+    expect(screen.getByText("Unmatch")).toBeDisabled();
 
     fireEvent.click(await screen.findByText("Reopen period"));
-    await waitFor(() => expect(screen.getByText("Undo")).not.toBeDisabled());
+    await waitFor(() => expect(screen.getByText("Unmatch")).not.toBeDisabled());
   });
 
   it("shows action error banner on failure and can dismiss", async () => {
@@ -541,9 +558,10 @@ describe("ReconciliationPage", () => {
     global.fetch = fetchMock;
 
     render(<ReconciliationPage />);
+    await startReconciliation();
     await screen.findByText("Failing item");
 
-    fireEvent.click(screen.getByText("Undo"));
+    fireEvent.click(screen.getByText("Unmatch"));
 
     await waitFor(() => expect(screen.getByText("Cannot unmatch completed session")).toBeInTheDocument());
     fireEvent.click(screen.getByText("Dismiss"));

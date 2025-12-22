@@ -91,7 +91,7 @@ function BreakdownRow(props: { label: string; value: number; tone?: "primary" | 
         <div className="space-y-1">
             <div className="flex items-center justify-between text-xs font-medium text-slate-500">
                 <span>{label}</span>
-                <span className="tabular-nums text-slate-700">{value}%</span>
+                <span className="font-mono-soft text-slate-700">{value}%</span>
             </div>
             <div className="h-2 w-full rounded-full bg-slate-100 overflow-hidden">
                 <div
@@ -240,7 +240,7 @@ export function DashboardCompanionPanel(props: DashboardCompanionPanelProps) {
     }, [greetingName]);
 
     return (
-        <section className="relative rounded-[2.5rem] bg-white p-1 ring-1 ring-slate-200/60 shadow-[0_0_60px_-15px_rgba(99,102,241,0.25),0_0_30px_-10px_rgba(59,130,246,0.15)]">
+        <section className="relative rounded-[2.5rem] bg-white p-1 ring-1 ring-slate-200/60 shadow-[0_0_60px_-15px_rgba(99,102,241,0.25),0_0_30px_-10px_rgba(59,130,246,0.15)] font-sans">
             <div className="relative z-10 rounded-[2.2rem] border border-white/50 bg-white px-6 py-6 sm:px-8 sm:py-8">
                 <div className="flex flex-col gap-8">
 
@@ -278,13 +278,13 @@ export function DashboardCompanionPanel(props: DashboardCompanionPanelProps) {
                         {/* Left Column: Breakdown & Summary */}
                         <div className="flex flex-col gap-6">
                             {/* Summary Card */}
-                            <div className="rounded-3xl border border-indigo-50 bg-gradient-to-br from-indigo-50/50 to-white p-6 shadow-sm">
+                            <div className="rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-50/50 to-white p-6 shadow-sm">
                                 <div className="flex items-start gap-4">
-                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-200">
+                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-lg shadow-slate-300">
                                         <Sparkles className="h-5 w-5" />
                                     </div>
                                     <div className="space-y-1">
-                                        <div className="text-xs font-bold uppercase tracking-widest text-indigo-400">AI Summary</div>
+                                        <div className="text-xs font-bold uppercase tracking-widest text-slate-400">AI Summary</div>
                                         <p className="text-sm leading-relaxed text-slate-700 font-medium">
                                             {aiSummary}
                                         </p>

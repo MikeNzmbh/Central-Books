@@ -1,23 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-
-function getCookie(name: string): string | null {
-  if (typeof document === "undefined") return null;
-  const cookies = document.cookie ? document.cookie.split(";") : [];
-  for (const cookie of cookies) {
-    const trimmed = cookie.trim();
-    if (trimmed.startsWith(`${name}=`)) {
-      return decodeURIComponent(trimmed.substring(name.length + 1));
-    }
-  }
-  return null;
-}
+import { ensureCsrfToken, getCsrfToken as getCsrfTokenSync } from "../utils/csrf";
 
 function getCsrfToken(): string {
-  return (
-    document.querySelector<HTMLInputElement>("[name=csrfmiddlewaretoken]")?.value ||
-    getCookie("csrftoken") ||
-    ""
-  );
+  return getCsrfTokenSync();
 }
 
 type ReceiptStatus = "PENDING" | "PROCESSED" | "POSTED" | "DISCARDED" | "ERROR";
@@ -234,6 +219,10 @@ const JournalLinesPreview: React.FC<{ lines?: JournalLine[]; date?: string; desc
    Main Component
 ───────────────────────────────────────────────────────────────────────────── */
 const ReceiptsPage: React.FC<{ defaultCurrency: string }> = ({ defaultCurrency }) => {
+  useEffect(() => {
+    ensureCsrfToken().catch(() => undefined);
+  }, []);
+
   const [upload, setUpload] = useState<UploadState>({
     files: [],
     defaultCurrency,

@@ -42,6 +42,7 @@ class Role(str, Enum):
     - VIEW_ONLY: Read-only, no mutations
     - EXTERNAL_ACCOUNTANT: Like Controller with time-boxed access
     - AUDITOR: Deep read-only, audit log access
+    - JUNIOR_ACCOUNTANT_BOT: Service account for Companion (shadow writes only)
     """
     # System roles
     OWNER = "OWNER"
@@ -56,6 +57,7 @@ class Role(str, Enum):
     VIEW_ONLY = "VIEW_ONLY"
     EXTERNAL_ACCOUNTANT = "EXTERNAL_ACCOUNTANT"
     AUDITOR = "AUDITOR"
+    JUNIOR_ACCOUNTANT_BOT = "JUNIOR_ACCOUNTANT_BOT"
     
     @classmethod
     def choices(cls):
@@ -82,6 +84,7 @@ PERMISSIONS: dict[str, Set[Role]] = {
     "workspace.delete": {Role.OWNER},
     "workspace.billing": {Role.OWNER},
     "workspace.settings": {Role.OWNER, Role.CONTROLLER},
+    "workspace.manage_ai": {Role.OWNER, Role.CONTROLLER},
     
     # ─── Tax Guardian ───
     "tax.view_periods": {
@@ -93,6 +96,21 @@ PERMISSIONS: dict[str, Set[Role]] = {
     "tax.llm_enrich": {Role.OWNER, Role.CONTROLLER},
     "tax.settings.manage": {Role.OWNER, Role.CONTROLLER},
     "tax.catalog.manage": {Role.OWNER, Role.SYSTEM_ADMIN, Role.CONTROLLER},
+    # Tax Guardian granular
+    "tax.guardian.refresh": {Role.OWNER, Role.CONTROLLER, Role.EXTERNAL_ACCOUNTANT},
+    "tax.guardian.export": {Role.OWNER, Role.CONTROLLER, Role.EXTERNAL_ACCOUNTANT, Role.AUDITOR},
+    "tax.guardian.manage_payments": {Role.OWNER, Role.CONTROLLER},
+    "tax.guardian.llm_enrich": {Role.OWNER, Role.CONTROLLER},
+    "tax.guardian.drilldown": {
+        Role.OWNER, Role.CONTROLLER, Role.CASH_MANAGER, Role.BOOKKEEPER,
+        Role.EXTERNAL_ACCOUNTANT, Role.AUDITOR, Role.VIEW_ONLY
+    },
+    # Tax Catalog & Import
+    "tax.catalog.view": {
+        Role.OWNER, Role.SYSTEM_ADMIN, Role.CONTROLLER, Role.EXTERNAL_ACCOUNTANT, Role.AUDITOR
+    },
+    "tax.catalog.import": {Role.OWNER, Role.SYSTEM_ADMIN, Role.CONTROLLER},
+    "tax.product_rules.manage": {Role.OWNER, Role.CONTROLLER},
     
     # ─── Banking ───
     "bank.view_balance": {Role.OWNER, Role.CONTROLLER, Role.CASH_MANAGER},
@@ -102,6 +120,14 @@ PERMISSIONS: dict[str, Set[Role]] = {
     },
     "bank.reconcile": {Role.OWNER, Role.CONTROLLER, Role.CASH_MANAGER, Role.BOOKKEEPER},
     "bank.import": {Role.OWNER, Role.CONTROLLER, Role.CASH_MANAGER, Role.BOOKKEEPER},
+    
+    # ─── Reconciliation (granular) ───
+    "reconciliation.view": {
+        Role.OWNER, Role.CONTROLLER, Role.CASH_MANAGER, Role.BOOKKEEPER,
+        Role.EXTERNAL_ACCOUNTANT, Role.AUDITOR, Role.VIEW_ONLY
+    },
+    "reconciliation.complete_session": {Role.OWNER, Role.CONTROLLER, Role.CASH_MANAGER},
+    "reconciliation.reset_session": {Role.OWNER, Role.CONTROLLER},
     
     # ─── Invoices (AR) ───
     "invoices.view": {
@@ -113,6 +139,7 @@ PERMISSIONS: dict[str, Set[Role]] = {
     "invoices.delete": {Role.OWNER, Role.CONTROLLER},  # Soft-delete/void
     "invoices.send": {Role.OWNER, Role.CONTROLLER, Role.BOOKKEEPER, Role.AR_SPECIALIST},
     "invoices.receive_payment": {Role.OWNER, Role.CONTROLLER, Role.BOOKKEEPER, Role.AR_SPECIALIST},
+    "invoices.approve": {Role.OWNER, Role.CONTROLLER, Role.BOOKKEEPER},
     
     # ─── Expenses (AP) ───
     "expenses.view": {
@@ -123,6 +150,7 @@ PERMISSIONS: dict[str, Set[Role]] = {
     "expenses.edit": {Role.OWNER, Role.CONTROLLER, Role.BOOKKEEPER, Role.AP_SPECIALIST},
     "expenses.delete": {Role.OWNER, Role.CONTROLLER},  # Soft-delete/void
     "expenses.pay": {Role.OWNER, Role.CONTROLLER, Role.CASH_MANAGER, Role.BOOKKEEPER},
+    "expenses.approve": {Role.OWNER, Role.CONTROLLER, Role.BOOKKEEPER},
     
     # ─── General Ledger ───
     "gl.view": {
@@ -162,6 +190,19 @@ PERMISSIONS: dict[str, Set[Role]] = {
         Role.AP_SPECIALIST, Role.AUDITOR, Role.VIEW_ONLY
     },
     "categories.manage": {Role.OWNER, Role.CONTROLLER, Role.BOOKKEEPER},
+
+    # ─── Inventory ───
+    "inventory.view": {
+        Role.OWNER,
+        Role.CONTROLLER,
+        Role.BOOKKEEPER,
+        Role.AP_SPECIALIST,
+        Role.AR_SPECIALIST,
+        Role.EXTERNAL_ACCOUNTANT,
+        Role.AUDITOR,
+        Role.VIEW_ONLY,
+    },
+    "inventory.manage": {Role.OWNER, Role.CONTROLLER, Role.BOOKKEEPER},
     
     # ─── Receipts ───
     "receipts.view": {
@@ -177,6 +218,8 @@ PERMISSIONS: dict[str, Set[Role]] = {
         Role.EXTERNAL_ACCOUNTANT, Role.AUDITOR, Role.VIEW_ONLY
     },
     "companion.actions": {Role.OWNER, Role.CONTROLLER, Role.BOOKKEEPER},
+    "companion.shadow.write": {Role.OWNER, Role.CONTROLLER, Role.BOOKKEEPER, Role.JUNIOR_ACCOUNTANT_BOT},
+    "companion.shadow.wipe": {Role.OWNER, Role.CONTROLLER},
     
     # ─── Audit ───
     "audit.view_log": {Role.OWNER, Role.CONTROLLER, Role.AUDITOR, Role.SYSTEM_ADMIN},
@@ -395,6 +438,11 @@ ROLE_DESCRIPTIONS: dict[Role, dict] = {
         "label": "System Admin",
         "description": "Technical administration: users, SSO, integrations. Limited financial visibility.",
         "color": "gray",
+    },
+    Role.JUNIOR_ACCOUNTANT_BOT: {
+        "label": "Junior Accountant Bot",
+        "description": "Companion service account. May write to Shadow Ledger only; never posts canonical entries directly.",
+        "color": "slate",
     },
 }
 

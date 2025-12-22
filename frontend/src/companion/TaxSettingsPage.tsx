@@ -3,6 +3,7 @@ import { Shield, Save, ArrowLeft, Database } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useTaxSettings, TaxSettings } from "./useTaxSettings";
 import { useAuth } from "../contexts/AuthContext";
+import { usePermissions } from "../hooks/usePermissions";
 
 const frequencies = [
   { value: "MONTHLY", label: "Monthly" },
@@ -20,6 +21,7 @@ const caRegimes = [
 
 const TaxSettingsPage: React.FC = () => {
   const { auth } = useAuth();
+  const { can } = usePermissions();
   const { settings, loading, error, updateSettings } = useTaxSettings();
   const [local, setLocal] = useState<Partial<TaxSettings>>({});
   const [saving, setSaving] = useState(false);
@@ -235,7 +237,7 @@ const TaxSettingsPage: React.FC = () => {
           </div>
         </div>
 
-        {auth.isAdmin && (
+        {can("tax.catalog.view") && (
           <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4">
             <h2 className="text-sm font-bold text-slate-900">Tax Catalog (staff)</h2>
             <p className="text-sm text-slate-600 mt-1">

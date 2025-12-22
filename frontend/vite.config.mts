@@ -37,6 +37,7 @@ export default defineConfig({
           __dirname,
           "src/dashboard/dashboard-entry.tsx"
         ),
+        welcome: path.resolve(__dirname, "src/auth/welcome-entry.tsx"),
         login: path.resolve(__dirname, "src/auth/login-entry.tsx"),
         signup: path.resolve(__dirname, "src/auth/signup-entry.tsx"),
         "account-settings": path.resolve(
@@ -88,6 +89,7 @@ export default defineConfig({
         "suppliers-list": path.resolve(__dirname, "src/suppliers/suppliers-list-entry.tsx"),
         "categories-list": path.resolve(__dirname, "src/categories/categories-list-entry.tsx"),
         "products-list": path.resolve(__dirname, "src/products/products-list-entry.tsx"),
+        inventory: path.resolve(__dirname, "src/inventory/inventory-entry.tsx"),
         "journal-entries": path.resolve(__dirname, "src/journal/journal-entries-entry.tsx"),
         "books-review": path.resolve(__dirname, "src/booksReview/books-review-entry.tsx"),
         "bank-review": path.resolve(__dirname, "src/bankReview/bank-review-entry.tsx"),

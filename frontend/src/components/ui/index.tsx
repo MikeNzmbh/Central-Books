@@ -39,6 +39,36 @@ export const CardTitle = ({ className, children, ...props }: React.HTMLAttribute
     </h3>
 );
 
+export const CardDescription = ({ className, children, ...props }: React.HTMLAttributes<HTMLParagraphElement>) => (
+    <p className={cn("text-sm text-slate-500", className)} {...props}>
+        {children}
+    </p>
+);
+
+// Switch Component
+export const Switch = ({ checked, onCheckedChange, disabled, className, ...props }: React.HTMLAttributes<HTMLButtonElement> & { checked?: boolean; onCheckedChange?: (checked: boolean) => void; disabled?: boolean }) => (
+    <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        disabled={disabled}
+        className={cn(
+            "relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 disabled:cursor-not-allowed disabled:opacity-50",
+            checked ? "bg-slate-900" : "bg-slate-200",
+            className
+        )}
+        onClick={() => !disabled && onCheckedChange?.(!checked)}
+        {...props}
+    >
+        <span
+            className={cn(
+                "pointer-events-none block h-5 w-5 rounded-full bg-white shadow-lg ring-0 transition-transform",
+                checked ? "translate-x-5" : "translate-x-0"
+            )}
+        />
+    </button>
+);
+
 // Button Component
 export const Button = React.forwardRef<
     HTMLButtonElement,
@@ -362,9 +392,13 @@ export const Tabs = ({ value, onValueChange, children, className, ...props }: Re
     );
 };
 
-export const TabsList = ({ className, children, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+export const TabsList = ({ className, children, currentValue, onValueChange, ...props }: React.HTMLAttributes<HTMLDivElement> & { currentValue?: string; onValueChange?: (value: string) => void }) => (
     <div className={cn("inline-flex h-10 items-center justify-center rounded-md bg-slate-100 p-1", className)} {...props}>
-        {children}
+        {React.Children.map(children, child =>
+            React.isValidElement(child)
+                ? React.cloneElement(child as any, { currentValue, onValueChange })
+                : child
+        )}
     </div>
 );
 
@@ -376,7 +410,7 @@ export const TabsTrigger = ({ value, className, children, onValueChange, current
             onClick={() => onValueChange?.(value)}
             className={cn(
                 "inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium transition-all",
-                isActive ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900",
+                isActive ? "bg-white text-slate-900 shadow-sm mb-accent-underline" : "text-slate-600 hover:text-slate-900",
                 className
             )}
             {...props}

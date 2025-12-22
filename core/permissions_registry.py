@@ -184,6 +184,19 @@ PERMISSION_SPECS: list[PermissionSpec] = [
         label="Manage categories",
         description="Create and edit categories.",
     ),
+    # Inventory
+    PermissionSpec(
+        action="inventory.view",
+        category="Inventory",
+        label="View inventory",
+        description="View inventory items, locations, and balances.",
+    ),
+    PermissionSpec(
+        action="inventory.manage",
+        category="Inventory",
+        label="Manage inventory",
+        description="Create/edit inventory items and post inventory movements.",
+    ),
     # Tax
     PermissionSpec(
         action="tax.view_periods",
@@ -275,6 +288,127 @@ PERMISSION_SPECS: list[PermissionSpec] = [
         category="AI",
         label="Run AI actions",
         description="Run AI-assisted actions (categorization, suggestions) with human-in-the-loop.",
+    ),
+    PermissionSpec(
+        action="companion.shadow.write",
+        category="AI",
+        label="Write Shadow Ledger",
+        description="Allow writing AI proposals to the Shadow Ledger (never posts canonical entries).",
+    ),
+    PermissionSpec(
+        action="companion.shadow.wipe",
+        category="AI",
+        label="Wipe Shadow Ledger",
+        description="Clear Shadow Ledger proposals for a workspace (safe; does not affect canonical ledger).",
+    ),
+    # ─── Tax Guardian (granular) ───
+    PermissionSpec(
+        action="tax.guardian.refresh",
+        category="Tax",
+        label="Refresh tax period",
+        description="Recalculate tax period data and anomalies.",
+    ),
+    PermissionSpec(
+        action="tax.guardian.export",
+        category="Tax",
+        label="Export tax data",
+        description="Export tax period data, reports, and worksheets.",
+    ),
+    PermissionSpec(
+        action="tax.guardian.manage_payments",
+        category="Tax",
+        label="Manage tax payments",
+        description="Create, edit, and delete tax payments.",
+    ),
+    PermissionSpec(
+        action="tax.guardian.llm_enrich",
+        category="Tax",
+        label="Run LLM enrichment",
+        description="Trigger AI analysis on tax data for anomaly detection.",
+    ),
+    PermissionSpec(
+        action="tax.guardian.drilldown",
+        category="Tax",
+        label="View tax drilldowns",
+        description="View detailed tax document drilldowns.",
+    ),
+    # ─── Tax Catalog & Import ───
+    PermissionSpec(
+        action="tax.catalog.view",
+        category="Tax",
+        label="View tax catalog",
+        description="View tax codes, jurisdictions, and components.",
+    ),
+    PermissionSpec(
+        action="tax.catalog.import",
+        category="Tax",
+        label="Import tax data",
+        description="Import tax jurisdictions, rates, and components from files.",
+    ),
+    PermissionSpec(
+        action="tax.product_rules.manage",
+        category="Tax",
+        label="Manage product tax rules",
+        description="Create and edit product-specific tax rules.",
+    ),
+    # ─── Reconciliation (granular) ───
+    PermissionSpec(
+        action="reconciliation.view",
+        category="Reconciliation",
+        label="View reconciliation",
+        description="View reconciliation sessions and matches.",
+    ),
+    PermissionSpec(
+        action="reconciliation.complete_session",
+        category="Reconciliation",
+        label="Complete reconciliation session",
+        description="Mark a reconciliation session as complete.",
+    ),
+    PermissionSpec(
+        action="reconciliation.reset_session",
+        category="Reconciliation",
+        label="Reset reconciliation session",
+        description="Reset a reconciliation session (destructive).",
+        sensitive=True,
+    ),
+    # ─── Invoices/Expenses (approve) ───
+    PermissionSpec(
+        action="invoices.approve",
+        category="Invoices",
+        label="Approve invoices",
+        description="Approve and post invoices.",
+    ),
+    PermissionSpec(
+        action="expenses.approve",
+        category="Expenses",
+        label="Approve expenses",
+        description="Approve and post expenses/bills.",
+    ),
+    # ─── Receipts ───
+    PermissionSpec(
+        action="receipts.view",
+        category="Expenses",
+        label="View receipts",
+        description="View uploaded receipts.",
+    ),
+    PermissionSpec(
+        action="receipts.upload",
+        category="Expenses",
+        label="Upload receipts",
+        description="Upload receipt documents for processing.",
+    ),
+    PermissionSpec(
+        action="receipts.approve",
+        category="Expenses",
+        label="Approve receipts",
+        description="Approve processed receipts for posting.",
+    ),
+    # ─── Workspace AI Toggle ───
+    PermissionSpec(
+        action="workspace.manage_ai",
+        category="Global",
+        label="Manage AI settings",
+        description="Enable/disable AI features for the workspace.",
     ),
 ]
 

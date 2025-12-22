@@ -16,6 +16,7 @@ BUILTIN_ROLE_LABELS = {
     "VIEW_ONLY": "View Only",
     "EXTERNAL_ACCOUNTANT": "External Accountant",
     "AUDITOR": "Auditor",
+    "JUNIOR_ACCOUNTANT_BOT": "Junior Accountant Bot",
 }
 
 ACTION_CANONICAL = {
@@ -34,6 +35,7 @@ def guess_level(action: str) -> str:
             ".close_period",
             ".delete",
             ".remove",
+            ".wipe",
             ".reset",
             "manage_roles",
             "workspace.delete",
@@ -49,6 +51,7 @@ def guess_level(action: str) -> str:
             ".manage",
             ".import",
             ".upload",
+            ".write",
             ".invite",
             ".settings",
             ".catalog",
@@ -92,4 +95,3 @@ def ensure_builtin_role_definitions(business) -> None:
                     continue
                 permissions[canonical_action] = {"level": guess_level(canonical_action), "scope": {"type": "all"}}
         RoleDefinition.objects.filter(id=role_def.id).update(permissions=permissions)
-

@@ -3,6 +3,7 @@ import {
   fetchSupportTickets,
   updateSupportTicket,
   addSupportTicketNote,
+  createSupportTicket,
   type Paginated,
   type SupportTicket,
 } from "./api";
@@ -40,6 +41,12 @@ export const SupportSection: React.FC<{ role?: Role }> = ({ role = "superadmin" 
   const [previous, setPrevious] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const canEdit = role !== "support";
+
+  // New ticket state
+  const [showNewTicket, setShowNewTicket] = useState(false);
+  const [newSubject, setNewSubject] = useState("");
+  const [newPriority, setNewPriority] = useState("NORMAL");
+  const [creating, setCreating] = useState(false);
 
   const loadTickets = async (opts?: { page?: number }) => {
     setLoading(true);
@@ -109,6 +116,28 @@ export const SupportSection: React.FC<{ role?: Role }> = ({ role = "superadmin" 
     }
   };
 
+  const handleCreateTicket = async () => {
+    if (!newSubject.trim()) return;
+    setCreating(true);
+    setError(null);
+    try {
+      const created = await createSupportTicket({
+        subject: newSubject.trim(),
+        priority: newPriority,
+        status: "OPEN",
+      });
+      setTickets((existing) => [created, ...existing]);
+      setSelected(created);
+      setNewSubject("");
+      setNewPriority("NORMAL");
+      setShowNewTicket(false);
+    } catch (err: any) {
+      setError(err?.message || "Unable to create ticket");
+    } finally {
+      setCreating(false);
+    }
+  };
+
   const rows = useMemo(
     () =>
       tickets.map((t) => [
@@ -149,7 +178,59 @@ export const SupportSection: React.FC<{ role?: Role }> = ({ role = "superadmin" 
             Central queue for customer issues. Triage, update status, and leave internal notes.
           </p>
         </div>
+        <button
+          onClick={() => setShowNewTicket(!showNewTicket)}
+          className="rounded-full bg-emerald-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-400"
+        >
+          {showNewTicket ? "Cancel" : "+ New Ticket"}
+        </button>
       </header>
+
+      {/* New Ticket Form */}
+      {showNewTicket && (
+        <Card title="Create new ticket" subtitle="Enter ticket details">
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-slate-700">Subject *</label>
+              <input
+                value={newSubject}
+                onChange={(e) => setNewSubject(e.target.value)}
+                placeholder="Describe the issue..."
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-50"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-slate-700">Priority</label>
+              <select
+                value={newPriority}
+                onChange={(e) => setNewPriority(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-50"
+              >
+                <option value="LOW">Low</option>
+                <option value="NORMAL">Normal</option>
+                <option value="HIGH">High</option>
+                <option value="URGENT">Urgent</option>
+              </select>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={handleCreateTicket}
+                disabled={!newSubject.trim() || creating}
+                className="rounded-full bg-emerald-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-400 disabled:opacity-60"
+              >
+                {creating ? "Creating..." : "Create Ticket"}
+              </button>
+              <button
+                onClick={() => setShowNewTicket(false)}
+                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+            </div>
+            {error && <p className="text-xs text-rose-700">{error}</p>}
+          </div>
+        </Card>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
         <Card title="Tickets" subtitle="Filter by status, priority, or search by subject/email/workspace.">

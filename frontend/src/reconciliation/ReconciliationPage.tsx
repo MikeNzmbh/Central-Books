@@ -52,8 +52,8 @@ import { Separator } from "../components/ui/separator";
 
 import "../index.css";
 import { ReportExportButton } from "../reports/ReportExportButton";
-import CompanionStrip from "../companion/CompanionStrip";
-import { parseCookies } from "../utils/cookies";
+import { ensureCsrfToken, getCsrfToken as getCsrfTokenSync } from "../utils/csrf";
+import { usePermissions } from "../hooks/usePermissions";
 
 // --- Types ---
 
@@ -174,11 +174,7 @@ async function fetchJson<T = any>(url: string, options?: RequestInit): Promise<T
 }
 
 function getCsrfToken() {
-  // First try the cookie (most reliable for SPAs)
-  const cookieToken = parseCookies(document.cookie).csrftoken;
-  if (cookieToken) return cookieToken;
-  // Fallback to form input if exists
-  return document.querySelector<HTMLInputElement>("[name=csrfmiddlewaretoken]")?.value || "";
+  return getCsrfTokenSync();
 }
 
 function formatAmount(amount: number, currency: string) {
@@ -214,6 +210,14 @@ function EmptyState({ canReconcile, reason }: { canReconcile: boolean; reason: s
 }
 
 export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: string }) {
+  const { can } = usePermissions();
+  React.useEffect(() => {
+    ensureCsrfToken().catch(() => undefined);
+  }, []);
+  // RBAC: check permissions for complete and reset actions
+  const canComplete = can("reconciliation.complete_session");
+  const canReset = can("reconciliation.reset_session");
+
   const [state, setState] = useState<ReconciliationPageState>({
     bankAccounts: [],
     activeBankId: bankAccountId || null,
@@ -731,8 +735,6 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
       </div>
 
       <main className="flex-1 px-4 py-6 md:px-8">
-        <CompanionStrip context="reconciliation" className="mb-6" />
-
         {state.error && (
           <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 flex items-center gap-3 justify-between">
             <div className="flex items-center gap-2">
@@ -1058,7 +1060,7 @@ function SessionSetupBar({
                 ? "border-emerald-200 bg-emerald-50/50 text-emerald-700"
                 : "border-amber-200 bg-amber-50/50 text-amber-700"
                 }`}>
-                <span className="text-sm font-bold">
+                <span className="text-sm font-bold font-mono-soft">
                   {session ? session.difference.toFixed(2) : "—"}
                 </span>
                 <span className="text-xs font-medium opacity-70">{activeBank?.currency}</span>
@@ -1162,7 +1164,7 @@ function ProgressSummary({ session }: ProgressSummaryProps) {
         <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
           Reconciliation Progress
         </span>
-        <span className="text-2xl font-bold text-slate-900 ml-auto">
+        <span className="text-2xl font-bold text-slate-900 ml-auto font-mono-soft">
           {session.reconciledPercent.toFixed(0)}%
         </span>
       </div>

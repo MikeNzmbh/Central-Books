@@ -285,9 +285,20 @@ export const PERMISSIONS: PermissionSpec[] = [
     label: "Run AI actions",
     description: "Run AI-assisted actions (categorization, suggestions) with human-in-the-loop.",
   },
+  {
+    action: "companion.shadow.write",
+    category: "AI",
+    label: "Write Shadow Ledger",
+    description: "Allow writing AI proposals to the Shadow Ledger (never posts canonical entries).",
+  },
+  {
+    action: "companion.shadow.wipe",
+    category: "AI",
+    label: "Wipe Shadow Ledger",
+    description: "Clear Shadow Ledger proposals for a workspace (safe; does not affect canonical ledger).",
+  },
 ];
 
 export function getPermissionsByCategory(category: string): PermissionSpec[] {
   return PERMISSIONS.filter((p) => p.category === category);
 }
-

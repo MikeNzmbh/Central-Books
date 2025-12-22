@@ -6,7 +6,6 @@ import logging
 from django.contrib.auth import authenticate, login
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
 logger = logging.getLogger("auth.state")
@@ -43,25 +42,30 @@ def current_user(request):
     # Add internal admin information
     internal_admin_data = None
     try:
-        from internal_admin.models import InternalAdminProfile
-        profile = InternalAdminProfile.objects.filter(user=user).first()
-        if profile:
+        from internal_admin.permissions import (
+            can_access_admin_panel,
+            can_grant_superadmin,
+            can_manage_admin_users,
+            get_user_admin_role,
+        )
+
+        if can_access_admin_panel(user):
             internal_admin_data = {
-                "role": profile.role,
-                "canAccessInternalAdmin": True
-            }
-        elif user.is_staff or user.is_superuser:
-            # Backward compatibility: staff/superuser without explicit profile
-            internal_admin_data = {
-                "role": "SUPERADMIN",
-                "canAccessInternalAdmin": True
+                "role": get_user_admin_role(user),
+                "canAccessInternalAdmin": True,
+                "adminPanelAccess": True,
+                "canManageAdminUsers": can_manage_admin_users(user),
+                "canGrantSuperadmin": can_grant_superadmin(user),
             }
     except ImportError:
-        # internal_admin app not installed - fallback to staff check
-        if user.is_staff or user.is_superuser:
+        # internal_admin app not installed - allow break-glass for Django superusers.
+        if user.is_superuser:
             internal_admin_data = {
                 "role": "SUPERADMIN",
-                "canAccessInternalAdmin": True
+                "canAccessInternalAdmin": True,
+                "adminPanelAccess": True,
+                "canManageAdminUsers": True,
+                "canGrantSuperadmin": True,
             }
     
     user_data["internalAdmin"] = internal_admin_data
@@ -123,7 +127,6 @@ def current_user(request):
     }, status=200)
 
 
-@csrf_exempt
 @require_http_methods(["POST"])
 def api_login(request):
     """
@@ -140,8 +143,18 @@ def api_login(request):
                 "detail": "Username and password are required"
             }, status=400)
         
-        # Django's authenticate can accept username or email
+        # Try to authenticate with username first
         user = authenticate(request, username=username, password=password)
+        
+        # If that fails and input looks like an email, try to find user by email
+        if user is None and "@" in username:
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            try:
+                email_user = User.objects.get(email__iexact=username)
+                user = authenticate(request, username=email_user.username, password=password)
+            except User.DoesNotExist:
+                pass
         
         if user is not None:
             login(request, user)

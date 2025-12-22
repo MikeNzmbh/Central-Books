@@ -1,4 +1,6 @@
+from django.contrib.auth import views as auth_views
 from django.urls import path, include
+from django.urls import reverse_lazy
 from django.views.generic import RedirectView
 
 from . import views
@@ -61,11 +63,27 @@ from .views_reconciliation import (
 )
 
 urlpatterns = [
-    path("", views.dashboard, name="home"),
+    path("", views.welcome_view, name="home"),
+    path("welcome/", views.welcome_view, name="welcome"),
     path("companion/", RedirectView.as_view(pattern_name="companion_overview_page", permanent=False)),
     path("signup/", views.signup_view, name="signup"),
     path("login/", views.login_view, name="login"),
     path("logout/", views.logout_view, name="logout"),
+    path(
+        "reset-password/<uidb64>/<token>/",
+        auth_views.PasswordResetConfirmView.as_view(
+            template_name="registration/password_reset_confirm.html",
+            success_url=reverse_lazy("password_reset_complete"),
+        ),
+        name="password_reset_confirm",
+    ),
+    path(
+        "reset-password/complete/",
+        auth_views.PasswordResetCompleteView.as_view(
+            template_name="registration/password_reset_complete.html",
+        ),
+        name="password_reset_complete",
+    ),
     path("business/setup/", views.business_setup, name="business_setup"),
     # Backwards-compatible route (older frontend link)
     path(
@@ -84,6 +102,7 @@ urlpatterns = [
     path("api/auth/login/", views_auth.api_login, name="api_auth_login"),
     path("api/auth/config", views_auth.api_auth_config, name="api_auth_config"),
     path("api/reversals/", include("reversals.urls")),
+    path("api/inventory/", include("inventory.urls")),
     # Customers (Option B - React)
     path("customers/", views_list_apis.customers_list_page, name="customer_list"),
     path("customers/new/", views.customer_create, name="customer_create"),
@@ -136,6 +155,7 @@ urlpatterns = [
     path("transactions/", views_list_apis.transactions_page, name="transactions"),
     # Products & Services (Option B - React)
     path("products/", views_list_apis.products_list_page, name="product_list"),
+    path("inventory/", views.inventory_spa, name="inventory_page"),
     # Product List API (Option B)
     path("api/products/list/", views_list_apis.api_product_list, name="api_product_list"),
     path("items/new/", ItemCreateView.as_view(), name="item_create"),

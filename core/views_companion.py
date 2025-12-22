@@ -22,6 +22,7 @@ from .models import (
     CompanionIssue,
 )
 from .utils import get_current_business
+from .permissions import has_permission
 from .companion_issues import (
     get_issue_counts,
     build_companion_radar,
@@ -54,31 +55,30 @@ def _risk_level(score):
         return None
 
 
-def _metrics_sum(runs, key: str):
-    total = 0
-    for r in runs:
-        try:
-            total += int(r.metrics.get(key, 0) or 0)
-        except Exception:
-            continue
-    return total
+def _metrics_sum(runs, key: str) -> int:
+    return sum(
+        r.metrics.get(key, 0) if r.metrics else 0
+        for r in runs
+    )
 
 
-def _serialize_run(run, high_risk_key: str, total_key: str, error_key: str | None = None):
+def _serialize_run(run, high_risk_key: str, total_key: str, error_key: str | None = None) -> dict:
+    risk_count = run.metrics.get(high_risk_key, 0) if run.metrics else 0
+    total = run.metrics.get(total_key, 0) if run.metrics else 0
     return {
         "id": run.id,
         "created_at": run.created_at.isoformat(),
-        "period_start": getattr(run, "period_start", None).isoformat() if getattr(run, "period_start", None) else None,
-        "period_end": getattr(run, "period_end", None).isoformat() if getattr(run, "period_end", None) else None,
-        "risk_level": _risk_level(run.metrics.get(high_risk_key)) if hasattr(run, "metrics") else None,
-        "high_risk_count": run.metrics.get(high_risk_key, 0) if hasattr(run, "metrics") else 0,
-        "total": run.metrics.get(total_key, 0) if hasattr(run, "metrics") else 0,
-        "errors_count": run.error_count if hasattr(run, "error_count") else (run.metrics.get(error_key, 0) if error_key else 0),
-        "trace_id": getattr(run, "trace_id", None),
+        "status": run.status,
+        "documents_total": total,
+        "documents_high_risk": risk_count,
+        "risk_level": _risk_level(run.metrics.get("max_risk_score")) if run.metrics else None,
     }
 
 
 def _build_tax_summary(business):
+    """Build tax guardian summary using the existing TaxPeriodSnapshot model."""
+    from taxes.services import compute_tax_due_date, compute_tax_anomalies
+    
     period_key = _current_period_key()
     tax_block = {
         "period_key": period_key,
@@ -87,14 +87,17 @@ def _build_tax_summary(business):
         "jurisdictions": [],
         "anomaly_counts": {"low": 0, "medium": 0, "high": 0},
     }
+    
     snapshot = TaxPeriodSnapshot.objects.filter(business=business, period_key=period_key).first()
+    
     if not snapshot:
         try:
+            from taxes.services import compute_tax_period_snapshot
             snapshot = compute_tax_period_snapshot(business, period_key)
-        except Exception as exc:  # pragma: no cover - defensive
+        except Exception as exc:
             logger.warning("Failed to compute tax snapshot: %s", exc)
             snapshot = None
-
+    
     if snapshot:
         tax_block["has_snapshot"] = True
         jurisdictions = []
@@ -105,22 +108,20 @@ def _build_tax_summary(business):
             tax_collected = Decimal(str(data.get("tax_collected", 0)))
             tax_on_purchases = Decimal(str(data.get("tax_on_purchases", 0)))
             net_tax = Decimal(str(data.get("net_tax", tax_collected - tax_on_purchases)))
-            jurisdictions.append(
-                {
-                    "code": code,
-                    "taxable_sales": float(taxable_sales),
-                    "tax_collected": float(tax_collected),
-                    "tax_on_purchases": float(tax_on_purchases),
-                    "net_tax": float(net_tax),
-                    "currency": data.get("currency"),
-                }
-            )
+            jurisdictions.append({
+                "code": code,
+                "taxable_sales": float(taxable_sales),
+                "tax_collected": float(tax_collected),
+                "tax_on_purchases": float(tax_on_purchases),
+                "net_tax": float(net_tax),
+                "currency": data.get("currency"),
+            })
             net_total += net_tax
         tax_block["jurisdictions"] = jurisdictions
         tax_block["net_tax"] = float(net_total) if jurisdictions else None
         try:
             compute_tax_anomalies(business, period_key)
-        except Exception as exc:  # pragma: no cover
+        except Exception as exc:
             logger.warning("Failed to compute tax anomalies: %s", exc)
 
     anomalies = TaxAnomaly.objects.filter(
@@ -150,6 +151,9 @@ def api_companion_summary(request):
     business = get_current_business(request.user)
     if business is None:
         return JsonResponse({"error": "No business context"}, status=400)
+    
+    if not has_permission(request.user, business, "companion.view"):
+        return JsonResponse({"error": "Permission denied"}, status=403)
 
     # Check cache first (scoped by business ID to prevent data leakage)
     cache_key = f"companion_summary_{business.id}"
@@ -413,7 +417,8 @@ def api_companion_summary(request):
         unpaid_expenses = expenses_qs.filter(status=Expense.Status.UNPAID)
         unpaid_expenses_count = unpaid_expenses.count()
         unpaid_expenses_amount = unpaid_expenses.aggregate(total=models.Sum("balance")).get("total") or Decimal("0")
-        overdue_expenses = unpaid_expenses.filter(due_date__lt=today)
+        # Expenses don't currently have a due_date field; use the expense date as a proxy.
+        overdue_expenses = unpaid_expenses.filter(date__lt=today)
         overdue_expenses_count = overdue_expenses.count()
         overdue_expenses_amount = overdue_expenses.aggregate(total=models.Sum("balance")).get("total") or Decimal("0")
         

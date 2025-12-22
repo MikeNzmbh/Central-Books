@@ -18,6 +18,7 @@ module.exports = {
           'Arial',
           'sans-serif',
         ],
+        monoSoft: ['var(--mono-font)'],
       },
     },
   },

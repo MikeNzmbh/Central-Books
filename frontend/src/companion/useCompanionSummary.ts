@@ -5,7 +5,6 @@
  * Provides caching and error handling to avoid duplicate fetches
  */
 import { useState, useEffect, useCallback } from "react";
-import { parseCookies } from "../utils/cookies";
 
 // ---------------------------------------------------------------------------
 // TYPES
@@ -180,14 +179,9 @@ export function useCompanionSummary(): UseCompanionSummaryResult {
         setError(null);
 
         try {
-            const cookies = parseCookies(document.cookie || "");
-            const csrfToken = cookies.csrftoken;
             const headers: Record<string, string> = {
                 Accept: "application/json",
             };
-            if (csrfToken) {
-                headers["X-CSRFToken"] = csrfToken;
-            }
 
             const response = await fetch("/api/agentic/companion/summary", {
                 method: "GET",

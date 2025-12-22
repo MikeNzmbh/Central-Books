@@ -12,6 +12,7 @@ from django.db.models import Sum
 
 from .utils import get_current_business
 from .models import BankAccount
+from .permissions import has_permission
 from taxes.models import TaxPeriodSnapshot, TaxAnomaly, TransactionLineTaxDetail, TaxPayment
 from taxes.services import compute_tax_period_snapshot, compute_tax_anomalies, compute_tax_due_date
 
@@ -293,6 +294,9 @@ def api_tax_periods(request):
     business = get_current_business(request.user)
     if not business:
         return JsonResponse({"error": "No business context"}, status=400)
+    
+    if not has_permission(request.user, business, "tax.view_periods"):
+        return JsonResponse({"error": "Permission denied"}, status=403)
 
     snapshots = TaxPeriodSnapshot.objects.filter(business=business).order_by("-period_key")
     
@@ -343,6 +347,9 @@ def api_tax_period_detail(request, period_key: str):
     business = get_current_business(request.user)
     if not business:
         return JsonResponse({"error": "No business context"}, status=400)
+    
+    if not has_permission(request.user, business, "tax.view_periods"):
+        return JsonResponse({"error": "Permission denied"}, status=403)
 
     snapshot = TaxPeriodSnapshot.objects.filter(business=business, period_key=period_key).first()
     if not snapshot:
@@ -410,6 +417,9 @@ def api_tax_period_anomalies(request, period_key: str):
     business = get_current_business(request.user)
     if not business:
         return JsonResponse({"error": "No business context"}, status=400)
+    
+    if not has_permission(request.user, business, "tax.view_periods"):
+        return JsonResponse({"error": "Permission denied"}, status=403)
 
     severity = request.GET.get("severity")
     status = request.GET.get("status")
@@ -433,6 +443,9 @@ def api_tax_anomaly_update(request, period_key: str, anomaly_id):
     business = get_current_business(request.user)
     if not business:
         return JsonResponse({"error": "No business context"}, status=400)
+    
+    if not has_permission(request.user, business, "tax.view_periods"):
+        return JsonResponse({"error": "Permission denied"}, status=403)
     try:
         payload = json.loads(request.body or "{}")
     except Exception:
@@ -481,6 +494,14 @@ def api_tax_period_payments(request, period_key: str):
     business = get_current_business(request.user)
     if not business:
         return JsonResponse({"error": "No business context"}, status=400)
+
+    # GET requires view permission, POST requires manage payments permission
+    if request.method == "GET":
+        if not has_permission(request.user, business, "tax.view_periods"):
+            return JsonResponse({"error": "Permission denied"}, status=403)
+    elif request.method == "POST":
+        if not has_permission(request.user, business, "tax.guardian.manage_payments"):
+            return JsonResponse({"error": "Permission denied"}, status=403)
 
     snapshot = TaxPeriodSnapshot.objects.filter(business=business, period_key=period_key).first()
     net_tax = _net_tax_from_summary((snapshot.summary_by_jurisdiction or {}) if snapshot else {})
@@ -633,6 +654,9 @@ def api_tax_period_payment_detail(request, period_key: str, payment_id):
     business = get_current_business(request.user)
     if not business:
         return JsonResponse({"error": "No business context"}, status=400)
+    
+    if not has_permission(request.user, business, "tax.guardian.manage_payments"):
+        return JsonResponse({"error": "Permission denied"}, status=403)
 
     payment = (
         TaxPayment.objects.filter(business=business, period_key=period_key, id=payment_id)
@@ -775,6 +799,9 @@ def api_tax_period_refresh(request, period_key: str):
     business = get_current_business(request.user)
     if not business:
         return JsonResponse({"error": "No business context"}, status=400)
+    
+    if not has_permission(request.user, business, "tax.guardian.refresh"):
+        return JsonResponse({"error": "Permission denied"}, status=403)
 
     existing = TaxPeriodSnapshot.objects.filter(business=business, period_key=period_key).first()
     if existing and existing.status == TaxPeriodSnapshot.SnapshotStatus.FILED:
@@ -812,6 +839,9 @@ def api_tax_period_llm_enrich(request, period_key: str):
     business = get_current_business(request.user)
     if not business:
         return JsonResponse({"error": "No business context"}, status=400)
+    
+    if not has_permission(request.user, business, "tax.guardian.llm_enrich"):
+        return JsonResponse({"error": "Permission denied"}, status=403)
 
     snapshot = TaxPeriodSnapshot.objects.filter(business=business, period_key=period_key).first()
     if not snapshot:
@@ -857,6 +887,9 @@ def api_tax_export_json(request, period_key: str):
     business = get_current_business(request.user)
     if not business:
         return JsonResponse({"error": "No business context"}, status=400)
+    
+    if not has_permission(request.user, business, "tax.guardian.export"):
+        return JsonResponse({"error": "Permission denied"}, status=403)
 
     snapshot = TaxPeriodSnapshot.objects.filter(business=business, period_key=period_key).first()
     if not snapshot:
@@ -1060,6 +1093,9 @@ def api_tax_period_status(request, period_key: str):
     business = get_current_business(request.user)
     if not business:
         return JsonResponse({"error": "No business context"}, status=400)
+    
+    if not has_permission(request.user, business, "tax.file_return"):
+        return JsonResponse({"error": "Permission denied"}, status=403)
 
     snapshot = TaxPeriodSnapshot.objects.filter(business=business, period_key=period_key).first()
     if not snapshot:
@@ -1121,6 +1157,9 @@ def api_tax_period_reset(request, period_key: str):
     business = get_current_business(request.user)
     if not business:
         return JsonResponse({"error": "No business context"}, status=400)
+    
+    if not has_permission(request.user, business, "tax.reset_period"):
+        return JsonResponse({"error": "Permission denied"}, status=403)
 
     snapshot = TaxPeriodSnapshot.objects.filter(business=business, period_key=period_key).first()
     if not snapshot:
