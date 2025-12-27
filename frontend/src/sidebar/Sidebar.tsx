@@ -245,7 +245,7 @@ export function CloverSidebar({
                     { id: "suppliers", label: "Suppliers", icon: Wallet, href: "/suppliers/" },
                     { id: "expenses_list", label: "Expenses", icon: CreditCard, href: "/expenses/" },
                     { id: "receipts", label: "Receipts", icon: Receipt, hint: "Upload & match", href: "/receipts/" },
-                    { id: "companion", label: "AI Companion", icon: Bot, hint: "Health pulse", href: "/ai-companion/" },
+                    { id: "companion", label: "Companion", icon: Bot, hint: "Control tower", href: "/ai-companion/" },
                     { id: "categories", label: "Categories", icon: FolderOpen, href: "/categories/" },
                 ],
             },

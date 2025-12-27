@@ -501,7 +501,7 @@ def companion_issues_page(request):
     business = get_current_business(request.user)
     if business is None:
         return redirect("business_setup")
-    return render(request, "companion_issues.html", {"business": business})
+    return redirect("/ai-companion/?panel=issues")
 
 
 @login_required

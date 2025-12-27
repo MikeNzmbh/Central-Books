@@ -62,6 +62,33 @@ export interface CompanionStory {
     timeline_bullets: string[];
 }
 
+export interface CompanionFeedCta {
+    label?: string;
+    action_type?: string;
+    payload?: Record<string, unknown>;
+    requires_confirm?: boolean;
+    risk_level?: string;
+    target_url?: string;
+}
+
+export interface CompanionFeedItem {
+    id: string;
+    dedupe_key?: string;
+    severity?: string;
+    status?: string;
+    surface?: string;
+    domain?: string;
+    created_at?: string;
+    customer_title?: string;
+    customer_description?: string;
+    customer_action_kind?: string;
+    target_url?: string;
+    cta?: CompanionFeedCta | null;
+    dismissible?: boolean;
+    due_bucket?: string;
+    days_until_due?: number;
+}
+
 export interface CompanionVoice {
     greeting: string;
     focus_mode: FocusMode;
@@ -139,6 +166,12 @@ export interface CompanionSummary {
         open_issues_by_severity?: Record<string, number>;
         open_issues_by_surface?: Record<string, number>;
     };
+    alert_feed?: CompanionFeedItem[];
+    insight_feed?: CompanionFeedItem[];
+    generated_at?: string;
+    stale?: boolean;
+    feed_generated_at?: string;
+    feed_stale?: boolean;
 }
 
 // ---------------------------------------------------------------------------

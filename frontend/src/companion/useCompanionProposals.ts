@@ -20,7 +20,7 @@ export function useCompanionProposals(params?: { workspaceId?: number }) {
       const data = await listProposalsV2({ workspace_id: params?.workspaceId, limit: 200 });
       setEvents(data);
     } catch (e: any) {
-      setError(e?.message || "Failed to load proposals");
+      setError(e?.message || "Failed to load suggestions");
     } finally {
       setLoading(false);
     }

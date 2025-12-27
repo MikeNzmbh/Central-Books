@@ -1,16 +1,87 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useSearchParams } from "react-router-dom";
 import "../index.css";
 import { AuthProvider } from "../contexts/AuthContext";
-import CompanionOverviewPage from "./CompanionOverviewPage";
-import CompanionProposalsPage from "./CompanionProposalsPage";
+import CompanionControlTowerPage from "./CompanionControlTowerPage";
 import TaxGuardianPage from "./TaxGuardianPage";
 import TaxSettingsPage from "./TaxSettingsPage";
 import TaxProductRulesPage from "./TaxProductRulesPage";
 import TaxCatalogPage from "./TaxCatalogPage";
+import PanelShell from "./PanelShell";
+import SuggestionsPanel from "./SuggestionsPanel";
+import IssuesPanel from "./IssuesPanel";
+import CloseAssistantDrawer from "./CloseAssistantDrawer";
+import { PanelType } from "./companionCopy";
 
 const rootEl = document.getElementById("companion-overview-root");
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Panel Router Wrapper
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Wraps CompanionControlTowerPage with panel support via query params.
+ * 
+ * Supported params:
+ * - ?panel=suggestions | issues | close
+ * - ?surface=bank | invoices | expenses | tax (optional filter)
+ */
+const ControlTowerWithPanels: React.FC = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const panelParam = searchParams.get("panel") as PanelType | null;
+  const surfaceParam = searchParams.get("surface");
+
+  // Validate panel param
+  const validPanels: PanelType[] = ["suggestions", "issues", "close"];
+  const activePanel = panelParam && validPanels.includes(panelParam) ? panelParam : null;
+
+  const closePanel = () => {
+    // Remove panel and surface from URL
+    const newParams = new URLSearchParams(searchParams);
+    newParams.delete("panel");
+    newParams.delete("surface");
+    setSearchParams(newParams, { replace: true });
+  };
+
+  // Render panel content
+  const renderPanelContent = () => {
+    switch (activePanel) {
+      case "suggestions":
+        return <SuggestionsPanel surface={surfaceParam} />;
+      case "issues":
+        return <IssuesPanel surface={surfaceParam} />;
+      case "close":
+        return <CloseAssistantDrawer />;
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <>
+      <CompanionControlTowerPage />
+      <PanelShell panel={activePanel} onClose={closePanel} surface={surfaceParam}>
+        {renderPanelContent()}
+      </PanelShell>
+    </>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Legacy Redirect Component
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Redirect legacy routes to new panel-based routes.
+ */
+const LegacyRedirect: React.FC<{ panel: PanelType }> = ({ panel }) => {
+  return <Navigate to={`/?panel=${panel}`} replace />;
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Error Boundary
+// ─────────────────────────────────────────────────────────────────────────────
 
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; message: string }> {
   constructor(props: { children: React.ReactNode }) {
@@ -23,8 +94,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
-    // Log for troubleshooting; avoids silent blank screen.
-    console.error("CompanionOverviewPage crashed:", error, info);
+    console.error("Companion Control Tower crashed:", error, info);
   }
 
   render() {
@@ -32,7 +102,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
       return (
         <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
           <div className="max-w-md w-full bg-white border border-slate-200 rounded-xl shadow-sm p-4 text-center">
-            <h1 className="text-lg font-semibold text-slate-900">AI Companion failed to load</h1>
+            <h1 className="text-lg font-semibold text-slate-900">Companion Control Tower failed to load</h1>
             <p className="text-sm text-slate-600 mt-2">{this.state.message}</p>
             <p className="text-xs text-slate-400 mt-2">Check the browser console for details.</p>
           </div>
@@ -43,6 +113,10 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Mount Application
+// ─────────────────────────────────────────────────────────────────────────────
+
 if (rootEl) {
   const root = createRoot(rootEl);
   root.render(
@@ -51,8 +125,18 @@ if (rootEl) {
         <AuthProvider>
           <BrowserRouter basename="/ai-companion">
             <Routes>
-              <Route path="/" element={<CompanionOverviewPage />} />
-              <Route path="/proposals" element={<CompanionProposalsPage />} />
+              {/* Main Control Tower with panel support */}
+              <Route path="/" element={<ControlTowerWithPanels />} />
+
+              {/* Legacy redirects → panel routes */}
+              <Route path="/shadow-ledger" element={<LegacyRedirect panel="suggestions" />} />
+              <Route path="/shadow-ledger/review" element={<LegacyRedirect panel="suggestions" />} />
+              <Route path="/shadow-ledger-proposals" element={<LegacyRedirect panel="suggestions" />} />
+              <Route path="/proposals" element={<LegacyRedirect panel="suggestions" />} />
+              <Route path="/issues" element={<LegacyRedirect panel="issues" />} />
+              <Route path="/close" element={<LegacyRedirect panel="close" />} />
+
+              {/* Tax Guardian (separate pages - justified) */}
               <Route path="/tax" element={<TaxGuardianPage />} />
               <Route path="/tax/settings" element={<TaxSettingsPage />} />
               <Route path="/tax/product-rules" element={<TaxProductRulesPage />} />
@@ -64,5 +148,5 @@ if (rootEl) {
     </React.StrictMode>
   );
 } else {
-  console.warn("Companion overview root not found");
+  console.warn("Companion Control Tower root element not found");
 }
