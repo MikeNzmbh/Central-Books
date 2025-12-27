@@ -295,8 +295,8 @@ const CategoriesPage: React.FC = () => {
                   key={t}
                   onClick={() => setTypeFilter(t)}
                   className={`rounded-full px-3 py-1 transition-all ${typeFilter === t
-                      ? "bg-slate-900 text-white shadow-sm"
-                      : "text-slate-600 hover:bg-white"
+                    ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200 mb-accent-underline"
+                    : "text-slate-600 hover:bg-white"
                     }`}
                 >
                   {t === "all" ? "All types" : typeLabel[t]}
@@ -310,8 +310,8 @@ const CategoriesPage: React.FC = () => {
                   key={status}
                   onClick={() => setStatusFilter(status)}
                   className={`rounded-full px-3 py-1 capitalize transition-all ${statusFilter === status
-                      ? "bg-slate-900 text-white shadow-sm"
-                      : "text-slate-600 hover:bg-white"
+                    ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200 mb-accent-underline"
+                    : "text-slate-600 hover:bg-white"
                     }`}
                 >
                   {status}
@@ -373,10 +373,10 @@ const CategoriesPage: React.FC = () => {
                             </span>
                           </td>
                           <td className="px-5 py-3 text-[12px] font-mono text-slate-600">{cat.code}</td>
-                          <td className="px-5 py-3 text-right text-[12px] font-semibold text-slate-700 tabular-nums">
+                          <td className="px-5 py-3 text-right text-[12px] font-semibold text-slate-700 font-mono-soft">
                             {formatCurrency(cat.currentMonthTotal, currency)}
                           </td>
-                          <td className="px-5 py-3 text-right text-[12px] text-slate-500 font-medium tabular-nums">
+                          <td className="px-5 py-3 text-right text-[12px] text-slate-500 font-medium font-mono-soft">
                             {formatCurrency(cat.ytdTotal, currency)}
                           </td>
                         </tr>
@@ -453,8 +453,8 @@ const CategoriesPage: React.FC = () => {
                         </span>
                         <span
                           className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${selectedCategory.isArchived
-                              ? "bg-slate-50 text-slate-500 border-slate-200"
-                              : "bg-emerald-50 text-emerald-700 border-emerald-100"
+                            ? "bg-slate-50 text-slate-500 border-slate-200"
+                            : "bg-emerald-50 text-emerald-700 border-emerald-100"
                             }`}
                         >
                           {selectedCategory.isArchived ? "Archived" : "Active"}
@@ -481,13 +481,13 @@ const CategoriesPage: React.FC = () => {
                         <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                           Activity this month
                         </p>
-                        <p className="mt-0.5 text-sm font-bold text-slate-900 tabular-nums">
+                        <p className="mt-0.5 text-sm font-bold text-slate-900 font-mono-soft">
                           {formatCurrency(selectedCategory.currentMonthTotal, currency)}
                         </p>
                         <p className="mt-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                           YTD total
                         </p>
-                        <p className="mt-0.5 text-sm font-medium text-slate-800 tabular-nums">
+                        <p className="mt-0.5 text-sm font-medium text-slate-800 font-mono-soft">
                           {formatCurrency(selectedCategory.ytdTotal, currency)}
                         </p>
                       </div>

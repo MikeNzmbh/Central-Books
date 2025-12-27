@@ -9,11 +9,29 @@ from django.utils.dateparse import parse_date
 
 from core.utils import get_current_business
 from core.models import Business
+from core.permissions import has_permission
 from taxes.models import TaxJurisdiction, TaxProductRule, TaxRate, TaxComponent, TaxGroup
 
 
-def _require_staff(request):
-    if not (request.user.is_staff or request.user.is_superuser):
+def _require_catalog_permission(request, business=None, *, write=False):
+    """
+    RBAC-based permission check for Tax Catalog endpoints.
+    - write=False -> requires tax.catalog.view
+    - write=True -> requires tax.catalog.manage
+    """
+    if not request.user.is_staff:
+        return JsonResponse({"error": "Forbidden"}, status=403)
+
+    if business is None:
+        business = get_current_business(request.user)
+    if not business:
+        # Staff without business context can still operate if they have the permission via their role
+        # Check if user has the global permission
+        if write:
+            return JsonResponse({"error": "Forbidden"}, status=403)
+        return None  # Allow view without business for staff listing endpoints
+    action = "tax.catalog.manage" if write else "tax.catalog.view"
+    if not has_permission(request.user, business, action):
         return JsonResponse({"error": "Forbidden"}, status=403)
     return None
 
@@ -140,7 +158,9 @@ def _check_product_rule_overlap(*, jurisdiction: TaxJurisdiction, product_code: 
 
 @login_required
 def api_tax_catalog_jurisdictions(request):
-    forbidden = _require_staff(request)
+    # VIEW for GET, MANAGE for POST
+    is_write = request.method == "POST"
+    forbidden = _require_catalog_permission(request, write=is_write)
     if forbidden:
         return forbidden
 
@@ -229,7 +249,8 @@ def api_tax_catalog_jurisdictions(request):
 
 @login_required
 def api_tax_catalog_jurisdiction_detail(request, code: str):
-    forbidden = _require_staff(request)
+    is_write = request.method in ("POST", "PATCH", "DELETE")
+    forbidden = _require_catalog_permission(request, write=is_write)
     if forbidden:
         return forbidden
 
@@ -290,7 +311,8 @@ def api_tax_catalog_jurisdiction_detail(request, code: str):
 
 @login_required
 def api_tax_catalog_groups(request):
-    forbidden = _require_staff(request)
+    is_write = request.method in ("POST", "PATCH", "DELETE")
+    forbidden = _require_catalog_permission(request, write=is_write)
     if forbidden:
         return forbidden
     business = _get_staff_target_business(request)
@@ -316,7 +338,8 @@ def api_tax_catalog_groups(request):
 
 @login_required
 def api_tax_catalog_group_detail(request, group_id):
-    forbidden = _require_staff(request)
+    is_write = request.method in ("POST", "PATCH", "DELETE")
+    forbidden = _require_catalog_permission(request, write=is_write)
     if forbidden:
         return forbidden
     business = _get_staff_target_business(request)
@@ -364,7 +387,8 @@ def api_tax_catalog_group_detail(request, group_id):
 
 @login_required
 def api_tax_catalog_rates(request):
-    forbidden = _require_staff(request)
+    is_write = request.method in ("POST", "PATCH", "DELETE")
+    forbidden = _require_catalog_permission(request, write=is_write)
     if forbidden:
         return forbidden
     business = _get_staff_target_business(request)
@@ -478,7 +502,8 @@ def api_tax_catalog_rates(request):
 
 @login_required
 def api_tax_catalog_rate_detail(request, rate_id):
-    forbidden = _require_staff(request)
+    is_write = request.method in ("POST", "PATCH", "DELETE")
+    forbidden = _require_catalog_permission(request, write=is_write)
     if forbidden:
         return forbidden
     business = _get_staff_target_business(request)
@@ -573,7 +598,8 @@ def api_tax_catalog_rate_detail(request, rate_id):
 
 @login_required
 def api_tax_catalog_product_rules(request):
-    forbidden = _require_staff(request)
+    is_write = request.method in ("POST", "PATCH", "DELETE")
+    forbidden = _require_catalog_permission(request, write=is_write)
     if forbidden:
         return forbidden
 
@@ -678,7 +704,8 @@ def api_tax_catalog_product_rules(request):
 
 @login_required
 def api_tax_catalog_product_rule_detail(request, rule_id):
-    forbidden = _require_staff(request)
+    is_write = request.method in ("POST", "PATCH", "DELETE")
+    forbidden = _require_catalog_permission(request, write=is_write)
     if forbidden:
         return forbidden
 

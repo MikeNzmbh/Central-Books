@@ -13,6 +13,7 @@ def _build_urlpatterns():
         path("internal-admin/login/", views_auth.internal_admin_login, name="internal_admin_login"),
         path("internal-admin/", views.admin_spa, name="admin_spa"),
         re_path(r"^internal-admin/.*$", views.admin_spa),  # Catch all admin sub-routes for React Router
+        re_path(r"^inventory/.*$", views.inventory_spa),  # Catch all inventory sub-routes for React Router
         path(
             "internal/impersonate/<uuid:token>/",
             views_impersonation.accept_impersonation,

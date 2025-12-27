@@ -7,7 +7,6 @@ import {
     useLocation,
 } from "react-router-dom";
 import { useTransactions, TransactionRow as ApiTransactionRow } from "./useTransactions";
-import CompanionStrip from "../companion/CompanionStrip";
 import {
     ArrowRight,
     ArrowUpRight,
@@ -36,6 +35,7 @@ import {
     Copy,
     Mail
 } from "lucide-react";
+import { ensureCsrfToken, getCsrfToken as getCsrfTokenSync } from "../utils/csrf";
 
 // -----------------------------------------------------------------------------
 // Shared Utilities & Styles
@@ -53,12 +53,7 @@ function classNames(...classes: (string | false | null | undefined)[]) {
 }
 
 function getCsrfToken(): string {
-    const cookies = document.cookie.split(";").reduce((acc, cookie) => {
-        const [key, value] = cookie.trim().split("=");
-        acc[key] = value;
-        return acc;
-    }, {} as Record<string, string>);
-    return cookies.csrftoken || "";
+    return getCsrfTokenSync();
 }
 
 // -----------------------------------------------------------------------------
@@ -143,6 +138,7 @@ const CONFIG = {
     invoice: {
         title: "Invoices",
         label: "Receivables",
+        subtitle: "Track what you've billed and what's still unpaid.",
         createLabel: "New Invoice",
         metrics: [
             { label: "Open Balance", value: 904.00, subtext: "2 overdue invoices" },
@@ -153,6 +149,7 @@ const CONFIG = {
     expense: {
         title: "Expenses",
         label: "Payables",
+        subtitle: "Monitor your spending and outstanding bills.",
         createLabel: "New Expense",
         metrics: [
             { label: "Outstanding", value: 5320.00, subtext: "1 overdue bill" },
@@ -676,6 +673,9 @@ export const TransactionsPageContent: React.FC<{ kind: TransactionKind }> = ({ k
                         <h1 className="text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">
                             {config.title}
                         </h1>
+                        <p className="text-sm text-slate-500">
+                            {config.subtitle}
+                        </p>
                     </div>
 
                     <div className="flex items-center gap-3">
@@ -692,48 +692,51 @@ export const TransactionsPageContent: React.FC<{ kind: TransactionKind }> = ({ k
 
                 <div className="flex flex-col gap-8">
 
-                    {/* Top Section: Companion + Metrics */}
-                    <div className="grid gap-6 lg:grid-cols-3">
-                        <div className="lg:col-span-2">
-                            <CompanionStrip context={kind === "invoice" ? "invoices" : "expenses"} />
+                    {/* Top Section: Metrics */}
+                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                        <div className="flex flex-col rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-100 transition-all hover:shadow-md">
+                            <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                                {kind === "invoice" ? "Open Balance" : "Outstanding"}
+                            </span>
+                            <span className="mt-3 text-2xl font-bold tracking-tight text-slate-900 font-mono-soft">
+                                {formatCurrency(stats.openBalance, currency)}
+                            </span>
+                            <span className="mt-1 text-[10px] text-slate-400">
+                                {stats.overdueCount > 0 ? `${stats.overdueCount} overdue` : "All current"}
+                            </span>
                         </div>
-                        <div className="flex flex-col justify-between gap-4">
-                            {/* Metrics */}
+                        <div className="flex flex-col rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-100 transition-all hover:shadow-md">
+                            <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                                {kind === "invoice" ? "Revenue YTD" : "Expenses YTD"}
+                            </span>
+                            <span className="mt-3 text-2xl font-bold tracking-tight text-slate-900 font-mono-soft">
+                                {formatCurrency(
+                                    kind === "invoice" ? (stats.revenueYtd || 0) : (stats.expensesYtd || 0),
+                                    currency
+                                )}
+                            </span>
+                            <span className="mt-1 text-[10px] text-slate-400">
+                                {kind === "invoice" ? "Paid invoices this year" : "Total this year"}
+                            </span>
+                        </div>
+                        <div className="flex flex-col rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-100 transition-all hover:shadow-md">
+                            <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                                Total {kind === "invoice" ? "Invoices" : "Expenses"}
+                            </span>
+                            <span className="mt-3 text-2xl font-bold tracking-tight text-slate-900 font-mono-soft">
+                                {stats.totalCount}
+                            </span>
+                            <span className="mt-1 text-[10px] text-slate-400">All time</span>
+                        </div>
+                        {kind === "invoice" && (
                             <div className="flex flex-col rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-100 transition-all hover:shadow-md">
-                                <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
-                                    {kind === "invoice" ? "Open Balance" : "Outstanding"}
+                                <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Avg Invoice</span>
+                                <span className="mt-3 text-2xl font-bold tracking-tight text-slate-900 font-mono-soft">
+                                    {formatCurrency(stats.avgInvoiceValue || 0, currency)}
                                 </span>
-                                <span className="mt-3 text-3xl font-bold tracking-tight text-slate-900">
-                                    {formatCurrency(stats.openBalance, currency)}
-                                </span>
-                                <span className="mt-2 text-xs font-medium text-slate-500">
-                                    {stats.overdueCount > 0 ? `${stats.overdueCount} overdue` : "All current"}
-                                </span>
+                                <span className="mt-1 text-[10px] text-slate-400">Average value</span>
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="flex flex-col rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-100 transition-all hover:shadow-md min-w-0">
-                                    <div className="flex justify-between">
-                                        <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
-                                            {kind === "invoice" ? "Revenue YTD" : "Expenses YTD"}
-                                        </span>
-                                    </div>
-                                    <span className="mt-3 text-xl font-bold tracking-tight text-slate-900 truncate" title={formatCurrency(
-                                        kind === "invoice" ? (stats.revenueYtd || 0) : (stats.expensesYtd || 0),
-                                        currency
-                                    )}>
-                                        {formatCurrency(
-                                            kind === "invoice" ? (stats.revenueYtd || 0) : (stats.expensesYtd || 0),
-                                            currency
-                                        )}
-                                    </span>
-                                </div>
-                                <div className="flex flex-col rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-100 transition-all hover:shadow-md">
-                                    <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Volume</span>
-                                    <span className="mt-3 text-2xl font-bold tracking-tight text-slate-900">{stats.totalCount}</span>
-                                    <span className="mt-1 text-[10px] text-slate-400">{kind}s</span>
-                                </div>
-                            </div>
-                        </div>
+                        )}
                     </div>
 
                     {/* Main Table Card */}
@@ -846,7 +849,7 @@ export const TransactionsPageContent: React.FC<{ kind: TransactionKind }> = ({ k
                                                     row.dueDate
                                                 )}
                                             </td>
-                                            <td className="py-4 text-right font-bold text-slate-900 tabular-nums text-sm">
+                                            <td className="py-4 text-right font-bold text-slate-900 font-mono-soft text-sm">
                                                 {formatCurrency(row.amount)}
                                             </td>
                                             <td className="py-4 pl-4">
@@ -900,6 +903,9 @@ export const TransactionsPageContent: React.FC<{ kind: TransactionKind }> = ({ k
 // -----------------------------------------------------------------------------
 
 export const TransactionsPage: React.FC = () => {
+    React.useEffect(() => {
+        ensureCsrfToken().catch(() => undefined);
+    }, []);
     return (
         <MemoryRouter>
             <Routes>
@@ -928,10 +934,12 @@ const NavButton: React.FC<{ to: string; label: string }> = ({ to, label }) => {
             onClick={() => navigate(to)}
             className={classNames(
                 "rounded-full px-4 py-1.5 text-xs font-bold transition-all",
-                isActive ? "bg-slate-900 text-white shadow-sm" : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"
+                isActive
+                    ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200"
+                    : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"
             )}
         >
-            {label}
+            <span className={isActive ? "mb-accent-underline" : undefined}>{label}</span>
         </button>
     )
 }

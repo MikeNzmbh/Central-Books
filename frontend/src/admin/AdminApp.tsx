@@ -1,11 +1,25 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { fetchOverviewMetrics, type OverviewMetrics } from "./api";
+import { useLocation, useNavigate } from "react-router-dom";
+import {
+  fetchOverviewMetrics,
+  fetchReconciliationMetrics,
+  fetchLedgerHealth,
+  fetchInvoicesAudit,
+  fetchExpensesAudit,
+  type OverviewMetrics,
+  type ReconciliationMetrics,
+  type LedgerHealth,
+  type InvoicesAudit,
+  type ExpensesAudit,
+} from "./api";
 import { UsersSection } from "./UsersSection";
 import { WorkspacesSection } from "./WorkspacesSection";
 import { BankingSection } from "./BankingSection";
 import { AuditLogSection } from "./AuditLogSection";
 import { SupportSection } from "./SupportSection";
-import { FeatureFlagsSection } from "./FeatureFlagsSection";
+import { ApprovalsSection } from "./ApprovalsSection";
+import { OverviewSection } from "./OverviewSection";
+import { EmployeesSection } from "./EmployeesSection";
 import { Card, SimpleTable, StatusPill, cn } from "./AdminUI";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -13,8 +27,10 @@ type Role = "support" | "finance" | "engineer" | "superadmin";
 
 type NavSectionId =
   | "overview"
+  | "employees"
   | "users"
   | "support"
+  | "approvals"
   | "workspaces"
   | "banking"
   | "reconciliation"
@@ -53,7 +69,9 @@ const navGroups: { label: string; items: NavItem[] }[] = [
     items: [
       { id: "overview", label: "Overview", description: "System health & KPIs" },
       { id: "users", label: "Users", description: "Manage accounts & access" },
+      { id: "employees", label: "Employees", description: "Admin access & roles" },
       { id: "support", label: "Support", description: "Tickets & customer issues" },
+      { id: "approvals", label: "Approvals", description: "Maker-Checker workflow" },
       { id: "logs", label: "Audit & logs", description: "Recent admin activity" },
     ],
   },
@@ -177,275 +195,284 @@ const KpiCard: React.FC<{ kpi: Kpi }> = ({ kpi }) => {
   );
 };
 
-const OverviewSection: React.FC<{ role: Role }> = ({ role }) => {
-  const [metrics, setMetrics] = useState<OverviewMetrics | null>(null);
+
+
+
+const ReconciliationSection: React.FC = () => {
+  const [data, setData] = useState<ReconciliationMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let active = true;
-    setLoading(true);
-    fetchOverviewMetrics()
-      .then((data) => {
-        if (!active) return;
-        setMetrics(data);
-        setError(null);
-      })
-      .catch((err) => {
-        if (!active) return;
-        setError(err?.message || "Unable to load metrics");
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-    return () => {
-      active = false;
-    };
+    fetchReconciliationMetrics()
+      .then(setData)
+      .catch((e) => setError(e?.message || "Failed to load"))
+      .finally(() => setLoading(false));
   }, []);
 
-  const kpis: Kpi[] = useMemo(() => {
-    if (!metrics) return [];
-    return [
-      {
-        id: "active-users",
-        label: "Active users (30d)",
-        value: String(metrics.active_users_30d ?? 0),
-        delta: metrics.active_users_30d_change_pct
-          ? `${metrics.active_users_30d_change_pct.toFixed(1)}% vs prev.`
-          : undefined,
-        tone: "good",
-      },
-      {
-        id: "unreconciled",
-        label: "Unreconciled transactions",
-        value: String(metrics.unreconciled_transactions ?? 0),
-        delta:
-          metrics.unreconciled_transactions_older_60d !== undefined
-            ? `+${metrics.unreconciled_transactions_older_60d} older than 60d`
-            : undefined,
-        tone: (metrics.unreconciled_transactions ?? 0) > 0 ? "bad" : "good",
-      },
-      {
-        id: "unbalanced-je",
-        label: "Unbalanced journal entries",
-        value: String(metrics.unbalanced_journal_entries ?? 0),
-        tone: (metrics.unbalanced_journal_entries ?? 0) === 0 ? "good" : "warning",
-      },
-      {
-        id: "error-rate",
-        label: "API error rate (1h)",
-        value: `${metrics.api_error_rate_1h_pct ?? 0}%`,
-        delta:
-          metrics.api_p95_response_ms_1h !== undefined
-            ? `p95 ${metrics.api_p95_response_ms_1h}ms`
-            : undefined,
-        tone: (metrics.api_error_rate_1h_pct ?? 0) > 1 ? "warning" : "neutral",
-      },
-      {
-        id: "ai-open-issues",
-        label: "AI-flagged open issues",
-        value: String(metrics.ai_flagged_open_issues ?? 0),
-        tone: (metrics.ai_flagged_open_issues ?? 0) > 0 ? "warning" : "good",
-      },
-      {
-        id: "failed-invoices",
-        label: "Failed invoice emails (24h)",
-        value: String(metrics.failed_invoice_emails_24h ?? 0),
-        tone: (metrics.failed_invoice_emails_24h ?? 0) > 0 ? "warning" : "good",
-      },
-    ];
-  }, [metrics]);
-
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+    <div className="space-y-4">
+      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Internal admin</p>
-          <h1 className="text-2xl sm:text-3xl font-semibold text-slate-900 mt-1">Clover Books control center</h1>
-          <p className="text-sm text-slate-600 max-w-2xl mt-1.5">
-            High-level view across tenants, ledgers, banking, and AI monitors. This panel is visible only to
-            internal staff; all actions are fully audited.
+          <h2 className="text-lg font-semibold text-slate-900">Reconciliation tracking</h2>
+          <p className="text-sm text-slate-600 max-w-xl">
+            High-friction areas in matching and period completion. This view exists solely for internal staff –
+            end users never see this lens.
           </p>
         </div>
-        <div className="flex flex-col items-end gap-2">
-          <div className="flex items-center gap-2 text-xs text-emerald-700">
-            <span className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,0.25)]" />
-            <span>Core systems healthy</span>
-          </div>
-          <RoleBadge role={role} />
-        </div>
-      </div>
-
+      </header>
       {loading ? (
-        <Card>
-          <p className="text-sm text-slate-600">Loading metrics…</p>
-        </Card>
+        <Card><p className="text-sm text-slate-600">Loading reconciliation metrics…</p></Card>
       ) : error ? (
-        <Card>
-          <p className="text-sm text-rose-700">Unable to load metrics: {error}</p>
-        </Card>
-      ) : (
+        <Card><p className="text-sm text-rose-700">Error: {error}</p></Card>
+      ) : data ? (
         <>
-          <div className="grid gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-6">
-            {kpis.map((kpi) => (
-              <KpiCard key={kpi.id} kpi={kpi} />
-            ))}
+          <div className="grid gap-3 md:grid-cols-4">
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Total unreconciled</p>
+              <p className="text-2xl font-semibold text-slate-900 mt-1">{data.total_unreconciled}</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">0-30 days</p>
+              <p className="text-2xl font-semibold text-emerald-700 mt-1">{data.aging["0_30_days"]}</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">30-60 days</p>
+              <p className="text-2xl font-semibold text-amber-700 mt-1">{data.aging["30_60_days"]}</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Over 60 days</p>
+              <p className="text-2xl font-semibold text-rose-700 mt-1">{data.aging["60_90_days"] + data.aging.over_90_days}</p>
+            </div>
           </div>
-
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)]">
-            <Card
-              title="Workspace health"
-              subtitle="Tenants with reconciliation or ledger risks surface here first."
-            >
-              {metrics?.workspaces_health?.length ? (
-                <SimpleTable
-                  headers={["Workspace", "Owner", "Plan", "Unreconciled", "Ledger"]}
-                  rows={metrics.workspaces_health.map((w) => [
-                    <div key={w.id} className="flex flex-col">
-                      <span className="text-sm font-semibold text-slate-900">{w.name}</span>
-                    </div>,
-                    <span key="owner" className="text-xs text-slate-700">
-                      {w.owner_email}
-                    </span>,
-                    <span key="plan" className="text-xs text-slate-700">
-                      {w.plan || "—"}
-                    </span>,
-                    <span key="unrec" className="text-xs text-slate-800">
-                      {w.unreconciled_count ?? "—"}
-                    </span>,
-                    <div key="ledger" className="flex items-center gap-2">
-                      <StatusPill
-                        tone={w.ledger_status === "balanced" ? "good" : "warning"}
-                        label={w.ledger_status === "balanced" ? "Balanced" : "Attention"}
-                      />
-                    </div>,
-                  ])}
-                />
-              ) : (
-                <p className="text-sm text-slate-600">No workspace health data yet.</p>
-              )}
-            </Card>
-
-            <Card
-              title="AI monitoring – latest issues"
-              subtitle="Summaries from the master monitoring agent across all domains."
-            >
-              <div className="space-y-3 max-h-[280px] overflow-y-auto pr-1">
-                <p className="text-sm text-slate-600">No recent AI issues.</p>
-              </div>
-            </Card>
-          </div>
+          <Card title="Top workspaces by unreconciled" subtitle="Workspaces with the most pending items.">
+            {data.top_workspaces.length ? (
+              <SimpleTable
+                headers={["Workspace", "Unreconciled"]}
+                rows={data.top_workspaces.map((w) => [
+                  <span key="n" className="text-sm text-slate-800">{w.name}</span>,
+                  <span key="c" className="text-sm font-semibold text-slate-900">{w.unreconciled_count}</span>,
+                ])}
+              />
+            ) : (
+              <p className="text-sm text-slate-600">No unreconciled transactions found.</p>
+            )}
+          </Card>
         </>
-      )}
+      ) : null}
     </div>
   );
 };
 
-const ReconciliationSection: React.FC = () => (
-  <div className="space-y-4">
-    <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-      <div>
-        <h2 className="text-lg font-semibold text-slate-900">Reconciliation tracking</h2>
-        <p className="text-sm text-slate-600 max-w-xl">
-          High-friction areas in matching and period completion. This view exists solely for internal staff –
-          end users never see this lens.
-        </p>
-      </div>
-    </header>
-    <Card>
-      <div className="flex flex-col items-center justify-center py-16 text-center">
-        <div className="rounded-full bg-slate-100 p-4 mb-4">
-          <svg className="w-8 h-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-          </svg>
-        </div>
-        <h3 className="text-lg font-semibold text-slate-900 mb-2">Coming Soon</h3>
-        <p className="text-sm text-slate-600 max-w-md">
-          Detailed reconciliation tracking will be available once the backend API is implemented.
-        </p>
-      </div>
-    </Card>
-  </div>
-);
+const LedgerSection: React.FC = () => {
+  const [data, setData] = useState<LedgerHealth | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-const LedgerSection: React.FC = () => (
-  <div className="space-y-4">
-    <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-      <div>
-        <h2 className="text-lg font-semibold text-slate-900">Ledger health</h2>
-        <p className="text-sm text-slate-600 max-w-xl">
-          Trial balance anomalies, unbalanced entries, orphan accounts, and suspense balances. All purely internal
-          diagnostics.
-        </p>
-      </div>
-    </header>
-    <Card>
-      <div className="flex flex-col items-center justify-center py-16 text-center">
-        <div className="rounded-full bg-slate-100 p-4 mb-4">
-          <svg className="w-8 h-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-          </svg>
-        </div>
-        <h3 className="text-lg font-semibold text-slate-900 mb-2">Coming Soon</h3>
-        <p className="text-sm text-slate-600 max-w-md">
-          Detailed ledger health tracking will be available once the backend API is implemented.
-        </p>
-      </div>
-    </Card>
-  </div>
-);
+  useEffect(() => {
+    fetchLedgerHealth()
+      .then(setData)
+      .catch((e) => setError(e?.message || "Failed to load"))
+      .finally(() => setLoading(false));
+  }, []);
 
-const InvoicesSection: React.FC = () => (
-  <div className="space-y-4">
-    <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-      <div>
-        <h2 className="text-lg font-semibold text-slate-900">Invoices (global audit)</h2>
-        <p className="text-sm text-slate-600 max-w-xl">
-          Cross-tenant visibility into invoice status, failed sends, and potential duplicate or anomalous documents.
-        </p>
-      </div>
-    </header>
-    <Card>
-      <div className="flex flex-col items-center justify-center py-16 text-center">
-        <div className="rounded-full bg-slate-100 p-4 mb-4">
-          <svg className="w-8 h-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
+  return (
+    <div className="space-y-4">
+      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900">Ledger health</h2>
+          <p className="text-sm text-slate-600 max-w-xl">
+            Trial balance anomalies, unbalanced entries, orphan accounts, and suspense balances. All purely internal
+            diagnostics.
+          </p>
         </div>
-        <h3 className="text-lg font-semibold text-slate-900 mb-2">Coming Soon</h3>
-        <p className="text-sm text-slate-600 max-w-md">
-          Global invoice tracking and failed email monitoring will be available once the backend API is implemented.
-        </p>
-      </div>
-    </Card>
-  </div>
-);
+      </header>
+      {loading ? (
+        <Card><p className="text-sm text-slate-600">Loading ledger health…</p></Card>
+      ) : error ? (
+        <Card><p className="text-sm text-rose-700">Error: {error}</p></Card>
+      ) : data ? (
+        <>
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Unbalanced entries</p>
+              <p className={cn("text-2xl font-semibold mt-1", data.summary.unbalanced_entries > 0 ? "text-rose-700" : "text-emerald-700")}>
+                {data.summary.unbalanced_entries}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Orphan accounts</p>
+              <p className={cn("text-2xl font-semibold mt-1", data.summary.orphan_accounts > 0 ? "text-amber-700" : "text-slate-700")}>
+                {data.summary.orphan_accounts}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Suspense with balance</p>
+              <p className={cn("text-2xl font-semibold mt-1", data.summary.suspense_with_balance > 0 ? "text-amber-700" : "text-slate-700")}>
+                {data.summary.suspense_with_balance}
+              </p>
+            </div>
+          </div>
+          {data.unbalanced_entries.length > 0 && (
+            <Card title="Unbalanced entries" subtitle="Journal entries where debits ≠ credits.">
+              <SimpleTable
+                headers={["Workspace", "Date", "Description", "Difference"]}
+                rows={data.unbalanced_entries.slice(0, 10).map((e) => [
+                  <span key="w" className="text-sm text-slate-800">{e.workspace}</span>,
+                  <span key="d" className="text-xs text-slate-600">{e.date || "—"}</span>,
+                  <span key="desc" className="text-xs text-slate-700 max-w-[200px] truncate">{e.description || "—"}</span>,
+                  <span key="diff" className="text-sm font-semibold text-rose-700">${e.difference.toFixed(2)}</span>,
+                ])}
+              />
+            </Card>
+          )}
+        </>
+      ) : null}
+    </div>
+  );
+};
 
-const ExpensesSection: React.FC = () => (
-  <div className="space-y-4">
-    <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-      <div>
-        <h2 className="text-lg font-semibold text-slate-900">Expenses & receipts</h2>
-        <p className="text-sm text-slate-600 max-w-xl">
-          Spot mis-categorized spend, receipt anomalies, and FX conversion issues from a single, internal lens.
-        </p>
-      </div>
-    </header>
-    <Card>
-      <div className="flex flex-col items-center justify-center py-16 text-center">
-        <div className="rounded-full bg-slate-100 p-4 mb-4">
-          <svg className="w-8 h-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
-          </svg>
+const InvoicesSection: React.FC = () => {
+  const [data, setData] = useState<InvoicesAudit | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchInvoicesAudit()
+      .then(setData)
+      .catch((e) => setError(e?.message || "Failed to load"))
+      .finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <div className="space-y-4">
+      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900">Invoices (global audit)</h2>
+          <p className="text-sm text-slate-600 max-w-xl">
+            Cross-tenant visibility into invoice status, failed sends, and potential duplicate or anomalous documents.
+          </p>
         </div>
-        <h3 className="text-lg font-semibold text-slate-900 mb-2">Coming Soon</h3>
-        <p className="text-sm text-slate-600 max-w-md">
-          Global expense tracking and FX anomaly detection will be available once the backend API is implemented.
-        </p>
-      </div>
-    </Card>
-  </div>
-);
+      </header>
+      {loading ? (
+        <Card><p className="text-sm text-slate-600">Loading invoices audit…</p></Card>
+      ) : error ? (
+        <Card><p className="text-sm text-rose-700">Error: {error}</p></Card>
+      ) : data ? (
+        <>
+          <div className="grid gap-3 md:grid-cols-5">
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Total</p>
+              <p className="text-2xl font-semibold text-slate-900 mt-1">{data.summary.total}</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Draft</p>
+              <p className="text-2xl font-semibold text-slate-600 mt-1">{data.summary.draft}</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Sent</p>
+              <p className="text-2xl font-semibold text-amber-700 mt-1">{data.summary.sent}</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Paid</p>
+              <p className="text-2xl font-semibold text-emerald-700 mt-1">{data.summary.paid}</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Issues</p>
+              <p className={cn("text-2xl font-semibold mt-1", data.summary.issues > 0 ? "text-rose-700" : "text-slate-600")}>
+                {data.summary.issues}
+              </p>
+            </div>
+          </div>
+          {data.recent_issues.length > 0 && (
+            <Card title="Recent issues" subtitle="Invoices with failed, rejected, or error status.">
+              <SimpleTable
+                headers={["Workspace", "Customer", "Status", "Total"]}
+                rows={data.recent_issues.slice(0, 10).map((inv) => [
+                  <span key="w" className="text-sm text-slate-800">{inv.workspace}</span>,
+                  <span key="c" className="text-sm text-slate-700">{inv.customer}</span>,
+                  <StatusPill key="s" tone="warning" label={inv.status} />,
+                  <span key="t" className="text-sm font-semibold text-slate-900">${inv.total.toFixed(2)}</span>,
+                ])}
+              />
+            </Card>
+          )}
+        </>
+      ) : null}
+    </div>
+  );
+};
+
+const ExpensesSection: React.FC = () => {
+  const [data, setData] = useState<ExpensesAudit | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchExpensesAudit()
+      .then(setData)
+      .catch((e) => setError(e?.message || "Failed to load"))
+      .finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <div className="space-y-4">
+      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900">Expenses & receipts</h2>
+          <p className="text-sm text-slate-600 max-w-xl">
+            Spot mis-categorized spend, receipt anomalies, and FX conversion issues from a single, internal lens.
+          </p>
+        </div>
+      </header>
+      {loading ? (
+        <Card><p className="text-sm text-slate-600">Loading expenses audit…</p></Card>
+      ) : error ? (
+        <Card><p className="text-sm text-rose-700">Error: {error}</p></Card>
+      ) : data ? (
+        <>
+          <div className="grid gap-3 md:grid-cols-4">
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Total expenses</p>
+              <p className="text-2xl font-semibold text-slate-900 mt-1">{data.summary.total_expenses}</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Total receipts</p>
+              <p className="text-2xl font-semibold text-slate-900 mt-1">{data.summary.total_receipts}</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Uncategorized</p>
+              <p className={cn("text-2xl font-semibold mt-1", data.summary.uncategorized > 0 ? "text-amber-700" : "text-slate-600")}>
+                {data.summary.uncategorized}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Pending receipts</p>
+              <p className={cn("text-2xl font-semibold mt-1", data.summary.pending_receipts > 0 ? "text-amber-700" : "text-slate-600")}>
+                {data.summary.pending_receipts}
+              </p>
+            </div>
+          </div>
+          <Card title="Top workspaces by expense count" subtitle="Workspaces with the most expense entries.">
+            {data.top_workspaces.length ? (
+              <SimpleTable
+                headers={["Workspace", "Count", "Total"]}
+                rows={data.top_workspaces.slice(0, 10).map((w) => [
+                  <span key="n" className="text-sm text-slate-800">{w.name}</span>,
+                  <span key="c" className="text-sm text-slate-700">{w.count}</span>,
+                  <span key="t" className="text-sm font-semibold text-slate-900">${w.total.toFixed(2)}</span>,
+                ])}
+              />
+            ) : (
+              <p className="text-sm text-slate-600">No expense data found.</p>
+            )}
+          </Card>
+        </>
+      ) : null}
+    </div>
+  );
+};
+
 
 const AiMonitoringSection: React.FC = () => (
   <div className="space-y-4">
@@ -637,7 +664,8 @@ const TopBar: React.FC<{ currentSection: NavSectionId }> = ({ currentSection }) 
 const Sidebar: React.FC<{
   current: NavSectionId;
   onSelect: (id: NavSectionId) => void;
-}> = ({ current, onSelect }) => {
+  canManageAdminUsers: boolean;
+}> = ({ current, onSelect, canManageAdminUsers }) => {
   return (
     <aside className="hidden md:flex md:flex-col md:border-r md:border-slate-200 md:bg-white md:w-64 lg:w-72">
       <div className="px-4 pt-4 pb-3 border-b border-slate-200">
@@ -652,6 +680,7 @@ const Sidebar: React.FC<{
             </p>
             <div className="space-y-0.5">
               {group.items.map((item) => {
+
                 const active = current === item.id;
                 return (
                   <button
@@ -686,20 +715,48 @@ const Sidebar: React.FC<{
   );
 };
 
-export const AdminApp: React.FC<{ initialRole?: Role }> = ({ initialRole = "superadmin" }) => {
+const roleFromAuth = (opts: { internalAdminRole?: string | null; isStaff?: boolean; isSuperuser?: boolean }): Role => {
+  const r = (opts.internalAdminRole || "").toUpperCase();
+  if (r === "SUPPORT") return "support";
+  if (r === "OPS") return "finance";
+  if (r === "ENGINEERING") return "engineer";
+  if (r === "SUPERADMIN" || r === "PRIMARY_ADMIN") return "superadmin";
+  if (opts.isSuperuser || opts.isStaff) return "superadmin";
+  return "support";
+};
+
+const roleLevel = (role: Role) => (role === "superadmin" ? 4 : role === "engineer" ? 3 : role === "finance" ? 2 : 1);
+
+export const AdminApp: React.FC = () => {
   const [current, setCurrent] = useState<NavSectionId>("overview");
-  const [role] = useState<Role>(initialRole);
+  const { auth } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const canManageAdminUsers = Boolean(auth.user?.internalAdmin?.canManageAdminUsers);
+  const canGrantSuperadmin = Boolean(auth.user?.internalAdmin?.canGrantSuperadmin);
+  const role = useMemo(
+    () =>
+      roleFromAuth({
+        internalAdminRole: auth.user?.internalAdmin?.role,
+        isSuperuser: Boolean(auth.user?.isSuperuser ?? auth.user?.is_superuser),
+      }),
+    [auth.user?.internalAdmin?.role, auth.user?.isSuperuser, auth.user?.is_superuser]
+  );
 
   const renderSection = () => {
     switch (current) {
       case "overview":
-        return <OverviewSection role={role} />;
+        return <OverviewSection />;
       case "users":
-        return <UsersSection />;
+        return <UsersSection roleLevel={roleLevel(role)} />;
+      case "employees":
+        return <EmployeesSection canManageAdminUsers={canManageAdminUsers} canGrantSuperadmin={canGrantSuperadmin} />;
       case "support":
         return <SupportSection role={role} />;
+      case "approvals":
+        return <ApprovalsSection role={{ level: roleLevel(role) }} />;
       case "workspaces":
-        return <WorkspacesSection />;
+        return <WorkspacesSection roleLevel={roleLevel(role)} />;
       case "banking":
         return <BankingSection />;
       case "reconciliation":
@@ -719,15 +776,30 @@ export const AdminApp: React.FC<{ initialRole?: Role }> = ({ initialRole = "supe
       case "logs":
         return <LogsSection />;
       default:
-        return <OverviewSection role={role} />;
+        return <OverviewSection />;
     }
+  };
+
+  useEffect(() => {
+    const path = (location.pathname || "/").replace(/^\/+/, "");
+    const segment = path.split("/")[0] || "overview";
+    const asSection = segment === "" ? "overview" : segment;
+    const valid = navGroups.flatMap((g) => g.items).some((i) => i.id === asSection);
+    if (valid && asSection !== current) {
+      setCurrent(asSection as NavSectionId);
+    }
+  }, [location.pathname, current]);
+
+  const handleSelect = (id: NavSectionId) => {
+    setCurrent(id);
+    navigate(id === "overview" ? "/" : `/${id}`);
   };
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col">
       <TopBar currentSection={current} />
       <div className="flex flex-1">
-        <Sidebar current={current} onSelect={setCurrent} />
+        <Sidebar current={current} onSelect={handleSelect} canManageAdminUsers={canManageAdminUsers} />
         <main className="flex-1 px-4 py-4 sm:px-6 lg:px-8">
           <div className="max-w-6xl mx-auto space-y-6 pb-8">{renderSection()}</div>
         </main>

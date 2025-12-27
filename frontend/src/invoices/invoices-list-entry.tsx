@@ -18,3 +18,4 @@ if (rootEl) {
 } else {
     console.warn("Invoices list root not found");
 }
+

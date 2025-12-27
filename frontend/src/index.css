@@ -2,9 +2,41 @@
 @tailwind components;
 @tailwind utilities;
 
+/* JetBrains Mono for numeric/tabular data */
+@import "@fontsource/jetbrains-mono";
+
 :root {
   --heading-lg: clamp(1.4rem, 1vw + 1.1rem, 2.15rem);
   --heading-md: clamp(1.1rem, 0.6vw + 1rem, 1.6rem);
+  --mono-font: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco,
+    Consolas, "Liberation Mono", "Courier New", monospace;
+  --title-font: var(--mono-font);
+}
+
+/* Soft mono utility for numeric/tax text */
+.font-mono-soft {
+  font-family: var(--mono-font);
+  font-feature-settings: "tnum" 1, "lnum" 1;
+}
+
+/* Titles: JetBrains Mono */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.font-title {
+  font-family: var(--title-font);
+  letter-spacing: -0.01em;
+}
+
+/* Accent underline: grey + orange motif */
+.mb-accent-underline {
+  text-decoration-line: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.25em;
+  text-decoration-color: var(--accent-warm, #fb923c);
 }
 
 *,

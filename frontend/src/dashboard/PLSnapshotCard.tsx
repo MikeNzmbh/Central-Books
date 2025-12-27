@@ -159,7 +159,7 @@ export const PLSnapshotCard: React.FC<PLSnapshotCardProps> = ({
                     <div className="flex items-start justify-between">
                         <div>
                             <p className="text-[10px] font-medium text-emerald-600 uppercase tracking-wider">Revenue</p>
-                            <p className="mt-1 text-lg font-bold text-slate-900">{formatMoney(revenue)}</p>
+                            <p className="mt-1 text-lg font-bold text-slate-900 font-mono-soft">{formatMoney(revenue)}</p>
                         </div>
                         <svg width="40" height="20" className="mt-1">
                             <path
@@ -175,7 +175,7 @@ export const PLSnapshotCard: React.FC<PLSnapshotCardProps> = ({
                     {revenueTrend !== null && (
                         <div className={`mt-1 flex items-center gap-1 text-[10px] font-medium ${revenueTrend >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
                             {revenueTrend >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                            <span>{revenueTrend >= 0 ? "+" : ""}{revenueTrend.toFixed(0)}% vs prior</span>
+                            <span><span className="font-mono-soft">{revenueTrend >= 0 ? "+" : ""}{revenueTrend.toFixed(0)}%</span> vs prior</span>
                         </div>
                     )}
                 </div>
@@ -185,7 +185,7 @@ export const PLSnapshotCard: React.FC<PLSnapshotCardProps> = ({
                     <div className="flex items-start justify-between">
                         <div>
                             <p className="text-[10px] font-medium text-rose-600 uppercase tracking-wider">Expenses</p>
-                            <p className="mt-1 text-lg font-bold text-slate-900">{formatMoney(expenses)}</p>
+                            <p className="mt-1 text-lg font-bold text-slate-900 font-mono-soft">{formatMoney(expenses)}</p>
                         </div>
                         <svg width="40" height="20" className="mt-1">
                             <path
@@ -201,7 +201,7 @@ export const PLSnapshotCard: React.FC<PLSnapshotCardProps> = ({
                     {expensesTrend !== null && (
                         <div className={`mt-1 flex items-center gap-1 text-[10px] font-medium ${expensesTrend <= 0 ? "text-emerald-600" : "text-rose-600"}`}>
                             {expensesTrend <= 0 ? <TrendingDown className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />}
-                            <span>{expensesTrend >= 0 ? "+" : ""}{expensesTrend.toFixed(0)}% vs prior</span>
+                            <span><span className="font-mono-soft">{expensesTrend >= 0 ? "+" : ""}{expensesTrend.toFixed(0)}%</span> vs prior</span>
                         </div>
                     )}
                 </div>
@@ -211,11 +211,11 @@ export const PLSnapshotCard: React.FC<PLSnapshotCardProps> = ({
                     <p className={`text-[10px] font-medium uppercase tracking-wider ${netProfit >= 0 ? "text-slate-600" : "text-amber-600"}`}>
                         Net Profit
                     </p>
-                    <p className={`mt-1 text-lg font-bold ${netProfit >= 0 ? "text-slate-900" : "text-amber-700"}`}>
+                    <p className={`mt-1 text-lg font-bold font-mono-soft ${netProfit >= 0 ? "text-slate-900" : "text-amber-700"}`}>
                         {formatMoney(netProfit)}
                     </p>
                     <p className="mt-1 text-[10px] font-medium text-slate-500">
-                        {margin.toFixed(0)}% margin
+                        <span className="font-mono-soft">{margin.toFixed(0)}%</span> margin
                     </p>
                 </div>
             </div>
@@ -224,7 +224,7 @@ export const PLSnapshotCard: React.FC<PLSnapshotCardProps> = ({
             <div className="space-y-1.5">
                 <div className="flex items-center justify-between text-[10px]">
                     <span className="text-slate-500">Profit Margin</span>
-                    <span className="font-semibold text-slate-700">{margin.toFixed(1)}%</span>
+                    <span className="font-semibold text-slate-700 font-mono-soft">{margin.toFixed(1)}%</span>
                 </div>
                 <div className="h-2 w-full rounded-full bg-slate-100 overflow-hidden">
                     <div
@@ -232,7 +232,7 @@ export const PLSnapshotCard: React.FC<PLSnapshotCardProps> = ({
                         style={{ width: `${marginCapped}%` }}
                     />
                 </div>
-                <div className="flex justify-between text-[9px] text-slate-400">
+                <div className="flex justify-between text-[9px] text-slate-400 font-mono-soft">
                     <span>0%</span>
                     <span>50%</span>
                     <span>100%</span>

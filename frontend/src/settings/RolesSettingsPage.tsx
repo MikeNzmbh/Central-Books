@@ -104,14 +104,16 @@ export const RolesSettingsPage: React.FC = () => {
                       className={[
                         "w-full text-left rounded-2xl px-3 py-2.5 transition border",
                         isActive
-                          ? "bg-slate-900 text-white border-slate-900"
+                          ? "bg-white text-slate-900 border-slate-200 shadow-sm ring-1 ring-slate-200"
                           : "bg-white text-slate-800 border-transparent hover:bg-slate-50",
                       ].join(" ")}
                     >
                       <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="text-sm font-semibold truncate">{role.label}</div>
-                          <div className={isActive ? "text-[11px] text-slate-300" : "text-[11px] text-slate-500"}>
+                          <div className="text-sm font-semibold truncate">
+                            <span className={isActive ? "mb-accent-underline" : undefined}>{role.label}</span>
+                          </div>
+                          <div className="text-[11px] text-slate-500">
                             {role.key}
                           </div>
                         </div>
@@ -119,12 +121,8 @@ export const RolesSettingsPage: React.FC = () => {
                           className={[
                             "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
                             role.is_builtin
-                              ? isActive
-                                ? "border-white/20 text-white/90"
-                                : "border-slate-200 bg-slate-50 text-slate-600"
-                              : isActive
-                                ? "border-white/20 text-white/90"
-                                : "border-sky-200 bg-sky-50 text-sky-700",
+                              ? "border-slate-200 bg-slate-50 text-slate-600"
+                              : "border-sky-200 bg-sky-50 text-sky-700",
                           ].join(" ")}
                         >
                           {role.is_builtin ? "Template" : "Custom"}

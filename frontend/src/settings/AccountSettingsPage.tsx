@@ -803,7 +803,9 @@ const AccountSettingsPage: React.FC<AccountSettingsProps> = ({
                   key={tab.id}
                   type="button"
                   onClick={() => setActiveTab(tab.id)}
-                  className={`w-full rounded-2xl px-4 py-2 text-left text-sm font-medium transition ${activeTab === tab.id ? "bg-slate-900 text-white" : "bg-slate-50 text-slate-700 hover:bg-slate-100"
+                  className={`w-full rounded-2xl px-4 py-2 text-left text-sm font-medium transition ${activeTab === tab.id
+                      ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200 mb-accent-underline"
+                      : "bg-slate-50 text-slate-700 hover:bg-slate-100"
                     }`}
                 >
                   {tab.label}

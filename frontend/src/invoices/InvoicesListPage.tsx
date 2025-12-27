@@ -200,20 +200,20 @@ const InvoiceDrawer: React.FC<InvoiceDrawerProps> = ({ invoice, currency, onClos
                     <div className="grid grid-cols-3 gap-4">
                         <div>
                             <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">Total</div>
-                            <div className="text-[15px] font-bold text-slate-900 mt-0.5">
+                            <div className="text-[15px] font-bold text-slate-900 mt-0.5 font-mono-soft">
                                 {formatCurrency(invoice.grand_total, invoice.currency || currency)}
                             </div>
                         </div>
                         <div>
                             <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">Paid</div>
-                            <div className="text-[15px] font-bold text-emerald-600 mt-0.5">
+                            <div className="text-[15px] font-bold text-emerald-600 mt-0.5 font-mono-soft">
                                 {formatCurrency(invoice.amount_paid, invoice.currency || currency)}
                             </div>
                         </div>
                         <div>
                             <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">Balance</div>
                             <div className={cn(
-                                "text-[15px] font-bold mt-0.5",
+                                "text-[15px] font-bold mt-0.5 font-mono-soft",
                                 balanceDue > 0 ? (overdue ? "text-rose-600" : "text-amber-600") : "text-slate-400"
                             )}>
                                 {formatCurrency(String(balanceDue), invoice.currency || currency)}
@@ -230,10 +230,10 @@ const InvoiceDrawer: React.FC<InvoiceDrawerProps> = ({ invoice, currency, onClos
                                 key={tab}
                                 onClick={() => setActiveTab(tab)}
                                 className={cn(
-                                    "px-4 py-3 text-xs font-semibold capitalize border-b-2 transition-colors",
+                                    "px-4 py-3 text-xs font-semibold capitalize border-b-2 border-transparent transition-colors",
                                     activeTab === tab
-                                        ? "border-slate-900 text-slate-900"
-                                        : "border-transparent text-slate-500 hover:text-slate-700"
+                                        ? "mb-accent-underline text-slate-900"
+                                        : "text-slate-500 hover:text-slate-700"
                                 )}
                             >
                                 {tab}
@@ -299,19 +299,19 @@ const InvoiceDrawer: React.FC<InvoiceDrawerProps> = ({ invoice, currency, onClos
                                 <div className="rounded-xl border border-slate-100 divide-y divide-slate-100">
                                     <div className="flex items-center justify-between px-4 py-2.5">
                                         <span className="text-sm text-slate-600">Subtotal</span>
-                                        <span className="text-sm font-medium text-slate-900">
+                                        <span className="text-sm font-medium text-slate-900 font-mono-soft">
                                             {formatCurrency(invoice.net_total, invoice.currency || currency)}
                                         </span>
                                     </div>
                                     <div className="flex items-center justify-between px-4 py-2.5">
                                         <span className="text-sm text-slate-600">Tax</span>
-                                        <span className="text-sm font-medium text-slate-900">
+                                        <span className="text-sm font-medium text-slate-900 font-mono-soft">
                                             {formatCurrency(invoice.tax_total, invoice.currency || currency)}
                                         </span>
                                     </div>
                                     <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50">
                                         <span className="text-sm font-semibold text-slate-900">Total</span>
-                                        <span className="text-sm font-bold text-slate-900">
+                                        <span className="text-sm font-bold text-slate-900 font-mono-soft">
                                             {formatCurrency(invoice.grand_total, invoice.currency || currency)}
                                         </span>
                                     </div>
@@ -570,27 +570,35 @@ export default function InvoicesListPage({ defaultCurrency = "USD" }: { defaultC
         <div className="min-h-screen bg-slate-50 text-slate-900">
             <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
                 {/* Header */}
-                <div className="flex items-center justify-between">
-                    <div>
-                        <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wide">Accounting</p>
-                        <h1 className="text-2xl font-semibold">Invoices</h1>
-                        <p className="text-sm text-slate-500">Track what you've billed and what's still unpaid.</p>
+                <header className="mb-8 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+                    <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-xs font-medium text-slate-400">
+                            <span>Overview</span>
+                            <span className="text-slate-300">/</span>
+                            <span className="text-slate-600">Receivables</span>
+                        </div>
+                        <h1 className="text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">
+                            Invoices
+                        </h1>
+                        <p className="text-sm text-slate-500">
+                            Track what you've billed and what's still unpaid.
+                        </p>
                     </div>
                     <div className="flex items-center gap-3">
                         <button
                             onClick={loadInvoices}
-                            className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+                            className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
                         >
-                            Refresh
+                            Export CSV
                         </button>
                         <a
                             href="/invoices/new/"
-                            className="px-4 py-2 text-sm font-semibold text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors"
+                            className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-5 py-2 text-xs font-semibold text-white shadow-lg shadow-slate-900/10 transition-transform hover:scale-105 active:scale-95"
                         >
                             + New Invoice
                         </a>
                     </div>
-                </div>
+                </header>
 
                 {/* Error Banner */}
                 {error && (
@@ -601,32 +609,32 @@ export default function InvoicesListPage({ defaultCurrency = "USD" }: { defaultC
 
                 {/* KPI Cards */}
                 {stats && (
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <div className="bg-white border border-slate-200 rounded-xl p-4">
-                            <div className="text-xs font-medium text-slate-500 uppercase">Open Balance</div>
-                            <div className="text-2xl font-semibold text-slate-900 mt-1">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="flex flex-col rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-100 transition-all hover:shadow-md">
+                            <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Open Balance</span>
+                            <span className="mt-3 text-2xl font-bold tracking-tight text-slate-900 font-mono-soft">
                                 {formatCurrency(stats.open_balance_total, currency)}
-                            </div>
-                            <p className="text-xs text-slate-500 mt-1">Unpaid invoices</p>
+                            </span>
+                            <span className="mt-1 text-[10px] text-slate-400">All current</span>
                         </div>
-                        <div className="bg-white border border-slate-200 rounded-xl p-4">
-                            <div className="text-xs font-medium text-slate-500 uppercase">Revenue (YTD)</div>
-                            <div className="text-2xl font-semibold text-slate-900 mt-1">
+                        <div className="flex flex-col rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-100 transition-all hover:shadow-md">
+                            <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Revenue YTD</span>
+                            <span className="mt-3 text-2xl font-bold tracking-tight text-slate-900 font-mono-soft">
                                 {formatCurrency(stats.revenue_ytd, currency)}
-                            </div>
-                            <p className="text-xs text-slate-500 mt-1">Paid invoices this year</p>
+                            </span>
+                            <span className="mt-1 text-[10px] text-slate-400">Paid invoices this year</span>
                         </div>
-                        <div className="bg-white border border-slate-200 rounded-xl p-4">
-                            <div className="text-xs font-medium text-slate-500 uppercase">Total Invoices</div>
-                            <div className="text-2xl font-semibold text-slate-900 mt-1">{stats.total_invoices}</div>
-                            <p className="text-xs text-slate-500 mt-1">All time</p>
+                        <div className="flex flex-col rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-100 transition-all hover:shadow-md">
+                            <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Total Invoices</span>
+                            <span className="mt-3 text-2xl font-bold tracking-tight text-slate-900 font-mono-soft">{stats.total_invoices}</span>
+                            <span className="mt-1 text-[10px] text-slate-400">All time</span>
                         </div>
-                        <div className="bg-white border border-slate-200 rounded-xl p-4">
-                            <div className="text-xs font-medium text-slate-500 uppercase">Avg Invoice</div>
-                            <div className="text-2xl font-semibold text-slate-900 mt-1">
+                        <div className="flex flex-col rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-100 transition-all hover:shadow-md">
+                            <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Avg Invoice</span>
+                            <span className="mt-3 text-2xl font-bold tracking-tight text-slate-900 font-mono-soft">
                                 {formatCurrency(stats.avg_invoice_value, currency)}
-                            </div>
-                            <p className="text-xs text-slate-500 mt-1">Average value</p>
+                            </span>
+                            <span className="mt-1 text-[10px] text-slate-400">Average value</span>
                         </div>
                     </div>
                 )}
@@ -728,7 +736,7 @@ export default function InvoicesListPage({ defaultCurrency = "USD" }: { defaultC
                                                     {formatDate(invoice.due_date)}
                                                     {overdue && <span className="ml-1 text-xs">⚠️</span>}
                                                 </td>
-                                                <td className="px-4 py-3 text-right font-medium text-slate-800">
+                                                <td className="px-4 py-3 text-right font-semibold text-slate-900 font-mono-soft">
                                                     {formatCurrency(invoice.grand_total, invoice.currency || currency)}
                                                 </td>
                                                 <td className="px-4 py-3">

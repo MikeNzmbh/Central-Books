@@ -12,7 +12,16 @@ from django.urls import reverse
 from django.utils import timezone
 
 from companion.llm import generate_insights_for_snapshot
-from companion.models import CompanionInsight, CompanionSuggestedAction, WorkspaceCompanionProfile, WorkspaceMemory
+from companion.models import (
+    AICommandRecord,
+    AICircuitBreakerEvent,
+    CompanionInsight,
+    CompanionSuggestedAction,
+    ProvisionalLedgerEvent,
+    WorkspaceAISettings,
+    WorkspaceCompanionProfile,
+    WorkspaceMemory,
+)
 from companion.services import (
     create_health_snapshot,
     generate_bank_match_suggestions_for_workspace,
@@ -25,7 +34,20 @@ from companion.services import (
     gather_workspace_metrics,
     get_latest_health_snapshot,
 )
-from core.models import Account, BankAccount, BankTransaction, Business, Category, Customer, Expense, Invoice, JournalEntry, JournalLine, Supplier
+from core.models import (
+    Account,
+    BankAccount,
+    BankTransaction,
+    Business,
+    Category,
+    Customer,
+    Expense,
+    Invoice,
+    JournalEntry,
+    JournalLine,
+    Supplier,
+    WorkspaceMembership,
+)
 
 
 User = get_user_model()
@@ -196,6 +218,20 @@ class CompanionApiTests(TestCase):
         self.assertEqual(payload["llm_narrative"]["summary"], "Books look stable. Reconcile soon.")
         self.assertEqual(payload["llm_narrative"]["insight_explanations"].get(str(insight.id)), "Clear 3 items.")
         self.assertEqual(payload["llm_narrative"]["context_summary"], "Banking looks steady.")
+
+    @override_settings(
+        COMPANION_LLM_ENABLED=True,
+        COMPANION_LLM_API_BASE="https://api.example.com",
+        COMPANION_LLM_API_KEY="test-key",
+        COMPANION_LLM_OFFLINE=True,
+    )
+    @mock.patch("companion.llm.requests.post")
+    def test_llm_offline_mode_skips_network(self, mock_post):
+        from companion.llm import call_deepseek_reasoning
+
+        res = call_deepseek_reasoning("hello", context_tag="test_offline")
+        self.assertIsNone(res)
+        mock_post.assert_not_called()
 
     def test_expense_save_records_memory(self):
         Expense.objects.create(
@@ -789,3 +825,456 @@ class CompanionDeterministicSuggestionTests(TestCase):
         actions = generate_expense_spike_category_review(self.workspace, threshold_pct=50)
         self.assertTrue(actions)
         self.assertEqual(actions[0].action_type, CompanionSuggestedAction.ACTION_SPIKE_EXPENSE_CATEGORY_REVIEW)
+
+
+class CompanionV2ApiTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="v2user", email="v2@example.com", password="pass")
+        self.workspace = Business.objects.create(
+            name="V2 Co",
+            currency="USD",
+            owner_user=self.user,
+            ai_companion_enabled=False,
+        )
+        self.client.force_login(self.user)
+
+        self.bank_asset = Account.objects.create(
+            business=self.workspace,
+            code="1000",
+            name="Bank",
+            type=Account.AccountType.ASSET,
+        )
+        self.expense_account = Account.objects.create(
+            business=self.workspace,
+            code="6000",
+            name="Office supplies",
+            type=Account.AccountType.EXPENSE,
+        )
+        self.bank_account = BankAccount.objects.create(business=self.workspace, name="Checking", account=self.bank_asset)
+        self.bank_tx = BankTransaction.objects.create(
+            bank_account=self.bank_account,
+            date=timezone.now().date(),
+            description="Staples",
+            amount=Decimal("-10.00"),
+        )
+
+    def _enable_ai(self, *, mode: str, kill_switch: bool = False, value_breaker_threshold: str | None = None):
+        self.workspace.ai_companion_enabled = True
+        self.workspace.save(update_fields=["ai_companion_enabled"])
+        settings_row, _ = WorkspaceAISettings.objects.get_or_create(
+            workspace=self.workspace, defaults={"ai_enabled": True, "ai_mode": mode, "kill_switch": False}
+        )
+        dirty = False
+        if not settings_row.ai_enabled:
+            settings_row.ai_enabled = True
+            dirty = True
+        if settings_row.ai_mode != mode:
+            settings_row.ai_mode = mode
+            dirty = True
+        if settings_row.kill_switch != kill_switch:
+            settings_row.kill_switch = kill_switch
+            dirty = True
+        if value_breaker_threshold is not None and str(settings_row.value_breaker_threshold) != str(value_breaker_threshold):
+            settings_row.value_breaker_threshold = Decimal(str(value_breaker_threshold))
+            dirty = True
+        if dirty:
+            settings_row.save()
+        return settings_row
+
+    def test_v2_propose_blocked_when_ai_disabled(self):
+        res = self.client.post(
+            reverse("companion:v2_propose_categorization"),
+            data={
+                "bank_transaction_id": self.bank_tx.id,
+                "proposed_splits": [{"account_id": self.expense_account.id, "amount": "10.00"}],
+            },
+            content_type="application/json",
+        )
+        self.assertEqual(res.status_code, 403)
+
+    def test_v2_shadow_only_allows_propose_but_blocks_apply(self):
+        self._enable_ai(mode=WorkspaceAISettings.AIMode.SHADOW_ONLY)
+
+        propose = self.client.post(
+            reverse("companion:v2_propose_categorization"),
+            data={
+                "bank_transaction_id": self.bank_tx.id,
+                "proposed_splits": [{"account_id": self.expense_account.id, "amount": "10.00"}],
+                "metadata": {
+                    "actor": "system_companion_v2.1",
+                    "confidence_score": 0.9,
+                    "logic_trace_id": "trace_test_shadow_only",
+                    "rationale": "Test proposal",
+                    "business_profile_constraint": "risk_appetite=standard",
+                    "human_in_the_loop": {"tier": 0, "status": "proposed"},
+                },
+            },
+            content_type="application/json",
+        )
+        self.assertEqual(propose.status_code, 201)
+        shadow_event_id = propose.json()["id"]
+
+        apply_res = self.client.post(
+            reverse("companion:v2_proposal_apply", kwargs={"pk": shadow_event_id}),
+            data={"workspace_id": self.workspace.id},
+            content_type="application/json",
+        )
+        self.assertEqual(apply_res.status_code, 403)
+
+    def test_v2_suggest_only_apply_creates_canonical_entry(self):
+        self._enable_ai(mode=WorkspaceAISettings.AIMode.SUGGEST_ONLY)
+
+        propose = self.client.post(
+            reverse("companion:v2_propose_categorization"),
+            data={
+                "bank_transaction_id": self.bank_tx.id,
+                "proposed_splits": [{"account_id": self.expense_account.id, "amount": "10.00"}],
+                "metadata": {
+                    "actor": "system_companion_v2.1",
+                    "confidence_score": 0.9,
+                    "logic_trace_id": "trace_test_apply_ok",
+                    "rationale": "Test proposal apply path",
+                    "business_profile_constraint": "risk_appetite=standard",
+                    "human_in_the_loop": {"tier": 1, "status": "proposed"},
+                },
+            },
+            content_type="application/json",
+        )
+        self.assertEqual(propose.status_code, 201)
+        shadow_event_id = propose.json()["id"]
+
+        apply_res = self.client.post(
+            reverse("companion:v2_proposal_apply", kwargs={"pk": shadow_event_id}),
+            data={"workspace_id": self.workspace.id},
+            content_type="application/json",
+        )
+        self.assertEqual(apply_res.status_code, 200)
+        payload = apply_res.json()
+        self.assertIn("result", payload)
+        self.assertIsNotNone(payload["result"].get("journal_entry_id"))
+
+        shadow = ProvisionalLedgerEvent.objects.get(id=shadow_event_id)
+        self.assertEqual(shadow.status, ProvisionalLedgerEvent.Status.APPLIED)
+        self.assertIsNotNone(shadow.command_id)
+        self.assertEqual(shadow.logic_trace_id, "trace_test_apply_ok")
+        self.assertEqual(shadow.rationale, "Test proposal apply path")
+
+        from django.contrib.contenttypes.models import ContentType
+
+        from companion.models import CanonicalLedgerProvenance
+        from core.models import JournalEntry
+
+        je_ct = ContentType.objects.get_for_model(JournalEntry)
+        self.assertTrue(
+            CanonicalLedgerProvenance.objects.filter(
+                workspace=self.workspace,
+                shadow_event_id=shadow_event_id,
+                content_type=je_ct,
+                object_id=int(payload["result"]["journal_entry_id"]),
+                applied_by=self.user,
+            ).exists()
+        )
+
+    def test_v2_proposals_list_returns_only_proposed(self):
+        self._enable_ai(mode=WorkspaceAISettings.AIMode.SUGGEST_ONLY)
+
+        other_tx = BankTransaction.objects.create(
+            bank_account=self.bank_account,
+            date=timezone.now().date(),
+            description="Office chair",
+            amount=Decimal("-25.00"),
+        )
+
+        propose1 = self.client.post(
+            reverse("companion:v2_propose_categorization"),
+            data={
+                "bank_transaction_id": self.bank_tx.id,
+                "proposed_splits": [{"account_id": self.expense_account.id, "amount": "10.00"}],
+                "metadata": {
+                    "actor": "system_companion_v2.1",
+                    "confidence_score": 0.9,
+                    "logic_trace_id": "trace_test_list_1",
+                    "rationale": "Test list 1",
+                    "business_profile_constraint": "risk_appetite=standard",
+                    "human_in_the_loop": {"tier": 1, "status": "proposed"},
+                },
+            },
+            content_type="application/json",
+        )
+        self.assertEqual(propose1.status_code, 201)
+        shadow_event_1 = propose1.json()["id"]
+
+        propose2 = self.client.post(
+            reverse("companion:v2_propose_categorization"),
+            data={
+                "bank_transaction_id": other_tx.id,
+                "proposed_splits": [{"account_id": self.expense_account.id, "amount": "25.00"}],
+                "metadata": {
+                    "actor": "system_companion_v2.1",
+                    "confidence_score": 0.9,
+                    "logic_trace_id": "trace_test_list_2",
+                    "rationale": "Test list 2",
+                    "business_profile_constraint": "risk_appetite=standard",
+                    "human_in_the_loop": {"tier": 1, "status": "proposed"},
+                },
+            },
+            content_type="application/json",
+        )
+        self.assertEqual(propose2.status_code, 201)
+        shadow_event_2 = propose2.json()["id"]
+
+        reject_res = self.client.post(
+            reverse("companion:v2_proposal_reject", kwargs={"pk": shadow_event_1}),
+            data={"workspace_id": self.workspace.id, "reason": "Incorrect"},
+            content_type="application/json",
+        )
+        self.assertEqual(reject_res.status_code, 200)
+
+        list_res = self.client.get(reverse("companion:v2_proposals"), data={"workspace_id": self.workspace.id})
+        self.assertEqual(list_res.status_code, 200)
+        ids = {row["id"] for row in list_res.json()}
+        self.assertNotIn(shadow_event_1, ids)
+        self.assertIn(shadow_event_2, ids)
+
+    def test_v2_reject_marks_event_rejected(self):
+        self._enable_ai(mode=WorkspaceAISettings.AIMode.SUGGEST_ONLY)
+
+        propose = self.client.post(
+            reverse("companion:v2_propose_categorization"),
+            data={
+                "bank_transaction_id": self.bank_tx.id,
+                "proposed_splits": [{"account_id": self.expense_account.id, "amount": "10.00"}],
+                "metadata": {
+                    "actor": "system_companion_v2.1",
+                    "confidence_score": 0.9,
+                    "logic_trace_id": "trace_test_reject",
+                    "rationale": "Test reject",
+                    "business_profile_constraint": "risk_appetite=standard",
+                    "human_in_the_loop": {"tier": 1, "status": "proposed"},
+                },
+            },
+            content_type="application/json",
+        )
+        shadow_event_id = propose.json()["id"]
+
+        reject_res = self.client.post(
+            reverse("companion:v2_proposal_reject", kwargs={"pk": shadow_event_id}),
+            data={"workspace_id": self.workspace.id, "reason": "Incorrect vendor"},
+            content_type="application/json",
+        )
+        self.assertEqual(reject_res.status_code, 200)
+        shadow = ProvisionalLedgerEvent.objects.get(id=shadow_event_id)
+        self.assertEqual(shadow.status, ProvisionalLedgerEvent.Status.REJECTED)
+        self.assertTrue(
+            AICommandRecord.objects.filter(
+                workspace=self.workspace,
+                command_type="RejectShadowEvent",
+                shadow_event_id=shadow_event_id,
+                actor=shadow.actor,
+                created_by=self.user,
+            ).exists()
+        )
+
+    def test_v2_apply_blocks_when_bank_transaction_changed_since_proposal(self):
+        self._enable_ai(mode=WorkspaceAISettings.AIMode.SUGGEST_ONLY)
+
+        propose = self.client.post(
+            reverse("companion:v2_propose_categorization"),
+            data={
+                "bank_transaction_id": self.bank_tx.id,
+                "proposed_splits": [{"account_id": self.expense_account.id, "amount": "10.00"}],
+                "metadata": {
+                    "actor": "system_companion_v2.1",
+                    "confidence_score": 0.9,
+                    "logic_trace_id": "trace_test_drift",
+                    "rationale": "Proposal used for drift test",
+                    "business_profile_constraint": "risk_appetite=standard",
+                    "human_in_the_loop": {"tier": 1, "status": "proposed"},
+                },
+            },
+            content_type="application/json",
+        )
+        self.assertEqual(propose.status_code, 201)
+        shadow_event_id = propose.json()["id"]
+
+        # Mutate the underlying bank transaction after proposal creation.
+        BankTransaction.objects.filter(id=self.bank_tx.id).update(allocated_amount=Decimal("5.0000"))
+
+        apply_res = self.client.post(
+            reverse("companion:v2_proposal_apply", kwargs={"pk": shadow_event_id}),
+            data={"workspace_id": self.workspace.id},
+            content_type="application/json",
+        )
+        self.assertEqual(apply_res.status_code, 400)
+        self.assertIn("StateConflict", (apply_res.json() or {}).get("detail", ""))
+
+    def test_v2_trust_breaker_downgrades_autopilot_on_rejection_rate(self):
+        settings_row = self._enable_ai(mode=WorkspaceAISettings.AIMode.AUTOPILOT_LIMITED)
+        settings_row.trust_downgrade_rejection_rate = Decimal("0.10")
+        settings_row.save(update_fields=["trust_downgrade_rejection_rate", "updated_at"])
+
+        propose = self.client.post(
+            reverse("companion:v2_propose_categorization"),
+            data={
+                "bank_transaction_id": self.bank_tx.id,
+                "proposed_splits": [{"account_id": self.expense_account.id, "amount": "10.00"}],
+                "metadata": {
+                    "actor": "system_companion_v2.1",
+                    "confidence_score": 0.9,
+                    "logic_trace_id": "trace_test_trust_breaker",
+                    "rationale": "Proposal used for trust breaker test",
+                    "business_profile_constraint": "risk_appetite=standard",
+                    "human_in_the_loop": {"tier": 1, "status": "proposed"},
+                },
+            },
+            content_type="application/json",
+        )
+        self.assertEqual(propose.status_code, 201)
+        shadow_event_id = propose.json()["id"]
+
+        reject_res = self.client.post(
+            reverse("companion:v2_proposal_reject", kwargs={"pk": shadow_event_id}),
+            data={"workspace_id": self.workspace.id, "reason": "Reject to trigger trust breaker"},
+            content_type="application/json",
+        )
+        self.assertEqual(reject_res.status_code, 200)
+
+        settings_row.refresh_from_db()
+        self.assertEqual(settings_row.ai_mode, WorkspaceAISettings.AIMode.SUGGEST_ONLY)
+        self.assertTrue(
+            AICircuitBreakerEvent.objects.filter(workspace=self.workspace, breaker=AICircuitBreakerEvent.Breaker.TRUST).exists()
+        )
+
+    def test_v2_kill_switch_blocks_propose_and_apply(self):
+        self._enable_ai(mode=WorkspaceAISettings.AIMode.SUGGEST_ONLY)
+
+        # Create one proposal first.
+        propose = self.client.post(
+            reverse("companion:v2_propose_categorization"),
+            data={
+                "bank_transaction_id": self.bank_tx.id,
+                "proposed_splits": [{"account_id": self.expense_account.id, "amount": "10.00"}],
+                "metadata": {
+                    "actor": "system_companion_v2.1",
+                    "confidence_score": 0.9,
+                    "logic_trace_id": "trace_test_kill_switch_seed",
+                    "rationale": "Seed proposal",
+                    "business_profile_constraint": "risk_appetite=standard",
+                    "human_in_the_loop": {"tier": 1, "status": "proposed"},
+                },
+            },
+            content_type="application/json",
+        )
+        self.assertEqual(propose.status_code, 201)
+        shadow_event_id = propose.json()["id"]
+
+        # Turn on kill switch.
+        settings_row = WorkspaceAISettings.objects.get(workspace=self.workspace)
+        settings_row.kill_switch = True
+        settings_row.save(update_fields=["kill_switch", "updated_at"])
+
+        blocked_propose = self.client.post(
+            reverse("companion:v2_propose_categorization"),
+            data={
+                "bank_transaction_id": self.bank_tx.id,
+                "proposed_splits": [{"account_id": self.expense_account.id, "amount": "10.00"}],
+            },
+            content_type="application/json",
+        )
+        self.assertEqual(blocked_propose.status_code, 403)
+
+        blocked_apply = self.client.post(
+            reverse("companion:v2_proposal_apply", kwargs={"pk": shadow_event_id}),
+            data={"workspace_id": self.workspace.id},
+            content_type="application/json",
+        )
+        self.assertEqual(blocked_apply.status_code, 403)
+
+        shadow = ProvisionalLedgerEvent.objects.get(id=shadow_event_id)
+        self.assertEqual(shadow.status, ProvisionalLedgerEvent.Status.PROPOSED)
+
+    def test_v2_value_breaker_forces_tier_and_risk_reason(self):
+        self._enable_ai(mode=WorkspaceAISettings.AIMode.SUGGEST_ONLY, value_breaker_threshold="50.00")
+
+        big_tx = BankTransaction.objects.create(
+            bank_account=self.bank_account,
+            date=timezone.now().date(),
+            description="Big vendor",
+            amount=Decimal("-100.00"),
+        )
+
+        propose = self.client.post(
+            reverse("companion:v2_propose_categorization"),
+            data={
+                "bank_transaction_id": big_tx.id,
+                "proposed_splits": [{"account_id": self.expense_account.id, "amount": "100.00"}],
+                "metadata": {
+                    "actor": "system_companion_v2.1",
+                    "confidence_score": 0.9,
+                    "logic_trace_id": "trace_test_value_breaker",
+                    "rationale": "Large amount should force review",
+                    "business_profile_constraint": "risk_appetite=standard",
+                    "human_in_the_loop": {"tier": 1, "status": "proposed"},
+                },
+            },
+            content_type="application/json",
+        )
+        self.assertEqual(propose.status_code, 201)
+        event_id = propose.json()["id"]
+        shadow = ProvisionalLedgerEvent.objects.get(id=event_id)
+        human = shadow.human_in_the_loop or {}
+        self.assertEqual(int(human.get("tier") or 0), 2)
+        self.assertIn("value_breaker", list(human.get("risk_reasons") or []))
+
+    def test_v2_bot_can_propose_but_cannot_apply(self):
+        self._enable_ai(mode=WorkspaceAISettings.AIMode.SUGGEST_ONLY)
+
+        bot = User.objects.create_user(username="bot", email="bot@example.com", password="pass")
+        WorkspaceMembership.objects.create(
+            user=bot,
+            business=self.workspace,
+            role=WorkspaceMembership.RoleChoices.JUNIOR_ACCOUNTANT_BOT,
+        )
+        self.client.force_login(bot)
+
+        propose = self.client.post(
+            reverse("companion:v2_propose_categorization"),
+            data={
+                "bank_transaction_id": self.bank_tx.id,
+                "proposed_splits": [{"account_id": self.expense_account.id, "amount": "10.00"}],
+                "metadata": {
+                    "actor": "system_companion_v2.1",
+                    "confidence_score": 0.9,
+                    "logic_trace_id": "trace_test_bot_propose",
+                    "rationale": "Bot proposal",
+                    "business_profile_constraint": "risk_appetite=standard",
+                    "human_in_the_loop": {"tier": 1, "status": "proposed"},
+                },
+            },
+            content_type="application/json",
+        )
+        self.assertEqual(propose.status_code, 201)
+        shadow_event_id = propose.json()["id"]
+
+        apply_res = self.client.post(
+            reverse("companion:v2_proposal_apply", kwargs={"pk": shadow_event_id}),
+            data={"workspace_id": self.workspace.id},
+            content_type="application/json",
+        )
+        self.assertEqual(apply_res.status_code, 403)
+
+    def test_v2_permission_denies_view_only_user(self):
+        other = User.objects.create_user(username="viewer", email="viewer@example.com", password="pass")
+        WorkspaceMembership.objects.create(user=other, business=self.workspace, role=WorkspaceMembership.RoleChoices.VIEW_ONLY)
+        self.client.force_login(other)
+
+        self._enable_ai(mode=WorkspaceAISettings.AIMode.SUGGEST_ONLY)
+        res = self.client.post(
+            reverse("companion:v2_propose_categorization"),
+            data={
+                "bank_transaction_id": self.bank_tx.id,
+                "proposed_splits": [{"account_id": self.expense_account.id, "amount": "10.00"}],
+            },
+            content_type="application/json",
+        )
+        self.assertEqual(res.status_code, 403)

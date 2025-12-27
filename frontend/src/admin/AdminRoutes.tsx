@@ -10,6 +10,7 @@ import {
 import { AuthProvider, useAuth } from "../contexts/AuthContext";
 import { AdminApp } from "./AdminApp";
 import { InternalAdminLogin } from "./InternalAdminLogin";
+import { InviteRedeemPage } from "./InviteRedeemPage";
 
 const AdminGuard: React.FC<{ children: React.ReactElement }> = ({ children }) => {
   const { auth } = useAuth();
@@ -33,6 +34,7 @@ const AdminGuard: React.FC<{ children: React.ReactElement }> = ({ children }) =>
 export const AdminRoutes: React.FC = () => (
   <Routes>
     <Route path="/login" element={<InternalAdminLogin />} />
+    <Route path="/invite/:token" element={<InviteRedeemPage />} />
     <Route
       path="/*"
       element={

@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-lg mx-auto py-10 px-4">
+  <h1 class="text-2xl font-semibold text-slate-900">Stop impersonation</h1>
+  <p class="mt-2 text-sm text-slate-600">
+    Stop impersonating and return to your admin session.
+  </p>
+
+  <form method="post" class="mt-6 flex items-center gap-3">
+    {% csrf_token %}
+    <button type="submit" class="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white">
+      Stop impersonation
+    </button>
+    <a href="/internal-admin/" class="text-sm font-medium text-slate-600 hover:text-slate-900">
+      Cancel
+    </a>
+  </form>
+</div>
+{% endblock %}
+

@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { ArrowLeft, Database, MapPinned, Percent, Tag, Plus, Pencil, ShieldAlert, Upload } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { usePermissions } from "../hooks/usePermissions";
 import {
   applyTaxCatalogImport,
   previewTaxCatalogImport,
@@ -30,9 +31,10 @@ const tabs: Array<{ key: TabKey; label: string; icon: React.ReactNode }> = [
 const TabButton: React.FC<{ active: boolean; onClick: () => void; children: React.ReactNode }> = ({ active, onClick, children }) => (
   <button
     onClick={onClick}
-    className={`inline-flex items-center gap-2 px-3 py-2 text-sm font-semibold rounded-lg border shadow-sm transition ${
-      active ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-    }`}
+    className={`inline-flex items-center gap-2 px-3 py-2 text-sm font-semibold rounded-lg border shadow-sm transition ${active
+      ? "bg-white text-slate-900 border-slate-200 mb-accent-underline"
+      : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900"
+      }`}
   >
     {children}
   </button>
@@ -42,7 +44,10 @@ const todayIso = () => new Date().toISOString().slice(0, 10);
 
 const TaxCatalogPage: React.FC = () => {
   const { auth } = useAuth();
-  const isStaff = auth.isAdmin;
+  const { can } = usePermissions();
+  // RBAC: check for view access (to see catalog) and manage access (to create/edit/import)
+  const canViewCatalog = can("tax.catalog.view");
+  const canManageCatalog = can("tax.catalog.manage");
   const [tab, setTab] = useState<TabKey>("jurisdictions");
   const [pageMessage, setPageMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
@@ -51,7 +56,7 @@ const TaxCatalogPage: React.FC = () => {
   const [regionCode, setRegionCode] = useState<string>("");
   const [jurType, setJurType] = useState<string>("");
   const jurisdictionsApi = useJurisdictions({
-    enabled: isStaff && tab === "jurisdictions",
+    enabled: canViewCatalog && tab === "jurisdictions",
     countryCode: countryCode || undefined,
     regionCode: regionCode || undefined,
     jurisdictionType: jurType || undefined,
@@ -77,7 +82,7 @@ const TaxCatalogPage: React.FC = () => {
   const [rateName, setRateName] = useState<string>("");
   const [activeOn, setActiveOn] = useState<string>("");
   const ratesApi = useTaxRates({
-    enabled: isStaff && tab === "rates",
+    enabled: canViewCatalog && tab === "rates",
     jurisdictionCode: rateJurisdiction || undefined,
     taxName: rateName || undefined,
     activeOn: activeOn || undefined,
@@ -101,7 +106,7 @@ const TaxCatalogPage: React.FC = () => {
   // Tax groups UI state
   const [groupQuery, setGroupQuery] = useState<string>("");
   const groupsApi = useTaxGroups({
-    enabled: isStaff && tab === "groups",
+    enabled: canViewCatalog && tab === "groups",
     q: groupQuery || undefined,
     limit: 200,
   });
@@ -111,7 +116,7 @@ const TaxCatalogPage: React.FC = () => {
   const [ruleJurisdiction, setRuleJurisdiction] = useState<string>("");
   const [ruleProductCode, setRuleProductCode] = useState<string>("");
   const rulesApi = useCatalogProductRules({
-    enabled: isStaff && tab === "product_rules",
+    enabled: canViewCatalog && tab === "product_rules",
     jurisdictionCode: ruleJurisdiction || undefined,
     productCode: ruleProductCode || undefined,
     limit: 200,
@@ -414,7 +419,7 @@ const TaxCatalogPage: React.FC = () => {
     );
   }
 
-  if (!isStaff) {
+  if (!canViewCatalog) {
     return (
       <div className="min-h-screen bg-slate-50">
         <div className="max-w-3xl mx-auto px-4 py-8">
@@ -477,11 +482,10 @@ const TaxCatalogPage: React.FC = () => {
 
         {pageMessage && (
           <div
-            className={`text-sm rounded-lg border p-3 ${
-              pageMessage.type === "success"
-                ? "text-emerald-800 bg-emerald-50 border-emerald-200"
-                : "text-rose-800 bg-rose-50 border-rose-200"
-            }`}
+            className={`text-sm rounded-lg border p-3 ${pageMessage.type === "success"
+              ? "text-emerald-800 bg-emerald-50 border-emerald-200"
+              : "text-rose-800 bg-rose-50 border-rose-200"
+              }`}
           >
             {pageMessage.text}
           </div>
@@ -670,7 +674,7 @@ const TaxCatalogPage: React.FC = () => {
                     <tr key={r.id} className="border-t border-slate-100">
                       <td className="px-3 py-2 font-semibold text-slate-800">{r.jurisdiction_code || "—"}</td>
                       <td className="px-3 py-2 text-slate-700">{r.tax_name}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{ratePercent(r.rate_decimal)}</td>
+                      <td className="px-3 py-2 text-right font-mono-soft">{ratePercent(r.rate_decimal)}</td>
                       <td className="px-3 py-2 text-slate-700">
                         <div>{r.valid_from}</div>
                         <div className="text-xs text-slate-500">{r.valid_to ? `→ ${r.valid_to}` : "→ (open)"}</div>
@@ -742,7 +746,7 @@ const TaxCatalogPage: React.FC = () => {
                   {groupsApi.groups.map((g) => (
                     <tr key={g.id} className="border-t border-slate-100">
                       <td className="px-3 py-2 font-semibold text-slate-800">{g.display_name}</td>
-                      <td className="px-3 py-2 text-right tabular-nums text-slate-700">{g.component_count}</td>
+                      <td className="px-3 py-2 text-right font-mono-soft text-slate-700">{g.component_count}</td>
                       <td className="px-3 py-2">
                         <select
                           value={g.reporting_category}
@@ -759,9 +763,8 @@ const TaxCatalogPage: React.FC = () => {
                       </td>
                       <td className="px-3 py-2">
                         <span
-                          className={`px-2 py-1 rounded-full text-[11px] font-semibold border ${
-                            g.is_system_locked ? "bg-slate-100 text-slate-700 border-slate-200" : "bg-emerald-50 text-emerald-700 border-emerald-200"
-                          }`}
+                          className={`px-2 py-1 rounded-full text-[11px] font-semibold border ${g.is_system_locked ? "bg-slate-100 text-slate-700 border-slate-200" : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            }`}
                         >
                           {g.is_system_locked ? "System" : "Editable"}
                         </span>
@@ -859,7 +862,7 @@ const TaxCatalogPage: React.FC = () => {
                       <td className="px-3 py-2 text-slate-700">{r.product_code}</td>
                       <td className="px-3 py-2 text-slate-700">{r.ssuta_code || "—"}</td>
                       <td className="px-3 py-2 text-slate-700">{r.rule_type}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{r.special_rate ?? "—"}</td>
+                      <td className="px-3 py-2 text-right font-mono-soft">{r.special_rate ?? "—"}</td>
                       <td className="px-3 py-2 text-slate-700">
                         <div>{r.valid_from}</div>
                         <div className="text-xs text-slate-500">{r.valid_to ? `→ ${r.valid_to}` : "→ (open)"}</div>
@@ -1376,16 +1379,16 @@ const TaxCatalogPage: React.FC = () => {
                               r.status === "ok"
                                 ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                                 : r.status === "warning"
-                                ? "bg-amber-50 text-amber-700 border-amber-200"
-                                : "bg-rose-50 text-rose-700 border-rose-200";
+                                  ? "bg-amber-50 text-amber-700 border-amber-200"
+                                  : "bg-rose-50 text-rose-700 border-rose-200";
 
                             const raw = r.raw || {};
                             const key =
                               importPreview.import_type === "jurisdictions"
                                 ? `${raw.code || "—"} · ${raw.name || "—"} · ${raw.jurisdiction_type || "—"}`
                                 : importPreview.import_type === "rates"
-                                ? `${raw.jurisdiction_code || "—"} · ${raw.tax_name || "—"} · ${raw.rate_decimal || "—"}`
-                                : `${raw.jurisdiction_code || "—"} · ${raw.product_code || "—"} · ${raw.rule_type || "—"}`;
+                                  ? `${raw.jurisdiction_code || "—"} · ${raw.tax_name || "—"} · ${raw.rate_decimal || "—"}`
+                                  : `${raw.jurisdiction_code || "—"} · ${raw.product_code || "—"} · ${raw.rule_type || "—"}`;
 
                             const action = r.would_update ? "Update" : r.would_create ? "Create" : "—";
                             const messages = (r.messages || []).join(" · ");

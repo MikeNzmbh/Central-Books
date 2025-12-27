@@ -123,6 +123,7 @@ INSTALLED_APPS = [
     # Project apps
     "core",
     "taxes",
+    "inventory",
     "reversals",
     "internal_admin",
     "companion",
@@ -133,6 +134,7 @@ MIDDLEWARE = [
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
+    "core.middleware.RequestIDMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
@@ -209,6 +211,12 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
+    "DEFAULT_THROTTLE_RATES": {
+        # Internal admin control-plane protection.
+        # Uses request.user.pk when authenticated, else a proxy-aware client IP.
+        "internal_admin": os.getenv("INTERNAL_ADMIN_THROTTLE_RATE", "120/min"),
+        "internal_admin_public": os.getenv("INTERNAL_ADMIN_PUBLIC_THROTTLE_RATE", "30/min"),
+    },
 }
 
 # Cookie flags (safe defaults; local dev unaffected when DEBUG=True)
@@ -261,6 +269,10 @@ COMPANION_LLM_API_KEY = env.str("COMPANION_LLM_API_KEY", default="")
 COMPANION_LLM_MODEL = env.str("COMPANION_LLM_MODEL", default="deepseek-chat")
 COMPANION_LLM_TIMEOUT_SECONDS = env.int("COMPANION_LLM_TIMEOUT_SECONDS", default=60)
 COMPANION_LLM_MAX_TOKENS = env.int("COMPANION_LLM_MAX_TOKENS", default=512)
+
+# Companion v2 global kill switch (control plane).
+# When disabled, Companion cannot propose or apply anything in any workspace.
+COMPANION_AI_GLOBAL_ENABLED = env.bool("COMPANION_AI_GLOBAL_ENABLED", default=True)
 
 # OpenAI API (for vision OCR with gpt-4o-mini, falls back when DeepSeek doesn't support vision)
 OPENAI_API_KEY = env.str("OPENAI_API_KEY", default="")

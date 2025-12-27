@@ -27,8 +27,6 @@ NEVER use DeepSeek for image/vision tasks.
 
 from __future__ import annotations
 
-from __future__ import annotations
-
 import json
 import logging
 import random
@@ -48,6 +46,8 @@ logger = logging.getLogger(__name__)
 # --- LLM client helpers ---
 
 def _is_llm_enabled() -> bool:
+    if bool(getattr(settings, "COMPANION_LLM_OFFLINE", False)):
+        return False
     return bool(
         getattr(settings, "COMPANION_LLM_ENABLED", False)
         and getattr(settings, "COMPANION_LLM_API_BASE", "")

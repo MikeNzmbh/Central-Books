@@ -1,4 +1,4 @@
-import { parseCookies } from "../utils/cookies";
+import { ensureCsrfToken } from "../utils/csrf";
 
 const BASE = "/api/companion/";
 
@@ -168,10 +168,8 @@ const apiFetch = async <T>(path: string, options: RequestOptions = {}): Promise<
     if (body !== undefined) {
       headers["Content-Type"] = "application/json";
     }
-    const csrf = parseCookies(document.cookie).csrftoken;
-    if (csrf) {
-      headers["X-CSRFToken"] = csrf;
-    }
+    const csrf = await ensureCsrfToken();
+    if (csrf) headers["X-CSRFToken"] = csrf;
   }
 
   const res = await fetch(`${BASE}${path}`, {

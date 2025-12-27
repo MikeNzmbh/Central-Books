@@ -1,7 +1,8 @@
 import React from "react";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
-import CompanionOverviewPage from "./CompanionOverviewPage";
+import { MemoryRouter } from "react-router-dom";
+import CompanionControlTowerPage from "./CompanionControlTowerPage";
 
 const summaryPayload = {
   ai_companion_enabled: true,
@@ -37,7 +38,7 @@ const summaryPayload = {
   },
 };
 
-describe("CompanionOverviewPage", () => {
+describe("CompanionControlTowerPage", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     globalThis.fetch = vi.fn(() => Promise.resolve(new Response(JSON.stringify(summaryPayload)))) as unknown as typeof fetch;
@@ -47,20 +48,27 @@ describe("CompanionOverviewPage", () => {
     vi.clearAllMocks();
   });
 
-  it("renders surface tiles and risk badges", async () => {
-    render(<CompanionOverviewPage />);
-    await waitFor(() => expect(screen.getByText(/Financial Overwatch/i)).toBeInTheDocument());
-    // Use getAllByText since Receipts appears in multiple places
+  it("renders control tower cards and surfaces", async () => {
+    render(
+      <MemoryRouter>
+        <CompanionControlTowerPage />
+      </MemoryRouter>
+    );
+    await waitFor(() => expect(screen.getByText(/Companion Control Tower/i)).toBeInTheDocument());
+    expect(screen.getByText(/Health Pulse/i)).toBeInTheDocument();
+    expect(screen.getByText(/Today's Focus/i)).toBeInTheDocument();
     expect(screen.getAllByText(/Receipts/i).length).toBeGreaterThan(0);
-    // Check for risk-related content
-    expect(screen.getByText(/Risk Assessment/i)).toBeInTheDocument();
   });
 
   it("shows disabled banner when ai_companion_enabled is false", async () => {
     (globalThis.fetch as any) = vi.fn(() =>
       Promise.resolve(new Response(JSON.stringify({ ...summaryPayload, ai_companion_enabled: false })))
     );
-    render(<CompanionOverviewPage />);
-    await waitFor(() => expect(screen.getByText(/AI Companion is disabled/i)).toBeInTheDocument());
+    render(
+      <MemoryRouter>
+        <CompanionControlTowerPage />
+      </MemoryRouter>
+    );
+    await waitFor(() => expect(screen.getByText(/Companion is disabled/i)).toBeInTheDocument());
   });
 });

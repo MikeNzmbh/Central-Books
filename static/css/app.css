@@ -8,8 +8,12 @@
   --card-bg: #ffffff;
   --accent: #0ea5e9;
   --accent-soft: #e0f2fe;
+  --accent-warm: #fb923c;
+  --accent-warm-strong: #f97316;
   --text-main: #0f172a;
   --text-muted: #6b7280;
+  --title-font: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco,
+    Consolas, "Liberation Mono", "Courier New", monospace;
   --radius-xl: 22px;
   --shadow-soft: 0 20px 40px rgba(15, 23, 42, 0.12);
   --shadow-card: 0 16px 30px rgba(15, 23, 42, 0.06);
@@ -103,6 +107,31 @@ body {
 body {
   background: radial-gradient(circle at top left, #ffffff, var(--bg));
   color: var(--text-main);
+}
+
+/* Titles: JetBrains Mono */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--title-font);
+  letter-spacing: -0.01em;
+}
+
+.mb-page-title,
+.mb-card-title {
+  font-family: var(--title-font);
+  letter-spacing: -0.01em;
+}
+
+/* Accent underline: grey + orange motif */
+.mb-accent-underline {
+  text-decoration-line: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.25em;
+  text-decoration-color: var(--accent-warm);
 }
 
 /* --- Shell --- */

@@ -35,7 +35,7 @@ describe("AuditLogSection", () => {
 
   it("shows level and category filters", async () => {
     render(<AuditLogSection />);
-    await waitFor(() => expect(screen.getByText(/All levels/i)).toBeInTheDocument());
-    expect(screen.getByPlaceholderText(/Category/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/All risks/i)).toBeInTheDocument());
+    expect(screen.getByPlaceholderText(/Search by actor, IP, action/i)).toBeInTheDocument();
   });
 });

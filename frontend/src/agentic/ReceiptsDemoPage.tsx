@@ -123,8 +123,8 @@ const TabButton: React.FC<{
 }> = ({ active, onClick, children }) => (
     <button
         onClick={onClick}
-        className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${active
-                ? 'bg-white text-slate-900 border-b-2 border-emerald-500'
+        className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors border-b-2 border-transparent ${active
+                ? 'bg-white text-slate-900 mb-accent-underline'
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
     >

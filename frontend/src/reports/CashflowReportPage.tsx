@@ -130,7 +130,9 @@ const CashflowReportPage: React.FC<CashflowReportProps> = ({
               Reports · Cashflow
             </p>
             <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
-              Morning, {username.split(" ")[0] || "there"}.
+              Morning, {username.split(" ")[0] || "there"}.<br className="hidden md:block" />
+              <span className="text-slate-400">Your cashflow is </span>
+              <span className="mb-accent-underline">{netCash >= 0 ? "healthy." : "under pressure."}</span>
             </h1>
             <p className="text-sm text-slate-500 max-w-xl">
               Cash moving in and out of your business. Trends, drivers, activities—everything you
@@ -174,24 +176,24 @@ const CashflowReportPage: React.FC<CashflowReportProps> = ({
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <div className="rounded-3xl bg-white shadow-sm border border-slate-100 px-4 py-4 flex flex-col gap-2">
             <p className="text-[11px] font-medium text-slate-500 uppercase">Net cash change</p>
-            <p className="text-xl font-semibold tracking-tight">{formatCurrency(netCash)}</p>
+            <p className="text-xl font-semibold tracking-tight font-mono-soft">{formatCurrency(netCash)}</p>
             <p className="text-[11px] text-slate-500">
               {netCash >= 0 ? "More coming in than going out" : "Outflows are ahead of inflows"}
             </p>
           </div>
           <div className="rounded-3xl bg-white shadow-sm border border-slate-100 px-4 py-4 flex flex-col gap-2">
             <p className="text-[11px] font-medium text-slate-500 uppercase">Total inflows</p>
-            <p className="text-xl font-semibold tracking-tight">{formatCurrency(totalInflows)}</p>
+            <p className="text-xl font-semibold tracking-tight font-mono-soft">{formatCurrency(totalInflows)}</p>
             <p className="text-[11px] text-slate-500">Customer payments, deposits, and receipts.</p>
           </div>
           <div className="rounded-3xl bg-white shadow-sm border border-slate-100 px-4 py-4 flex flex-col gap-2">
             <p className="text-[11px] font-medium text-slate-500 uppercase">Total outflows</p>
-            <p className="text-xl font-semibold tracking-tight">{formatCurrency(totalOutflows)}</p>
+            <p className="text-xl font-semibold tracking-tight font-mono-soft">{formatCurrency(totalOutflows)}</p>
             <p className="text-[11px] text-slate-500">Bills, payroll, subscriptions, and other spend.</p>
           </div>
           <div className="rounded-3xl bg-slate-900 text-slate-50 px-4 py-4 flex flex-col gap-2">
             <p className="text-[11px] font-medium text-slate-300 uppercase">Cash runway</p>
-            <p className="text-xl font-semibold tracking-tight">
+            <p className="text-xl font-semibold tracking-tight font-mono-soft">
               {summary.runwayLabel || "—"}
             </p>
             <p className="text-[11px] text-slate-300">
@@ -249,7 +251,7 @@ const CashflowReportPage: React.FC<CashflowReportProps> = ({
                       </div>
                       <p
                         className={
-                          "text-[11px] font-medium mt-2 " +
+                          "text-[11px] font-medium mt-2 font-mono-soft " +
                           (net >= 0 ? "text-emerald-600" : "text-rose-500")
                         }
                       >
@@ -296,7 +298,7 @@ const CashflowReportPage: React.FC<CashflowReportProps> = ({
                       <p className="text-[11px] text-slate-500 uppercase">{activity.label}</p>
                       <p
                         className={
-                          "text-[11px] font-semibold " +
+                          "text-[11px] font-semibold font-mono-soft " +
                           (positive ? "text-emerald-600" : "text-rose-500")
                         }
                       >
@@ -327,7 +329,7 @@ const CashflowReportPage: React.FC<CashflowReportProps> = ({
                       <span className="text-slate-500 truncate mr-2">{driver.label}</span>
                       <span
                         className={
-                          driver.amount >= 0 ? "text-emerald-600 font-medium" : "text-rose-500 font-medium"
+                          "font-mono-soft " + (driver.amount >= 0 ? "text-emerald-600 font-medium" : "text-rose-500 font-medium")
                         }
                       >
                         {formatCurrency(driver.amount)}
@@ -381,15 +383,15 @@ const CashflowReportPage: React.FC<CashflowReportProps> = ({
                         <td className="px-4 sm:px-6 py-2.5 text-slate-700 text-xs">
                           {point.periodLabel}
                         </td>
-                        <td className="px-4 sm:px-6 py-2.5 text-slate-700 text-xs">
+                        <td className="px-4 sm:px-6 py-2.5 text-slate-700 text-xs font-mono-soft">
                           {formatCurrency(point.inflows)}
                         </td>
-                        <td className="px-4 sm:px-6 py-2.5 text-slate-700 text-xs">
+                        <td className="px-4 sm:px-6 py-2.5 text-slate-700 text-xs font-mono-soft">
                           {formatCurrency(point.outflows)}
                         </td>
                         <td
                           className={
-                            "px-4 sm:px-6 py-2.5 text-xs font-medium " +
+                            "px-4 sm:px-6 py-2.5 text-xs font-medium font-mono-soft " +
                             (net >= 0 ? "text-emerald-600" : "text-rose-500")
                           }
                         >

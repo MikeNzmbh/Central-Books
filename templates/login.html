@@ -1,4 +1,4 @@
-{% load static %}
+{% load static mb_extras %}
 <!DOCTYPE html>
 <html lang="en">
 
@@ -6,8 +6,14 @@
   <meta charset="utf-8" />
   <title>Sign in · Clover Books</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
-  <link rel="stylesheet" href="{% static 'frontend/assets/index-R7LgR_Qn.css' %}">
+  {% vite_asset 'login' 'css' as login_css %}
+  {% if login_css %}
+  <link rel="stylesheet" href="{% static login_css %}">
+  {% endif %}
 </head>
 
 <body class="bg-slate-50 text-slate-900">
@@ -19,8 +25,16 @@
     <div class="text-slate-400 text-sm">Loading...</div>
   </div>
 
-  <!-- React bundle -->
-  <script type="module" src="{% static 'frontend/assets/login-Ciz_c_D2.js' %}"></script>
+  <!-- React bundle via vite_asset (dynamically resolved) -->
+  {% vite_asset 'login' as login_js %}
+  {% if login_js %}
+  <script type="module" src="{% static login_js %}"></script>
+  {% else %}
+  <!-- Fallback: Login assets not found, may need to rebuild -->
+  <script>
+    console.error('Login React bundle not found. Please run npm run build in frontend/');
+  </script>
+  {% endif %}
 
   <!-- Hide loading once React mounts -->
   <script>

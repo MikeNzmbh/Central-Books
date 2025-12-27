@@ -102,15 +102,15 @@ export default function TaxDocumentDrilldownCard(props: { documentType: "invoice
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div className="border border-slate-200 rounded-xl p-3 bg-white">
                 <div className="text-[11px] uppercase font-semibold text-slate-500">Net</div>
-                <div className="text-lg font-bold text-slate-900 tabular-nums">{formatMoney(data.totals.net_total, data.currency)}</div>
+                <div className="text-lg font-bold text-slate-900 font-mono-soft">{formatMoney(data.totals.net_total, data.currency)}</div>
               </div>
               <div className="border border-slate-200 rounded-xl p-3 bg-white">
                 <div className="text-[11px] uppercase font-semibold text-slate-500">Tax</div>
-                <div className="text-lg font-bold text-slate-900 tabular-nums">{formatMoney(data.totals.tax_total, data.currency)}</div>
+                <div className="text-lg font-bold text-slate-900 font-mono-soft">{formatMoney(data.totals.tax_total, data.currency)}</div>
               </div>
               <div className="border border-slate-200 rounded-xl p-3 bg-white">
                 <div className="text-[11px] uppercase font-semibold text-slate-500">Gross</div>
-                <div className="text-lg font-bold text-slate-900 tabular-nums">{formatMoney(data.totals.gross_total, data.currency)}</div>
+                <div className="text-lg font-bold text-slate-900 font-mono-soft">{formatMoney(data.totals.gross_total, data.currency)}</div>
               </div>
             </div>
 
@@ -129,8 +129,8 @@ export default function TaxDocumentDrilldownCard(props: { documentType: "invoice
                     {(data.breakdown.by_jurisdiction || []).map((row) => (
                       <tr key={row.jurisdiction_code} className="border-b border-slate-50">
                         <td className="px-3 py-2 font-semibold text-slate-800">{row.jurisdiction_code || "—"}</td>
-                        <td className="px-3 py-2 text-right tabular-nums text-slate-700">{formatMoney(row.taxable_base, data.currency)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums text-slate-700">{formatMoney(row.tax_total, data.currency)}</td>
+                        <td className="px-3 py-2 text-right font-mono-soft text-slate-700">{formatMoney(row.taxable_base, data.currency)}</td>
+                        <td className="px-3 py-2 text-right font-mono-soft text-slate-700">{formatMoney(row.tax_total, data.currency)}</td>
                       </tr>
                     ))}
                     {(data.breakdown.by_jurisdiction || []).length === 0 && (
@@ -166,7 +166,7 @@ export default function TaxDocumentDrilldownCard(props: { documentType: "invoice
                           </div>
                         )}
                       </div>
-                      <div className="text-sm font-semibold text-slate-900 tabular-nums">{formatMoney(line.net_amount, data.currency)}</div>
+                      <div className="text-sm font-semibold text-slate-900 font-mono-soft">{formatMoney(line.net_amount, data.currency)}</div>
                     </div>
 
                     <div className="mt-3 overflow-x-auto">
@@ -185,13 +185,12 @@ export default function TaxDocumentDrilldownCard(props: { documentType: "invoice
                             <tr key={`${line.line_id}-${idx}`} className="border-b border-slate-50">
                               <td className="py-1 text-slate-800">{td.tax_component_name || "—"}</td>
                               <td className="py-1 text-slate-700">{td.jurisdiction_code || "—"}</td>
-                              <td className="py-1 text-right tabular-nums text-slate-600">{td.rate ?? "—"}</td>
-                              <td className="py-1 text-right tabular-nums text-slate-700">{formatMoney(td.tax_amount, data.currency)}</td>
+                              <td className="py-1 text-right font-mono-soft text-slate-600">{td.rate ?? "—"}</td>
+                              <td className="py-1 text-right font-mono-soft text-slate-700">{formatMoney(td.tax_amount, data.currency)}</td>
                               <td className="py-1 text-right">
                                 <span
-                                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ${
-                                    td.is_recoverable ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-slate-100 text-slate-700 border-slate-200"
-                                  }`}
+                                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ${td.is_recoverable ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-slate-100 text-slate-700 border-slate-200"
+                                    }`}
                                 >
                                   {td.is_recoverable ? "Yes" : "No"}
                                 </span>

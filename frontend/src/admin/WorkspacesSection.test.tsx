@@ -28,9 +28,9 @@ vi.mock("./api", () => {
 
 describe("WorkspacesSection", () => {
   it("renders workspaces table", async () => {
-    render(<WorkspacesSection />);
+    render(<WorkspacesSection roleLevel={2} />);
     await waitFor(() => expect(screen.getAllByText(/Clover Books Labs Inc./i).length).toBeGreaterThan(0));
-    expect(screen.getAllByRole("columnheader", { name: /Owner/i }).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("columnheader", { name: /Plan/i }).length).toBeGreaterThan(0);
+    expect(screen.getByText("Workspace")).toBeInTheDocument();
+    expect(screen.getByText("Plan")).toBeInTheDocument();
   });
 });

@@ -6,6 +6,7 @@ from django.http import JsonResponse, HttpResponseBadRequest
 
 from .models import Business
 from .utils import get_current_business
+from .permissions import has_permission
 
 
 def _serialize_settings(business: Business) -> dict:
@@ -43,12 +44,18 @@ def api_tax_settings(request):
     business = get_current_business(request.user)
     if not business:
         return JsonResponse({"error": "No business context"}, status=400)
-
+    
+    # GET requires view permission, PATCH requires manage permission
     if request.method == "GET":
+        if not has_permission(request.user, business, "tax.view_periods"):
+            return JsonResponse({"error": "Permission denied"}, status=403)
         return JsonResponse(_serialize_settings(business))
 
     if request.method != "PATCH":
         return HttpResponseBadRequest("PATCH required")
+    
+    if not has_permission(request.user, business, "tax.settings.manage"):
+        return JsonResponse({"error": "Permission denied"}, status=403)
 
     try:
         payload = json.loads(request.body or "{}")

@@ -203,7 +203,7 @@ export default function ProductsPage() {
               Active Items
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-bold text-slate-900 tabular-nums tracking-tight">
+              <span className="text-3xl font-bold text-slate-900 font-mono-soft tracking-tight">
                 {stats.activeCount}
               </span>
             </div>
@@ -216,7 +216,7 @@ export default function ProductsPage() {
               Avg. Price
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-bold text-slate-900 tabular-nums tracking-tight">
+              <span className="text-3xl font-bold text-slate-900 font-mono-soft tracking-tight">
                 {formatMoney(stats.avgPrice, currency)}
               </span>
             </div>
@@ -227,7 +227,7 @@ export default function ProductsPage() {
               Services
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-bold text-slate-900 tabular-nums tracking-tight">
+              <span className="text-3xl font-bold text-slate-900 font-mono-soft tracking-tight">
                 {stats.serviceCount}
               </span>
             </div>
@@ -260,8 +260,8 @@ export default function ProductsPage() {
                     type="button"
                     onClick={() => setActiveKind(kind)}
                     className={`rounded-lg px-4 py-1.5 text-xs font-semibold capitalize transition-all ${activeKind === kind
-                        ? "bg-white text-slate-900 shadow-sm ring-1 ring-black/5"
-                        : "text-slate-500 hover:text-slate-700 hover:bg-slate-100/50"
+                      ? "bg-white text-slate-900 shadow-sm ring-1 ring-black/5"
+                      : "text-slate-500 hover:text-slate-700 hover:bg-slate-100/50"
                       }`}
                   >
                     {kind === "all" ? "All Items" : `${kind}s`}
@@ -278,8 +278,8 @@ export default function ProductsPage() {
                         key={s}
                         onClick={() => setStatusFilter(s === statusFilter ? "all" : s)}
                         className={`rounded-lg px-2.5 py-1 capitalize transition-colors ${statusFilter === s
-                            ? "bg-slate-100 text-slate-900 font-medium"
-                            : "text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+                          ? "bg-slate-100 text-slate-900 font-medium"
+                          : "text-slate-500 hover:bg-slate-50 hover:text-slate-700"
                           }`}
                       >
                         {s}
@@ -338,8 +338,8 @@ export default function ProductsPage() {
                       type="button"
                       onClick={() => setSelectedId(item.id)}
                       className={`flex w-full flex-col gap-4 px-6 py-5 text-left transition-all md:grid md:grid-cols-[minmax(0,2.5fr)_minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,0.8fr)] md:items-center md:gap-6 ${isSelected
-                          ? "bg-slate-50 relative z-10 ring-1 ring-inset ring-slate-200"
-                          : "hover:bg-slate-50/60"
+                        ? "bg-slate-50 relative z-10 ring-1 ring-inset ring-slate-200"
+                        : "hover:bg-slate-50/60"
                         }`}
                     >
                       {/* Item Details */}
@@ -383,7 +383,7 @@ export default function ProductsPage() {
 
                       {/* Price */}
                       <div className="flex items-center justify-end md:block md:text-right">
-                        <div className="text-sm font-bold text-slate-900 tabular-nums">
+                        <div className="text-sm font-bold text-slate-900 font-mono-soft">
                           {formatMoney(item.price, currency)}
                         </div>
                         {item.unitLabel && (
@@ -395,7 +395,7 @@ export default function ProductsPage() {
 
                       {/* Usage */}
                       <div className="flex items-center justify-end pr-2 md:block md:text-right">
-                        <span className="text-xs font-semibold text-slate-700 tabular-nums">
+                        <span className="text-xs font-semibold text-slate-700 font-mono-soft">
                           {item.usageCount || 0}
                         </span>
                         <div className="text-[10px] font-medium text-slate-400">uses</div>
@@ -452,7 +452,7 @@ export default function ProductsPage() {
                     <div className="grid grid-cols-2 gap-4 py-4 border-y border-slate-50">
                       <div>
                         <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Pricing</div>
-                        <div className="mt-1 text-base font-bold text-slate-900">
+                        <div className="mt-1 text-base font-bold text-slate-900 font-mono-soft">
                           {formatMoney(selected.price, currency)}
                         </div>
                       </div>

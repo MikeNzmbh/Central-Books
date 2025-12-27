@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { parseCookies } from "../utils/cookies";
+import { ensureCsrfToken, getCsrfToken } from "../utils/csrf";
 
 export type Severity = "high" | "medium" | "low";
 export type Status = "OPEN" | "ACKNOWLEDGED" | "RESOLVED" | "IGNORED";
@@ -111,11 +111,6 @@ export function useTaxGuardian(initialPeriodKey?: string, initialSeverity?: Seve
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const getCsrfToken = useCallback((): string | undefined => {
-    const cookies = parseCookies(document.cookie || "");
-    return cookies.csrftoken;
-  }, []);
-
   const apiFetch = useCallback(
     async (input: RequestInfo | URL, init: RequestInit = {}) => {
       const method = (init.method || "GET").toUpperCase();
@@ -124,7 +119,7 @@ export function useTaxGuardian(initialPeriodKey?: string, initialSeverity?: Seve
         ...(init.headers as Record<string, string> | undefined),
       };
       if (method !== "GET") {
-        const csrf = getCsrfToken();
+        const csrf = (getCsrfToken() || (await ensureCsrfToken())) || "";
         if (csrf) headers["X-CSRFToken"] = csrf;
         if (init.body !== undefined && !headers["Content-Type"]) {
           headers["Content-Type"] = "application/json";
@@ -137,7 +132,7 @@ export function useTaxGuardian(initialPeriodKey?: string, initialSeverity?: Seve
       });
       return res;
     },
-    [getCsrfToken]
+    []
   );
 
   const fetchPeriods = useCallback(async () => {

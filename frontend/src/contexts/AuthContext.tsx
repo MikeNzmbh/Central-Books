@@ -3,10 +3,14 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { parseCookies } from "../utils/cookies";
+import { ensureCsrfToken } from "../utils/csrf";
 
 export interface InternalAdmin {
   role: string;
   canAccessInternalAdmin: boolean;
+  adminPanelAccess?: boolean;
+  canManageAdminUsers?: boolean;
+  canGrantSuperadmin?: boolean;
 }
 
 // RBAC v1: Workspace membership with role and permissions
@@ -67,10 +71,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     Boolean(
       user &&
       (user.internalAdmin?.canAccessInternalAdmin ||
-        (user.isStaff ?? user.is_staff) ||
         (user.isSuperuser ?? user.is_superuser) ||
-        user.role === "admin" ||
-        user.role === "staff" ||
         user.role === "superadmin")
     );
 
@@ -113,7 +114,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const cookies = parseCookies(document.cookie || "");
       const csrfToken =
-        cookies.csrftoken || document.querySelector<HTMLInputElement>("[name=csrfmiddlewaretoken]")?.value;
+        cookies.csrftoken ||
+        document.querySelector<HTMLInputElement>("[name=csrfmiddlewaretoken]")?.value ||
+        (await ensureCsrfToken());
       const headers: Record<string, string> = {};
       if (csrfToken) {
         headers["X-CSRFToken"] = csrfToken;
@@ -152,6 +155,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
+    ensureCsrfToken().catch(() => undefined);
     fetchCurrentUser();
   }, []);
 

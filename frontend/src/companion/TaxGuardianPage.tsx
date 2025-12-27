@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { useTaxGuardian, type Severity, type Status, type TaxAnomaly, type PaymentStatus, type TaxPayment, type TaxPaymentKind } from "./useTaxGuardian";
 import { useAuth } from "../contexts/AuthContext";
+import { usePermissions } from "../hooks/usePermissions";
 
 // -----------------------------------------------------------------------------
 // Helpers
@@ -156,7 +157,7 @@ const DashboardCompanionPanel: React.FC<{
   userName?: string;
 }> = ({ summary, isEnriching, onEnrich, userName }) => {
   return (
-    <div className="relative overflow-hidden rounded-[2rem] border border-white/60 bg-gradient-to-br from-white via-slate-50 to-slate-100 p-8 shadow-sm ring-1 ring-black/5">
+    <div className="relative overflow-hidden rounded-[2rem] border border-white/60 bg-gradient-to-br from-white via-slate-50 to-slate-100 p-8 shadow-sm ring-1 ring-black/5 font-sans">
       {/* Glass decorative blob */}
       <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-blue-50/50 blur-3xl pointer-events-none" />
 
@@ -256,7 +257,7 @@ function MetricCard({
         {badge}
       </div>
       <div className="mt-2 flex items-baseline gap-2 min-w-0">
-        <span className="text-3xl font-bold tracking-tight text-slate-900 truncate">{value}</span>
+        <span className="text-3xl font-bold tracking-tight text-slate-900 truncate font-mono-soft">{value}</span>
       </div>
       {subtext && (
         <div className={classNames("mt-2 text-xs font-medium",
@@ -276,6 +277,7 @@ function MetricCard({
 const TaxGuardianPage: React.FC = () => {
   const queryParams = useQueryParams();
   const { auth } = useAuth();
+  const { can } = usePermissions();
   const userName = auth?.user?.firstName || auth?.user?.username || "there";
   const navigate = useNavigate();
   const location = useLocation();
@@ -566,7 +568,7 @@ const TaxGuardianPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#F9FAFB] font-sans selection:bg-emerald-100 selection:text-emerald-900">
+    <div className="min-h-screen bg-[#F9FAFB] font-mono-soft selection:bg-emerald-100 selection:text-emerald-900">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       {resetOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4">
@@ -633,17 +635,14 @@ const TaxGuardianPage: React.FC = () => {
             <h1 className="text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">
               {getGreeting()}, {userName}. <br className="hidden md:block" />
               <span className="text-slate-400">Your tax position is </span>
-              <span className={classNames(
-                "underline decoration-2 underline-offset-4",
-                snapshot?.status === "FILED" ? "decoration-emerald-400 text-slate-900" : "decoration-amber-400 text-slate-900"
-              )}>
+              <span className={classNames("mb-accent-underline text-slate-900")}>
                 {snapshot?.status === "DRAFT" ? "in draft" : (snapshot?.status || "pending").toLowerCase()}.
               </span>
             </h1>
           </div>
 
           <div className="flex items-center gap-3">
-            {selectedPeriod && snapshot && (
+            {selectedPeriod && snapshot && can("tax.guardian.export") && (
               <div className="relative group">
                 <button className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50">
                   <Download className="h-3.5 w-3.5" />
@@ -691,7 +690,7 @@ const TaxGuardianPage: React.FC = () => {
             >
               Tax Settings
             </Link>
-            {auth?.isAdmin && (
+            {can("tax.catalog.view") && (
               <Link
                 to="/tax/catalog"
                 className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
@@ -785,7 +784,7 @@ const TaxGuardianPage: React.FC = () => {
                       <span className="text-xs font-bold text-slate-700">{p.period_key}</span>
                       <DeltaIcon className="h-4 w-4 text-slate-400" />
                     </div>
-                    <div className="mt-2 text-sm font-semibold text-slate-900 tabular-nums">
+                    <div className="mt-2 text-sm font-semibold text-slate-900 font-mono-soft">
                       {formatCurrency(p.net_tax || 0, currency)}
                     </div>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -852,7 +851,7 @@ const TaxGuardianPage: React.FC = () => {
                       className={classNames(
                         "rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize transition-all",
                         severityFilter === sev
-                          ? "bg-slate-900 text-white"
+                          ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200 mb-accent-underline"
                           : "bg-slate-100 text-slate-500 hover:bg-slate-200"
                       )}
                     >
@@ -874,7 +873,7 @@ const TaxGuardianPage: React.FC = () => {
                       className={classNames(
                         "rounded-full px-2 py-0.5 text-[10px] font-semibold transition-all",
                         statusFilter === st
-                          ? "bg-slate-900 text-white"
+                          ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200 mb-accent-underline"
                           : "bg-slate-100 text-slate-500 hover:bg-slate-200"
                       )}
                     >
@@ -947,9 +946,9 @@ const TaxGuardianPage: React.FC = () => {
                               {code}
                             </div>
                           </td>
-                          <td className="py-3 text-right text-slate-600 tabular-nums">{formatCurrency(data.taxable_sales, data.currency || currency)}</td>
-                          <td className="py-3 text-right text-slate-600 tabular-nums">{formatCurrency(data.tax_collected, data.currency || currency)}</td>
-                          <td className="py-3 pr-2 text-right font-bold text-slate-900 tabular-nums">{formatCurrency(data.net_tax, data.currency || currency)}</td>
+                          <td className="py-3 text-right text-slate-600 font-mono-soft">{formatCurrency(data.taxable_sales, data.currency || currency)}</td>
+                          <td className="py-3 text-right text-slate-600 font-mono-soft">{formatCurrency(data.tax_collected, data.currency || currency)}</td>
+                          <td className="py-3 pr-2 text-right font-bold text-slate-900 font-mono-soft">{formatCurrency(data.net_tax, data.currency || currency)}</td>
                         </tr>
                       ))}
                       {(!snapshot?.summary_by_jurisdiction || Object.keys(snapshot.summary_by_jurisdiction).length === 0) && (
@@ -978,19 +977,19 @@ const TaxGuardianPage: React.FC = () => {
                       {paymentStatusLabel(paymentStatus)}
                     </span>
                     {paymentsPaymentTotal > 0 && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200 tabular-nums">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200 font-mono-soft">
                         <TrendingUp className="h-3 w-3" />
                         Paid {formatCurrency(paymentsPaymentTotal, currency)}
                       </span>
                     )}
                     {paymentsRefundTotal > 0 && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-[10px] font-bold text-blue-700 ring-1 ring-blue-200 tabular-nums">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-[10px] font-bold text-blue-700 ring-1 ring-blue-200 font-mono-soft">
                         <ArrowDownRight className="h-3 w-3" />
                         Refunds {formatCurrency(paymentsRefundTotal, currency)}
                       </span>
                     )}
                     <span className={classNames(
-                      "rounded-full px-2 py-1 text-[10px] font-bold ring-1 tabular-nums",
+                      "rounded-full px-2 py-1 text-[10px] font-bold ring-1 font-mono-soft",
                       balance > 0.02 ? "bg-amber-50 text-amber-700 ring-amber-200" :
                         balance < -0.02 ? "bg-blue-50 text-blue-700 ring-blue-200" :
                           "bg-slate-100 text-slate-700 ring-slate-200"
@@ -1019,7 +1018,7 @@ const TaxGuardianPage: React.FC = () => {
                     <tbody className="divide-y divide-slate-50">
                       {payments.map((p) => (
                         <tr key={p.id} className="group hover:bg-slate-50">
-                          <td className="py-3 pl-2 font-semibold text-slate-900 tabular-nums">
+                          <td className="py-3 pl-2 font-semibold text-slate-900 font-mono-soft">
                             {p.payment_date ? new Date(p.payment_date).toLocaleDateString() : "—"}
                           </td>
                           <td className="py-3">
@@ -1035,7 +1034,7 @@ const TaxGuardianPage: React.FC = () => {
                           <td className="py-3 text-slate-600 max-w-[220px] truncate" title={p.bank_account_label || ""}>
                             {p.bank_account_label || "—"}
                           </td>
-                          <td className="py-3 text-right font-bold text-slate-900 tabular-nums">
+                          <td className="py-3 text-right font-bold text-slate-900 font-mono-soft">
                             {formatCurrency(p.amount, p.currency || currency)}
                           </td>
                           <td className="py-3 text-slate-600">{p.method || "—"}</td>

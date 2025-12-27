@@ -2019,6 +2019,7 @@ class WorkspaceMembership(models.Model):
         VIEW_ONLY = "VIEW_ONLY", "View Only"
         EXTERNAL_ACCOUNTANT = "EXTERNAL_ACCOUNTANT", "External Accountant"
         AUDITOR = "AUDITOR", "Auditor"
+        JUNIOR_ACCOUNTANT_BOT = "JUNIOR_ACCOUNTANT_BOT", "Junior Accountant Bot"
     
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,

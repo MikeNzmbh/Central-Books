@@ -1,5 +1,4 @@
 import React, { useMemo, useState, useEffect } from "react";
-import CompanionStrip from "../companion/CompanionStrip";
 import {
   Users,
   Plus,
@@ -705,17 +704,18 @@ const CustomersPage: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50/80 px-4 py-6 sm:px-6 lg:px-10">
       <div className="mx-auto flex max-w-6xl flex-col gap-5">
 
-        {/* Page header - Modern DirectoryPage style */}
-        <header className="mb-10 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-xs font-medium text-slate-400">
-              <span>Directory</span>
-              <span className="text-slate-300">/</span>
-              <span className="text-slate-600">Customers</span>
-            </div>
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">
+        {/* Page header */}
+        <header className="mb-6 flex flex-col gap-4 md:mb-8 md:flex-row md:items-center md:justify-between">
+          <div className="space-y-1">
+            <p className="text-xs font-medium uppercase tracking-[0.2em] text-slate-400">
               Customers
+            </p>
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-900 md:text-3xl">
+              Build lasting relationships.
             </h1>
+            <p className="text-sm text-slate-500">
+              Manage contacts, track invoices, and monitor open balances.
+            </p>
           </div>
 
           <div className="flex items-center gap-3">
@@ -734,39 +734,31 @@ const CustomersPage: React.FC = () => {
         </header>
 
         <div className="flex flex-col gap-8">
-          {/* Top Section: Companion + Metrics */}
+          {/* Top Section: Metrics */}
           <div className="grid gap-6 lg:grid-cols-3">
-            <div className="lg:col-span-2">
-              <CompanionStrip context="invoices" />
+            {/* Primary Metric */}
+            <div className="flex flex-col rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-100 transition-all hover:shadow-md">
+              <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                Open Receivables
+              </span>
+              <span className="mt-3 text-3xl font-bold tracking-tight text-slate-900 font-mono-soft">
+                {formatCurrency(summary.totalOpen, currency)}
+              </span>
+              <span className="mt-2 text-xs font-medium text-emerald-600 flex items-center gap-1">
+                <TrendingUp className="h-3 w-3" /> Live from ledger
+              </span>
             </div>
-            <div className="flex flex-col justify-between gap-4">
-              {/* Primary Metric */}
-              <div className="flex flex-col rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-100 transition-all hover:shadow-md">
-                <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
-                  Open Receivables
-                </span>
-                <span className="mt-3 text-3xl font-bold tracking-tight text-slate-900">
-                  {formatCurrency(summary.totalOpen, currency)}
-                </span>
-                <span className="mt-2 text-xs font-medium text-emerald-600 flex items-center gap-1">
-                  <TrendingUp className="h-3 w-3" /> Live from ledger
-                </span>
-              </div>
-              {/* Secondary Metrics */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="flex flex-col rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-100 transition-all hover:shadow-md min-w-0">
-                  <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Revenue</span>
-                  <span className="mt-3 text-xl font-bold tracking-tight text-slate-900 truncate">
-                    {formatCurrency(data?.stats?.total_ytd || 0, currency).split('.')[0]}
-                  </span>
-                  <span className="mt-1 text-[10px] text-slate-400">YTD Volume</span>
-                </div>
-                <div className="flex flex-col rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-100 transition-all hover:shadow-md">
-                  <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Active</span>
-                  <span className="mt-3 text-2xl font-bold tracking-tight text-slate-900">{summary.total - summary.inactiveCount}</span>
-                  <span className="mt-1 text-[10px] text-slate-400">Relationships</span>
-                </div>
-              </div>
+            <div className="flex flex-col rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-100 transition-all hover:shadow-md">
+              <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Revenue</span>
+              <span className="mt-3 text-xl font-bold tracking-tight text-slate-900 font-mono-soft">
+                {formatCurrency(data?.stats?.total_ytd || 0, currency).split('.')[0]}
+              </span>
+              <span className="mt-1 text-[10px] text-slate-400">YTD Volume</span>
+            </div>
+            <div className="flex flex-col rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-100 transition-all hover:shadow-md">
+              <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Active</span>
+              <span className="mt-3 text-2xl font-bold tracking-tight text-slate-900 font-mono-soft">{summary.total - summary.inactiveCount}</span>
+              <span className="mt-1 text-[10px] text-slate-400">Relationships</span>
             </div>
           </div>
 
@@ -810,7 +802,7 @@ const CustomersPage: React.FC = () => {
                       key={tab.id}
                       onClick={() => setFilterTab(tab.id)}
                       className={`inline-flex items-center rounded-full px-3 py-1 transition-all ${filterTab === tab.id
-                        ? "bg-slate-900 text-white shadow-sm"
+                        ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200 mb-accent-underline"
                         : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                         }`}
                     >
@@ -1156,7 +1148,7 @@ const CustomersPage: React.FC = () => {
                                 </div>
                               </div>
                               <div className="text-right">
-                                <div className="text-sm font-bold text-slate-900 tabular-nums">
+                                <div className="text-sm font-bold text-slate-900 font-mono-soft">
                                   {formatCurrency(inv.grand_total || inv.net_total || 0, currency)}
                                 </div>
                                 <div className={`text-[10px] font-medium ${inv.status === 'PAID' ? 'text-emerald-600' :
@@ -1269,10 +1261,10 @@ const CustomersPage: React.FC = () => {
                                     </div>
                                   </div>
                                   <div className="text-right shrink-0">
-                                    <div className="text-sm font-bold text-slate-900 tabular-nums">
+                                    <div className="text-sm font-bold text-slate-900 font-mono-soft">
                                       {formatCurrency(m.grand_total, currency)}
                                     </div>
-                                    <div className="text-[11px] text-slate-500 tabular-nums">
+                                    <div className="text-[11px] text-slate-500 font-mono-soft">
                                       Available {formatCurrency(m.available_amount, currency)}
                                     </div>
                                   </div>
@@ -1312,10 +1304,10 @@ const CustomersPage: React.FC = () => {
                                     <div className="text-[11px] text-slate-400 truncate">Status: {d.status}</div>
                                   </div>
                                   <div className="text-right shrink-0">
-                                    <div className="text-sm font-bold text-slate-900 tabular-nums">
+                                    <div className="text-sm font-bold text-slate-900 font-mono-soft">
                                       {formatCurrency(d.amount, currency)}
                                     </div>
-                                    <div className="text-[11px] text-slate-500 tabular-nums">
+                                    <div className="text-[11px] text-slate-500 font-mono-soft">
                                       Available {formatCurrency(d.available_amount, currency)}
                                     </div>
                                   </div>
@@ -1353,7 +1345,7 @@ const CustomersPage: React.FC = () => {
                                   <div className="text-[11px] text-slate-400 truncate">Status: {r.status}</div>
                                 </div>
                                 <div className="text-right shrink-0">
-                                  <div className="text-sm font-bold text-slate-900 tabular-nums">
+                                  <div className="text-sm font-bold text-slate-900 font-mono-soft">
                                     {formatCurrency(r.amount, currency)}
                                   </div>
                                   <div className="text-[11px] text-slate-500">

@@ -4,7 +4,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model, login, logout
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, HttpResponseForbidden
-from django.shortcuts import redirect
+from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
@@ -21,7 +21,7 @@ AUTH_BACKEND = (
 
 
 @login_required
-@require_http_methods(["GET"])
+@require_http_methods(["GET", "POST"])
 def accept_impersonation(request, token):
     try:
         impersonation = ImpersonationToken.objects.select_related("admin", "target_user").get(pk=token)
@@ -41,11 +41,24 @@ def accept_impersonation(request, token):
     target_user = impersonation.target_user
     admin_user = impersonation.admin
 
+    if request.method == "GET":
+        target_label = target_user.email or target_user.get_username()
+        return render(
+            request,
+            "internal_admin/impersonation_accept.html",
+            {
+                "target_label": target_label,
+                "expires_at": impersonation.expires_at,
+                "reason": impersonation.reason,
+            },
+        )
+
     log_admin_action(
         request,
         "impersonation.accepted",
         obj=target_user,
-        extra={"token_id": str(impersonation.id)},
+        extra={"token_id": str(impersonation.id), "reason": impersonation.reason},
+        category="security",
     )
 
     login(request, target_user, backend=AUTH_BACKEND)
@@ -61,11 +74,16 @@ def accept_impersonation(request, token):
 
 
 @login_required
-@require_http_methods(["GET"])
+@require_http_methods(["GET", "POST"])
 def stop_impersonation(request):
     impersonator_user_id = request.session.get("impersonator_user_id")
     impersonated_user_id = request.session.get("impersonated_user_id")
     is_impersonating = request.session.get("is_impersonating")
+
+    if request.method == "GET":
+        if not impersonator_user_id or not is_impersonating:
+            return redirect(reverse("admin_spa"))
+        return render(request, "internal_admin/impersonation_stop.html")
 
     if not impersonator_user_id or not is_impersonating:
         return redirect(reverse("admin_spa"))
@@ -89,5 +107,6 @@ def stop_impersonation(request):
             "impersonated_user_id": impersonated_user_id,
             "restored_admin_id": admin_user.id,
         },
+        category="security",
     )
     return redirect(reverse("admin_spa"))

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import CompanionStrip from "../companion/CompanionStrip";
 import {
   Plus,
   Search,
@@ -224,37 +223,30 @@ export const SuppliersPage: React.FC = () => {
         </header>
 
         <div className="flex flex-col gap-8">
-          {/* Top Section: Companion + Metrics */}
+          {/* Top Section: Metrics */}
           <div className="grid gap-6 lg:grid-cols-3">
-            <div className="lg:col-span-2">
-              <CompanionStrip context="expenses" />
+            <div className="flex flex-col rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-100 transition-all hover:shadow-md">
+              <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                Open Payables
+              </span>
+              <span className="mt-3 text-3xl font-bold tracking-tight text-slate-900 font-mono-soft">
+                {formatCurrency(stats?.ytd_spend || 0, currency)}
+              </span>
+              <span className="mt-2 text-xs font-medium text-emerald-600 flex items-center gap-1">
+                <TrendingUp className="h-3 w-3" /> Live from ledger
+              </span>
             </div>
-            <div className="flex flex-col justify-between gap-4">
-              <div className="flex flex-col rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-100 transition-all hover:shadow-md">
-                <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
-                  Open Payables
-                </span>
-                <span className="mt-3 text-3xl font-bold tracking-tight text-slate-900">
-                  {formatCurrency(stats?.ytd_spend || 0, currency)}
-                </span>
-                <span className="mt-2 text-xs font-medium text-emerald-600 flex items-center gap-1">
-                  <TrendingUp className="h-3 w-3" /> Live from ledger
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="flex flex-col rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-100 transition-all hover:shadow-md min-w-0">
-                  <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Spend</span>
-                  <span className="mt-3 text-xl font-bold tracking-tight text-slate-900 truncate">
-                    {formatCurrency(stats?.total_spend || 0, currency).split('.')[0]}
-                  </span>
-                  <span className="mt-1 text-[10px] text-slate-400">YTD Volume</span>
-                </div>
-                <div className="flex flex-col rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-100 transition-all hover:shadow-md">
-                  <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Active</span>
-                  <span className="mt-3 text-2xl font-bold tracking-tight text-slate-900">{summary.activeCount}</span>
-                  <span className="mt-1 text-[10px] text-slate-400">Relationships</span>
-                </div>
-              </div>
+            <div className="flex flex-col rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-100 transition-all hover:shadow-md">
+              <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Spend</span>
+              <span className="mt-3 text-xl font-bold tracking-tight text-slate-900 font-mono-soft">
+                {formatCurrency(stats?.total_spend || 0, currency).split('.')[0]}
+              </span>
+              <span className="mt-1 text-[10px] text-slate-400">YTD Volume</span>
+            </div>
+            <div className="flex flex-col rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-slate-100 transition-all hover:shadow-md">
+              <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Active</span>
+              <span className="mt-3 text-2xl font-bold tracking-tight text-slate-900 font-mono-soft">{summary.activeCount}</span>
+              <span className="mt-1 text-[10px] text-slate-400">Relationships</span>
             </div>
           </div>
 
@@ -295,7 +287,7 @@ export const SuppliersPage: React.FC = () => {
                       className={classNames(
                         "inline-flex items-center rounded-full px-3 py-1 transition-all",
                         filterTab === tab.id
-                          ? "bg-slate-900 text-white shadow-sm"
+                          ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200 mb-accent-underline"
                           : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                       )}
                     >
@@ -534,7 +526,7 @@ export const SuppliersPage: React.FC = () => {
                                 </div>
                               </div>
                               <div className="text-right">
-                                <div className="text-sm font-bold text-slate-900 tabular-nums">
+                                <div className="text-sm font-bold text-slate-900 font-mono-soft">
                                   {formatCurrency(exp.total || exp.net_total || 0, currency)}
                                 </div>
                               </div>
