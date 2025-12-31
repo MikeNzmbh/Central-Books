@@ -53,7 +53,7 @@ def _get_list_env(name: str) -> list[str]:
 DEBUG = _get_bool_env("DJANGO_DEBUG", _get_bool_env("DEBUG", True))
 SHOW_LOGIN_FALLBACK = os.getenv("SHOW_LOGIN_FALLBACK", "true").lower() == "true"
 ENABLE_DJANGO_ADMIN = _get_bool_env("ENABLE_DJANGO_ADMIN", DEBUG)
-API_ONLY_MODE = _get_bool_env("API_ONLY_MODE", True)
+API_ONLY_MODE = _get_bool_env("API_ONLY_MODE", False)
 
 # ALLOWED_HOSTS / CSRF_TRUSTED_ORIGINS (Render + env overrides)
 RENDER_EXTERNAL_HOSTNAME = os.environ.get("RENDER_EXTERNAL_HOSTNAME")
@@ -141,6 +141,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "channels",
     
     # Third-party
     "rest_framework",
@@ -202,6 +203,13 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "minibooks_project.wsgi.application"
+ASGI_APPLICATION = "minibooks_project.asgi.application"
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer",
+    },
+}
 
 default_db = "sqlite:///" + str((BASE_DIR / "db.sqlite3").resolve())
 database_url = os.getenv("DATABASE_URL", default_db)

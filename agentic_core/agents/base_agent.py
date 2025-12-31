@@ -29,6 +29,7 @@ from datetime import datetime
 from typing import Any, Callable, Optional, TypeVar
 
 from agentic_core.models.base import AgentTrace, LLMCallMetadata
+from agentic.memory.vector_store import VectorStore
 
 T = TypeVar("T")
 
@@ -64,6 +65,7 @@ class BaseAgent(ABC):
         llm_client: Optional[Any] = None,
         default_model: str = "gpt-4",
         max_retries: int = 3,
+        memory_store: Optional[VectorStore] = None,
     ):
         """
         Initialize the base agent.
@@ -72,10 +74,12 @@ class BaseAgent(ABC):
             llm_client: Optional OpenAI-compatible client for LLM calls.
             default_model: Default model to use.
             max_retries: Maximum retries for failed API calls.
+            memory_store: Optional vector memory store for persistence.
         """
         self.llm_client = llm_client
         self.default_model = default_model
         self.max_retries = max_retries
+        self.memory_store = memory_store or VectorStore()
         self.trace: Optional[AgentTrace] = None
         self.tools: dict[str, Callable[..., Any]] = {}
 
@@ -317,6 +321,70 @@ class BaseAgent(ABC):
         """
         if self.trace:
             self.trace.add_step(description)
+            
+        # Real-time streaming if channels is available
+        try:
+            import asyncio
+            from asgiref.sync import async_to_sync
+            from channels.layers import get_channel_layer
+            
+            channel_layer = get_channel_layer()
+            if channel_layer and self.trace:
+                group_name = f'trace_{self.trace.trace_id}'
+                message = {
+                    "type": "agent_step",
+                    "agent": self.agent_name,
+                    "step": description,
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+                
+                try:
+                    loop = asyncio.get_running_loop()
+                    loop.create_task(channel_layer.group_send(group_name, message))
+                except RuntimeError:
+                    async_to_sync(channel_layer.group_send)(group_name, message)
+        except ImportError:
+            pass
+
+    async def recall(self, query: str, top_k: int = 3) -> str:
+        """
+        Recall relevant information from memory.
+        """
+        if not self.memory_store:
+            return ""
+        
+        results = self.memory_store.search_by_text(query, top_k=top_k)
+        if not results:
+            return "No relevant memories found."
+            
+        context = "Relevant memories:\n"
+        for entry, _ in results:
+            context += f"- {entry.content}\n"
+        return context
+
+    def memorize(self, text: str, metadata: Optional[dict] = None) -> None:
+        """
+        Store information in memory for future recall.
+        """
+        if self.memory_store:
+            from agentic.memory.vector_store import MemoryEntry
+            entry = MemoryEntry(content=text, metadata=metadata or {"agent": self.agent_name})
+            self.memory_store.add(entry)
+
+    def handoff(self, reason: str, context: Optional[dict] = None) -> None:
+        """
+        Mark the current execution as requiring human handoff.
+
+        Args:
+            reason: Why the handoff is required (e.g., "low confidence").
+            context: Additional context for the human reviewer.
+        """
+        if self.trace:
+            self.trace.complete(status="handoff")
+            self.trace.metadata["handoff_reason"] = reason
+            if context:
+                self.trace.metadata["handoff_context"] = context
+            self.log_step(f"Handoff required: {reason}")
 
     @abstractmethod
     async def run(self, *args: Any, **kwargs: Any) -> Any:
@@ -356,12 +424,15 @@ class BaseAgent(ABC):
 
         try:
             result = await self.run(*args, **kwargs)
-            self.trace.complete(status="success")
+            # Only mark as success if status hasn't been changed (e.g. to handoff)
+            if self.trace.status == "running":
+                self.trace.complete(status="success")
             self.trace.output_summary = str(result)[:500]  # Truncate if needed
             return result, self.trace
 
         except Exception as e:
-            self.trace.complete(status="error", error=str(e))
+            if self.trace.status != "handoff":
+                self.trace.complete(status="error", error=str(e))
             raise
 
         finally:

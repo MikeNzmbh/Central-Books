@@ -84,7 +84,7 @@ class AgentTrace(BaseModel):
     started_at: datetime = Field(default_factory=datetime.utcnow)
     ended_at: Optional[datetime] = None
     duration_ms: float = 0.0
-    status: str = "pending"  # pending, running, success, error, timeout, cancelled
+    status: str = "pending"  # pending, running, success, error, handoff, timeout, cancelled
     input_summary: Optional[str] = None
     output_summary: Optional[str] = None
     llm_calls: list[LLMCallMetadata] = Field(default_factory=list)

@@ -1,17 +1,14 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, Routes, Route, Navigate, useSearchParams } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import "../setup";
 import { AuthProvider } from "../contexts/AuthContext";
 import CompanionControlTowerPage from "./CompanionControlTowerPage";
+import CompanionOverviewPage from "./CompanionOverviewPage";
 import TaxGuardianPage from "./TaxGuardianPage";
 import TaxSettingsPage from "./TaxSettingsPage";
 import TaxProductRulesPage from "./TaxProductRulesPage";
 import TaxCatalogPage from "./TaxCatalogPage";
-import PanelShell from "./PanelShell";
-import SuggestionsPanel from "./SuggestionsPanel";
-import IssuesPanel from "./IssuesPanel";
-import CloseAssistantDrawer from "./CloseAssistantDrawer";
 import { PanelType } from "./companionCopy";
 
 const rootEl = document.getElementById("companion-overview-root");
@@ -21,8 +18,7 @@ const rootEl = document.getElementById("companion-overview-root");
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * The new CompanionControlTowerPage has its own built-in panel system.
- * It reads query params internally (e.g., ?panel=suggestions).
+ * The CompanionControlTowerPage is the primary Companion surface.
  */
 const ControlTowerWithPanels: React.FC = () => {
   return <CompanionControlTowerPage />;
@@ -87,6 +83,7 @@ if (rootEl) {
             <Routes>
               {/* Main Control Tower with panel support */}
               <Route path="/" element={<ControlTowerWithPanels />} />
+              <Route path="/overview" element={<CompanionOverviewPage />} />
 
               {/* Legacy redirects → panel routes */}
               <Route path="/shadow-ledger" element={<LegacyRedirect panel="suggestions" />} />

@@ -1,6 +1,7 @@
-import React, { useEffect, useCallback } from "react";
+import React, { useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { getPanelTitle, PanelType } from "./companionCopy";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -25,7 +26,7 @@ export interface PanelShellProps {
 /**
  * Slide-in panel shell for AI Companion.
  * 
- * - 640px wide, slides in from right
+ * - 520px wide, slides in from right
  * - Semi-transparent overlay
  * - ESC key closes
  * - Click outside closes
@@ -37,20 +38,16 @@ export const PanelShell: React.FC<PanelShellProps> = ({
     surface,
     children,
 }) => {
-    // ESC key handler
-    const handleKeyDown = useCallback(
-        (e: KeyboardEvent) => {
-            if (e.key === "Escape" && panel) {
-                onClose();
-            }
-        },
-        [panel, onClose]
-    );
+    const title = panel ? getPanelTitle(panel) : "";
 
     useEffect(() => {
-        document.addEventListener("keydown", handleKeyDown);
-        return () => document.removeEventListener("keydown", handleKeyDown);
-    }, [handleKeyDown]);
+        if (!panel) return undefined;
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === "Escape") onClose();
+        };
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [panel, onClose]);
 
     // Prevent body scroll when panel is open
     useEffect(() => {
@@ -74,7 +71,7 @@ export const PanelShell: React.FC<PanelShellProps> = ({
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.2 }}
-                        className="fixed inset-0 z-40 bg-slate-900/20 backdrop-blur-[2px]"
+                        className="fixed inset-0 z-50 bg-black/20"
                         onClick={onClose}
                         aria-hidden="true"
                     />
@@ -85,32 +82,30 @@ export const PanelShell: React.FC<PanelShellProps> = ({
                         animate={{ x: 0 }}
                         exit={{ x: "100%" }}
                         transition={{ type: "spring", damping: 30, stiffness: 300 }}
-                        className="fixed right-0 top-0 z-50 h-full w-full max-w-[640px] bg-white shadow-2xl shadow-slate-900/10 flex flex-col"
+                        className="fixed right-0 top-0 z-50 h-full w-full max-w-[520px] border-l border-zinc-200 bg-white shadow-2xl flex flex-col"
                     >
                         {/* Header */}
-                        <header className="flex items-center justify-between border-b border-slate-200 px-6 py-4 shrink-0">
+                        <header className="flex items-center justify-between border-b border-zinc-200 px-5 py-4 shrink-0">
                             <div>
-                                <h2 className="text-lg font-semibold text-slate-900">
-                                    {getPanelTitle(panel)}
-                                </h2>
+                                <div className="text-sm font-semibold text-zinc-950">{title}</div>
                                 {surface && (
-                                    <p className="text-sm text-slate-500 mt-0.5">
+                                    <div className="mt-1 text-[11px] text-zinc-500">
                                         Filtered by: <span className="font-medium capitalize">{surface}</span>
-                                    </p>
+                                    </div>
                                 )}
                             </div>
-                            <button
-                                onClick={onClose}
-                                className="p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
-                                aria-label="Close panel"
-                            >
-                                <X className="w-5 h-5" />
-                            </button>
+                            <Button variant="ghost" size="icon" onClick={onClose} className="rounded-full">
+                                <X className="h-4 w-4" />
+                            </Button>
                         </header>
 
                         {/* Content */}
-                        <div className="flex-1 overflow-y-auto">
+                        <div className="flex-1 overflow-auto p-5">
                             {children}
+                        </div>
+
+                        <div className="border-t border-zinc-200 px-5 py-4 text-[11px] text-zinc-500">
+                            Tip: Press <span className="font-semibold">Esc</span> to close.
                         </div>
                     </motion.aside>
                 </>

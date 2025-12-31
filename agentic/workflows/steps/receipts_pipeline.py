@@ -20,6 +20,8 @@ from agentic.engine.entry_generation.double_entry_generator import (
 )
 from agentic.engine.compliance import run_basic_compliance_checks
 from agentic.engine.audit import run_basic_audit_checks
+from agentic.engine.extraction.llm_extractor import LLMExtractor
+from agentic_core.models.documents import RawDocument as CoreRawDocument, ExtractedDocument as CoreExtractedDocument, ExtractionConfidence
 
 
 # =============================================================================
@@ -27,51 +29,9 @@ from agentic.engine.audit import run_basic_audit_checks
 # =============================================================================
 
 
-@dataclass
-class RawDocument:
-    """A raw uploaded document."""
-
-    id: str
-    filename: str
-    content: str = ""
-    source: str = "upload"
-    mime_type: str = "application/pdf"
-
-    def model_dump(self) -> dict:
-        return {
-            "id": self.id,
-            "filename": self.filename,
-            "content": self.content,
-            "source": self.source,
-            "mime_type": self.mime_type,
-        }
-
-
-@dataclass
-class ExtractedDocument:
-    """Extracted data from a document."""
-
-    id: str
-    raw_document_id: str
-    vendor_name: str = "Unknown Vendor"
-    total_amount: Decimal = Decimal("0")
-    currency: str = "USD"
-    txn_date: str = ""
-    category_code: str = "6000"
-    line_items: List[dict] = field(default_factory=list)
-
-    def model_dump(self) -> dict:
-        return {
-            "id": self.id,
-            "raw_document_id": self.raw_document_id,
-            "vendor_name": self.vendor_name,
-            "total_amount": str(self.total_amount),
-            "currency": self.currency,
-            "txn_date": self.txn_date,
-            "category_code": self.category_code,
-            "line_items": self.line_items,
-        }
-
+# Using core Pydantic models
+RawDocument = CoreRawDocument
+ExtractedDocument = CoreExtractedDocument
 
 @dataclass
 class NormalizedTransaction:
@@ -156,10 +116,10 @@ def ingest_step(context: Dict[str, Any]) -> None:
 
         docs.append(
             RawDocument(
-                id=f"doc-{idx + 1}",
+                document_id=f"doc-{idx + 1}",
                 filename=filename,
-                content=content,
-                source="upload",
+                mime_type="application/pdf",
+                metadata={"content": content} # Store content in metadata if no OCR integration yet
             )
         )
 
@@ -168,33 +128,25 @@ def ingest_step(context: Dict[str, Any]) -> None:
 
 def extract_step(context: Dict[str, Any]) -> None:
     """
-    Extract structured data from documents.
-
-    This is a deterministic mock for demo purposes.
-    Real implementation would use OCR + LLM.
+    Extract structured data from documents using LLM.
 
     Input: context["documents"]: list of RawDocument
     Output: context["extracted_documents"]: list of ExtractedDocument
     """
     docs: List[RawDocument] = context.get("documents", [])
     extracted: List[ExtractedDocument] = []
-
-    today = str(date.today())
+    
+    extractor = LLMExtractor()
 
     for doc in docs:
-        demo_data = _get_demo_extraction(doc.filename, doc.id)
-
-        extracted.append(
-            ExtractedDocument(
-                id=doc.id.replace("doc", "ext"),
-                raw_document_id=doc.id,
-                vendor_name=demo_data["vendor_name"],
-                total_amount=demo_data["total_amount"],
-                currency="USD",
-                txn_date=today,
-                category_code=demo_data["category_code"],
-            )
-        )
+        # Use content from metadata or filename if content is missing
+        text = doc.metadata.get("content") or doc.filename
+        
+        result = extractor.extract(text)
+        result.source_document_id = doc.document_id
+        result.extraction_id = doc.document_id.replace("doc", "ext")
+        
+        extracted.append(result)
 
     context["extracted_documents"] = extracted
 
@@ -210,15 +162,17 @@ def normalize_step(context: Dict[str, Any]) -> None:
     txns: List[NormalizedTransaction] = []
 
     for ext in extracted:
+        extracted_date = str(ext.document_date) if ext.document_date else str(date.today())
+        
         txns.append(
             NormalizedTransaction(
-                id=f"txn-{ext.id}",
-                description=f"Receipt from {ext.vendor_name}",
+                id=f"txn-{ext.extraction_id}",
+                description=f"Receipt from {ext.vendor_name or 'Unknown'}",
                 amount=ext.total_amount,
                 currency=ext.currency,
-                date=ext.txn_date,
-                category_code=ext.category_code,
-                source_document_id=ext.raw_document_id,
+                date=extracted_date,
+                category_code="6000", # Fixed for now or use ext logic if added
+                source_document_id=ext.source_document_id,
             )
         )
 

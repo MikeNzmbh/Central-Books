@@ -1,422 +1,376 @@
-import React, { useState, useEffect, useMemo } from "react";
-import { RefreshCw, Check, X, ExternalLink, AlertCircle } from "lucide-react";
+import React, { useMemo, useState } from "react";
 import {
-    getSeverityLabel,
-    getSeverityColors,
-    getSurfaceLabel,
-    ACTION_LABELS,
-    CONFIRMATION_TEMPLATES,
-    getEmptyState,
-    toCustomerCopy,
-    formatChangePreview,
-} from "./companionCopy";
+  Banknote,
+  CheckCircle2,
+  ChevronRight,
+  FileText,
+  Layers,
+  ListChecks,
+  Loader2,
+  Search,
+} from "lucide-react";
+import { ensureCsrfToken } from "../utils/csrf";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────────────────────────────────────
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 
-interface SuggestionItem {
-    id: string;
-    customer_title: string;
-    customer_description: string;
-    severity: "high" | "medium" | "low";
-    surface: string;
-    action_kind: "apply" | "review";
-    target_url?: string;
-    metadata?: Record<string, any>;
-    status: "open" | "applied" | "dismissed";
-    cta?: {
-        label?: string;
-        action_type?: string;
-        payload?: Record<string, any>;
-        requires_confirm?: boolean;
-        risk_level?: string;
-        target_url?: string;
-    };
-}
+type SurfaceKey = "receipts" | "invoices" | "books" | "banking";
 
-interface SuggestionsPanelProps {
-    /** Optional surface filter */
-    surface?: string | null;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SuggestionsPanel Component
-// ─────────────────────────────────────────────────────────────────────────────
-
-export const SuggestionsPanel: React.FC<SuggestionsPanelProps> = ({ surface }) => {
-    const [items, setItems] = useState<SuggestionItem[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [processingId, setProcessingId] = useState<string | null>(null);
-    const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
-    const [confirmingId, setConfirmingId] = useState<string | null>(null);
-    const [dismissNoteId, setDismissNoteId] = useState<string | null>(null);
-    const [dismissNote, setDismissNote] = useState("");
-    const [activeTab, setActiveTab] = useState<"all" | "attention">("all");
-    const [query, setQuery] = useState("");
-
-    // Fetch suggestions
-    const loadSuggestions = async () => {
-        setLoading(true);
-        setError(null);
-        try {
-            const params = new URLSearchParams();
-            if (surface) params.set("surface", surface);
-            const res = await fetch(`/api/companion/v2/shadow-events/?${params}`, {
-                credentials: "same-origin",
-                headers: { Accept: "application/json" },
-            });
-            if (!res.ok) throw new Error("Failed to load suggestions");
-            const data = await res.json();
-            // Map API response to our format
-            const mapped: SuggestionItem[] = (data.events || data.items || []).map((e: any) => ({
-                id: e.id || e.dedupe_key,
-                customer_title: toCustomerCopy(e.customer_title || e.title) || "Suggested change",
-                customer_description: toCustomerCopy(e.customer_description || e.description) || "",
-                severity: e.risk_level || e.severity || "low",
-                surface: e.surface || e.domain || "general",
-                action_kind: e.customer_action_kind === "apply" ? "apply" : "review",
-                target_url: e.target_url || e.cta?.target_url || e.cta?.payload?.target_url || e.cta_url,
-                metadata: e.metadata || {},
-                status: e.status || "open",
-                cta: e.cta || null,
-            }));
-            setItems(mapped.filter((i) => i.status === "open"));
-        } catch (err: any) {
-            setError(err.message || "Failed to load");
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        loadSuggestions();
-    }, [surface]);
-
-    const attentionCount = useMemo(() => items.filter((i) => i.severity !== "low").length, [items]);
-    const filteredItems = useMemo(() => {
-        const normalizedQuery = query.trim().toLowerCase();
-        return items.filter((item) => {
-            const needsAttention = item.severity !== "low";
-            if (activeTab === "attention" && !needsAttention) return false;
-            if (!normalizedQuery) return true;
-            return (
-                item.customer_title.toLowerCase().includes(normalizedQuery) ||
-                item.customer_description.toLowerCase().includes(normalizedQuery)
-            );
-        });
-    }, [items, activeTab, query]);
-
-    // Group by surface
-    const grouped = useMemo(() => {
-        const groups: Record<string, SuggestionItem[]> = {};
-        for (const item of filteredItems) {
-            const key = item.surface || "general";
-            if (!groups[key]) groups[key] = [];
-            groups[key].push(item);
-        }
-        return groups;
-    }, [filteredItems]);
-
-    // Apply action
-    const handleApply = async (item: SuggestionItem) => {
-        setProcessingId(item.id);
-        try {
-            const res = await fetch(`/api/companion/v2/shadow-events/${item.id}/apply/`, {
-                method: "POST",
-                credentials: "same-origin",
-                headers: { "Content-Type": "application/json" },
-            });
-            if (!res.ok) throw new Error("Failed to apply");
-            setItems((prev) => prev.filter((i) => i.id !== item.id));
-            setToast({ type: "success", message: CONFIRMATION_TEMPLATES.applySuccess });
-            setConfirmingId(null);
-        } catch (err: any) {
-            setToast({ type: "error", message: err.message || CONFIRMATION_TEMPLATES.applyError });
-        } finally {
-            setProcessingId(null);
-        }
-    };
-
-    // Dismiss action
-    const handleDismiss = async (item: SuggestionItem, note?: string) => {
-        // High severity requires note
-        if (item.severity === "high" && !note) {
-            setDismissNoteId(item.id);
-            return;
-        }
-        setProcessingId(item.id);
-        try {
-            const res = await fetch(`/api/companion/v2/shadow-events/${item.id}/reject/`, {
-                method: "POST",
-                credentials: "same-origin",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ reason: note || "Dismissed by user" }),
-            });
-            if (!res.ok) throw new Error("Failed to dismiss");
-            setItems((prev) => prev.filter((i) => i.id !== item.id));
-            setToast({ type: "success", message: CONFIRMATION_TEMPLATES.dismissSuccess });
-            setDismissNoteId(null);
-            setDismissNote("");
-        } catch (err: any) {
-            setToast({ type: "error", message: err.message });
-        } finally {
-            setProcessingId(null);
-        }
-    };
-
-    // Clear toast after 4s
-    useEffect(() => {
-        if (toast) {
-            const timer = setTimeout(() => setToast(null), 4000);
-            return () => clearTimeout(timer);
-        }
-    }, [toast]);
-
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center py-16">
-                <RefreshCw className="w-5 h-5 animate-spin text-slate-400" />
-                <span className="ml-2 text-sm text-slate-500">Loading suggestions...</span>
-            </div>
-        );
-    }
-
-    if (error) {
-        return (
-            <div className="p-6">
-                <div className="rounded-lg bg-rose-50 border border-rose-200 p-4 text-rose-700 text-sm">
-                    {error}
-                </div>
-            </div>
-        );
-    }
-
-    if (items.length === 0) {
-        return (
-            <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-                <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center mb-3">
-                    <Check className="w-6 h-6 text-emerald-500" />
-                </div>
-                <p className="text-slate-600">{getEmptyState("suggestions")}</p>
-            </div>
-        );
-    }
-
-    return (
-        <div className="p-6 space-y-6">
-            {/* Toast */}
-            {toast && (
-                <div
-                    className={`fixed top-4 right-4 z-[60] px-4 py-3 rounded-lg shadow-lg text-sm font-medium ${toast.type === "success"
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                            : "bg-rose-50 text-rose-700 border border-rose-200"
-                        }`}
-                >
-                    {toast.message}
-                </div>
-            )}
-
-            {/* Controls */}
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1">
-                    <button
-                        onClick={() => setActiveTab("all")}
-                        className={`px-3 py-1.5 text-xs font-semibold rounded-md ${activeTab === "all"
-                            ? "bg-slate-900 text-white"
-                            : "text-slate-600 hover:text-slate-800"
-                            }`}
-                    >
-                        All ({items.length})
-                    </button>
-                    <button
-                        onClick={() => setActiveTab("attention")}
-                        className={`px-3 py-1.5 text-xs font-semibold rounded-md ${activeTab === "attention"
-                            ? "bg-slate-900 text-white"
-                            : "text-slate-600 hover:text-slate-800"
-                            }`}
-                    >
-                        Needs attention ({attentionCount})
-                    </button>
-                </div>
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                    <label className="flex items-center gap-2 text-xs text-slate-500">
-                        <input
-                            type="checkbox"
-                            checked={activeTab === "attention"}
-                            onChange={() => setActiveTab(activeTab === "attention" ? "all" : "attention")}
-                            className="rounded border-slate-300 text-slate-900 focus:ring-slate-900"
-                        />
-                        Only show items needing attention
-                    </label>
-                    <input
-                        type="search"
-                        value={query}
-                        onChange={(e) => setQuery(e.target.value)}
-                        placeholder="Search suggestions"
-                        className="w-full sm:w-64 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20"
-                    />
-                </div>
-            </div>
-
-            {filteredItems.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-500 text-center">
-                    No items match your filters.
-                </div>
-            ) : (
-                Object.entries(grouped).map(([surfaceKey, surfaceItems]) => (
-                <section key={surfaceKey}>
-                    <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">
-                        {getSurfaceLabel(surfaceKey)} ({surfaceItems.length})
-                    </h3>
-                    <div className="space-y-3">
-                        {surfaceItems.map((item) => {
-                            const colors = getSeverityColors(item.severity);
-                            const isProcessing = processingId === item.id;
-                            const isConfirming = confirmingId === item.id;
-                            const isDismissing = dismissNoteId === item.id;
-
-                            return (
-                                <div
-                                    key={item.id}
-                                    className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
-                                >
-                                    {/* Header */}
-                                    <div className="flex items-start justify-between gap-3">
-                                        <div className="min-w-0 flex-1">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <span
-                                                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${colors.bg} ${colors.text} ${colors.border}`}
-                                                >
-                                                    {getSeverityLabel(item.severity)}
-                                                </span>
-                                            </div>
-                                            <h4 className="font-medium text-slate-900">{item.customer_title}</h4>
-                                            {item.customer_description && (
-                                                <p className="text-sm text-slate-600 mt-1">{item.customer_description}</p>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Confirmation dialog */}
-                                    {isConfirming && (
-                                        <div className="mt-4 p-3 rounded-lg bg-slate-50 border border-slate-200">
-                                            <p className="text-sm font-semibold text-slate-900 mb-1">Apply this change</p>
-                                            <p className="text-xs text-slate-500 mb-2">What this will do:</p>
-                                            {(() => {
-                                                const preview = formatChangePreview(item.customer_title, item.metadata);
-                                                const details = preview.details.length > 0 ? preview.details : ["Update this item in your books."];
-                                                return (
-                                                    <ul className="text-sm text-slate-600 space-y-1 mb-3">
-                                                        {details.map((detail, idx) => (
-                                                            <li key={idx}>• {detail}</li>
-                                                        ))}
-                                                    </ul>
-                                                );
-                                            })()}
-                                            <div className="flex gap-2">
-                                                <button
-                                                    onClick={() => handleApply(item)}
-                                                    disabled={isProcessing}
-                                                    className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-50"
-                                                >
-                                                    {isProcessing ? "Applying..." : ACTION_LABELS.apply}
-                                                </button>
-                                                <button
-                                                    onClick={() => setConfirmingId(null)}
-                                                    className="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200"
-                                                >
-                                                    Cancel
-                                                </button>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Dismiss note dialog (for high severity) */}
-                                    {isDismissing && (
-                                        <div className="mt-4 p-3 rounded-lg bg-slate-50 border border-slate-200">
-                                            <p className="text-sm font-medium text-slate-700 mb-2">
-                                                Please provide a reason for dismissing:
-                                            </p>
-                                            <textarea
-                                                value={dismissNote}
-                                                onChange={(e) => setDismissNote(e.target.value)}
-                                                placeholder="Why are you dismissing this suggestion?"
-                                                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                rows={2}
-                                            />
-                                            <div className="flex gap-2 mt-2">
-                                                <button
-                                                    onClick={() => handleDismiss(item, dismissNote)}
-                                                    disabled={!dismissNote.trim() || isProcessing}
-                                                    className="px-3 py-1.5 rounded-lg bg-slate-600 text-white text-sm font-medium hover:bg-slate-700 disabled:opacity-50"
-                                                >
-                                                    {isProcessing ? "Dismissing..." : "Dismiss"}
-                                                </button>
-                                                <button
-                                                    onClick={() => {
-                                                        setDismissNoteId(null);
-                                                        setDismissNote("");
-                                                    }}
-                                                    className="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200"
-                                                >
-                                                    Cancel
-                                                </button>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Actions */}
-                                    {!isConfirming && !isDismissing && (
-                                        <div className="flex items-center gap-2 mt-4">
-                                            {item.action_kind === "apply" && (
-                                                <button
-                                                    onClick={() => setConfirmingId(item.id)}
-                                                    disabled={isProcessing}
-                                                    className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-1.5"
-                                                >
-                                                    <Check className="w-3.5 h-3.5" />
-                                                    {ACTION_LABELS.apply}
-                                                </button>
-                                            )}
-                                            {item.action_kind === "review" && item.target_url && (
-                                                <a
-                                                    href={item.target_url}
-                                                    className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 flex items-center gap-1.5"
-                                                >
-                                                    <ExternalLink className="w-3.5 h-3.5" />
-                                                    {ACTION_LABELS.review}
-                                                </a>
-                                            )}
-                                            {item.action_kind === "review" && !item.target_url && (
-                                                <span
-                                                    className="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-400 text-sm font-medium flex items-center gap-1.5 cursor-not-allowed"
-                                                    title="Link not available yet"
-                                                >
-                                                    <AlertCircle className="w-3.5 h-3.5" />
-                                                    {ACTION_LABELS.review}
-                                                </span>
-                                            )}
-                                            <button
-                                                onClick={() => handleDismiss(item)}
-                                                disabled={isProcessing}
-                                                className="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 text-sm font-medium hover:bg-slate-200 disabled:opacity-50 flex items-center gap-1.5"
-                                            >
-                                                <X className="w-3.5 h-3.5" />
-                                                {ACTION_LABELS.dismiss}
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })}
-                    </div>
-                </section>
-                ))
-            )}
-        </div>
-    );
+type Proposal = {
+  id: string;
+  surface: SurfaceKey;
+  title: string;
+  description: string;
+  amount?: number;
+  risk: "ready" | "review" | "needs_attention";
+  created_at: string;
+  target_url?: string;
 };
 
-export default SuggestionsPanel;
+interface SuggestionsPanelProps {
+  proposals: Proposal[];
+  onApplied: (id: string) => void;
+  onDismissed: (id: string) => void;
+  surface?: string | null;
+  loading?: boolean;
+}
+
+const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(" ");
+
+function normalizeSurfaceKey(value?: string | null): SurfaceKey | null {
+  if (!value) return null;
+  const v = value.toLowerCase();
+  if (v === "bank" || v === "banking" || v === "bank_review" || v === "bank-review") return "banking";
+  if (v === "books" || v === "book" || v === "books_review" || v === "books-review") return "books";
+  if (v === "receipts" || v === "expenses") return "receipts";
+  if (v === "invoices" || v === "revenue") return "invoices";
+  return null;
+}
+
+function formatMoney(x: number | undefined | null) {
+  if (x == null || Number.isNaN(x)) return "$0";
+  const abs = Math.abs(x);
+  if (abs >= 1_000_000) return `$${(x / 1_000_000).toFixed(2)}M`;
+  if (abs >= 1_000) return `$${(x / 1_000).toFixed(1)}K`;
+  return `$${x.toFixed(0)}`;
+}
+
+function riskChip(risk: Proposal["risk"]) {
+  if (risk === "needs_attention") return { label: "Needs attention", cls: "bg-zinc-950 text-white" };
+  if (risk === "review") return { label: "Review", cls: "bg-zinc-100 text-zinc-900 border border-zinc-200" };
+  return { label: "Ready", cls: "bg-zinc-50 text-zinc-700 border border-zinc-200" };
+}
+
+function surfaceMeta(key: SurfaceKey) {
+  const map: Record<SurfaceKey, { label: string; icon: React.ComponentType<{ className?: string }> }> = {
+    receipts: { label: "Receipts", icon: FileText },
+    invoices: { label: "Invoices", icon: Layers },
+    books: { label: "Books Review", icon: ListChecks },
+    banking: { label: "Banking", icon: Banknote },
+  };
+  return map[key];
+}
+
+export default function SuggestionsPanel({
+  proposals,
+  onApplied,
+  onDismissed,
+  surface,
+  loading = false,
+}: SuggestionsPanelProps) {
+  const [tab, setTab] = useState<"all" | "ready" | "review" | "needs_attention">("all");
+  const [q, setQ] = useState("");
+
+  const surfaceKey = normalizeSurfaceKey(surface);
+
+  const filtered = useMemo(() => {
+    let items = proposals;
+    if (surfaceKey) items = items.filter((p) => p.surface === surfaceKey);
+    if (tab !== "all") items = items.filter((p) => p.risk === tab);
+    if (q.trim()) {
+      const s = q.trim().toLowerCase();
+      items = items.filter((p) => (p.title + " " + p.description).toLowerCase().includes(s));
+    }
+    return items;
+  }, [proposals, tab, q, surfaceKey]);
+
+  if (loading) {
+    return <PanelLoading label="Loading suggestions..." />;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-3xl border border-zinc-200 bg-zinc-50 p-4">
+        <div className="text-xs font-semibold text-zinc-700">What you're reviewing</div>
+        <div className="mt-1 text-xs text-zinc-500">
+          These are safe suggestions. Applying will update your books only after confirmation.
+        </div>
+      </div>
+
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+        <Input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search suggestions..."
+          className="h-11 rounded-2xl border-zinc-200 bg-white pl-10"
+        />
+      </div>
+
+      <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
+        <TabsList className="grid w-full grid-cols-4 rounded-2xl bg-zinc-100 p-1">
+          <TabsTrigger value="all" className="rounded-xl">
+            All
+          </TabsTrigger>
+          <TabsTrigger value="ready" className="rounded-xl">
+            Ready
+          </TabsTrigger>
+          <TabsTrigger value="review" className="rounded-xl">
+            Review
+          </TabsTrigger>
+          <TabsTrigger value="needs_attention" className="rounded-xl">
+            Attention
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value={tab} className="mt-4 space-y-3">
+          {!filtered.length ? (
+            <EmptyPanel title="No suggestions" description="Nothing matches the current filter." />
+          ) : (
+            filtered.map((p) => (
+              <SuggestionCard
+                key={p.id}
+                proposal={p}
+                onApplied={onApplied}
+                onDismissed={onDismissed}
+              />
+            ))
+          )}
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+function SuggestionCard({
+  proposal,
+  onApplied,
+  onDismissed,
+}: {
+  proposal: Proposal;
+  onApplied: (id: string) => void;
+  onDismissed: (id: string) => void;
+}) {
+  const meta = surfaceMeta(proposal.surface);
+  const chip = riskChip(proposal.risk);
+
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [dismissOpen, setDismissOpen] = useState(false);
+
+  const [busy, setBusy] = useState<null | "apply" | "dismiss">(null);
+  const [note, setNote] = useState("");
+
+  const isApplyAllowed = proposal.risk !== "needs_attention";
+
+  const apply = async () => {
+    setBusy("apply");
+    try {
+      const csrf = await ensureCsrfToken();
+      const headers: Record<string, string> = { Accept: "application/json" };
+      if (csrf) headers["X-CSRFToken"] = csrf;
+      const res = await fetch(`/api/companion/v2/shadow-events/${proposal.id}/apply/`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers,
+      });
+      if (!res.ok) throw new Error("Failed to apply");
+      onApplied(proposal.id);
+      setConfirmOpen(false);
+    } catch (err) {
+      console.error("Failed to apply proposal", err);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const dismiss = async () => {
+    setBusy("dismiss");
+    try {
+      const csrf = await ensureCsrfToken();
+      const headers: Record<string, string> = {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      };
+      if (csrf) headers["X-CSRFToken"] = csrf;
+      const res = await fetch(`/api/companion/v2/shadow-events/${proposal.id}/reject/`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers,
+        body: JSON.stringify({ reason: note || "Dismissed" }),
+      });
+      if (!res.ok) throw new Error("Failed to dismiss");
+      onDismissed(proposal.id);
+      setDismissOpen(false);
+      setNote("");
+    } catch (err) {
+      console.error("Failed to dismiss proposal", err);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className={cx("rounded-full px-3 py-1 text-[11px]", chip.cls)}>{chip.label}</span>
+            <Badge variant="outline" className="rounded-full border-zinc-200 bg-white text-zinc-700">
+              <meta.icon className="mr-1 h-3.5 w-3.5" />
+              {meta.label}
+            </Badge>
+            {proposal.amount != null ? (
+              <Badge variant="outline" className="rounded-full border-zinc-200 bg-white text-zinc-700">
+                {formatMoney(proposal.amount)}
+              </Badge>
+            ) : null}
+          </div>
+          <div className="text-sm font-semibold text-zinc-950">{proposal.title}</div>
+          <div className="text-xs text-zinc-500">{proposal.description}</div>
+        </div>
+        <div className="text-[11px] text-zinc-500">{new Date(proposal.created_at).toLocaleString()}</div>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Button
+          className="rounded-2xl bg-zinc-950 text-white hover:bg-zinc-900"
+          onClick={() => setConfirmOpen(true)}
+          disabled={!isApplyAllowed || busy === "apply"}
+        >
+          {busy === "apply" ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <CheckCircle2 className="mr-2 h-4 w-4" />
+          )}
+          Apply this change
+        </Button>
+        <Button
+          variant="outline"
+          className="rounded-2xl border-zinc-200 bg-white"
+          onClick={() => setDismissOpen(true)}
+          disabled={busy === "dismiss"}
+        >
+          Dismiss
+        </Button>
+        <Button
+          variant="outline"
+          className="rounded-2xl border-zinc-200 bg-white"
+          onClick={() => (window.location.href = proposal.target_url || "#")}
+          disabled={!proposal.target_url}
+        >
+          Review details
+          <ChevronRight className="ml-1 h-4 w-4" />
+        </Button>
+      </div>
+
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent className="rounded-3xl border-zinc-200 bg-white">
+          <DialogHeader>
+            <DialogTitle className="text-zinc-950">Apply this change?</DialogTitle>
+            <DialogDescription className="text-zinc-500">
+              We'll apply it safely and keep a clear audit trail.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-3xl border border-zinc-200 bg-zinc-50 p-4">
+            <div className="text-xs font-semibold text-zinc-700">What this will do</div>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-zinc-800">
+              <li>Make a change to your books based on this suggestion.</li>
+              <li>Link it to the source item for traceability.</li>
+              <li>Keep reports consistent with your policies.</li>
+            </ul>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              className="rounded-2xl border-zinc-200 bg-white"
+              onClick={() => setConfirmOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="rounded-2xl bg-zinc-950 text-white hover:bg-zinc-900"
+              onClick={apply}
+              disabled={busy === "apply"}
+            >
+              {busy === "apply" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Apply
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={dismissOpen} onOpenChange={setDismissOpen}>
+        <DialogContent className="rounded-3xl border-zinc-200 bg-white">
+          <DialogHeader>
+            <DialogTitle className="text-zinc-950">Dismiss this suggestion</DialogTitle>
+            <DialogDescription className="text-zinc-500">
+              Optional: leave a note so we learn your preference.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Example: This vendor should be categorized differently."
+            className="min-h-[120px] rounded-3xl border-zinc-200"
+          />
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              className="rounded-2xl border-zinc-200 bg-white"
+              onClick={() => setDismissOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="outline"
+              className="rounded-2xl border-zinc-200 bg-white"
+              onClick={dismiss}
+              disabled={busy === "dismiss"}
+            >
+              {busy === "dismiss" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Dismiss
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function EmptyPanel({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="rounded-3xl border border-zinc-200 bg-white p-6 text-center">
+      <div className="text-sm font-semibold text-zinc-950">{title}</div>
+      <div className="mt-2 text-xs text-zinc-500">{description}</div>
+    </div>
+  );
+}
+
+function PanelLoading({ label }: { label: string }) {
+  return (
+    <div className="flex items-center justify-center py-16">
+      <Loader2 className="h-5 w-5 animate-spin text-zinc-400" />
+      <span className="ml-2 text-sm text-zinc-500">{label}</span>
+    </div>
+  );
+}
