@@ -36,7 +36,6 @@ def run_books_review_workflow(
     period_end: date,
     triggered_by_user_id: int,
     ai_companion_enabled: bool | None = None,
-    user_name: str | None = None,
 ) -> BooksReviewResult:
     """
     Read-only, ledger-wide review for a period.
@@ -161,7 +160,6 @@ def run_books_review_workflow(
         "journals_total": journals_total,
         "journals_high_risk": len(high_risk),
         "journals_with_warnings": len(warnings),
-        "findings_count": len(findings),
         "accounts_touched": accounts_touched,
         "agent_retries": agent_retries,
         "trace_events": trace_events,
@@ -220,25 +218,17 @@ def run_books_review_workflow(
 
         llm_metrics = {k: v for k, v in metrics.items() if k != "trace_events"}
         try:
-            # Determine risk level for tone
-            risk_level = "low" if len(high_risk) == 0 else "high" if len(high_risk) >= 3 else "medium"
             llm_result = reason_about_books_review(
                 metrics=llm_metrics,
                 findings=findings,
                 sample_journals=sample_journals,
-                user_name=user_name,
-                risk_level=risk_level,
-                timeout_seconds=60,  # DeepSeek Reasoner needs generous timeout for chain-of-thought
             )
             if llm_result:
                 llm_explanations = llm_result.explanations
                 llm_ranked_issues = [issue.model_dump() for issue in llm_result.ranked_issues]
                 llm_suggested_checks = llm_result.suggested_checks
-        except Exception as exc:
+        except Exception:
             # LLM is a best-effort reasoning layer; failures must not block deterministic results.
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.error("Books Review LLM failed: %s", exc, exc_info=True)
             llm_explanations = []
             llm_ranked_issues = []
             llm_suggested_checks = []

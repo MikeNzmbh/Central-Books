@@ -11,7 +11,6 @@ from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
 from .agentic_invoices import InvoiceInputDocument, run_invoices_workflow
-from .companion_issues import build_invoices_issues, persist_companion_issues
 from .ledger_services import post_journal_entry_from_proposal
 from .models import InvoiceDocument, InvoiceRun
 from .utils import get_current_business
@@ -82,7 +81,7 @@ def _serialize_doc(doc: InvoiceDocument) -> dict:
 def api_invoices_run(request):
     business = get_current_business(request.user)
     if business is None:
-        return JsonResponse({"error": "No business context"}, status=400)
+        return HttpResponseBadRequest("No business context")
 
     files = request.FILES.getlist("files") or request.FILES.getlist("documents")
     error = _validate_files(files)
@@ -151,7 +150,6 @@ def api_invoices_run(request):
             default_vendor=default_vendor,
             triggered_by_user_id=request.user.id,
             ai_companion_enabled=business.ai_companion_enabled,
-            user_name=request.user.first_name or None,
         )
 
         success_count = 0
@@ -194,9 +192,6 @@ def api_invoices_run(request):
             run.llm_suggested_classifications = workflow_result.llm_suggested_classifications
             run.llm_suggested_followups = workflow_result.llm_suggested_followups
             run.save()
-            if business.ai_companion_enabled:
-                issues = build_invoices_issues(run, run.trace_id)
-                persist_companion_issues(business, issues, ai_companion_enabled=business.ai_companion_enabled, user_name=request.user.first_name or None)
     except Exception as exc:  # pragma: no cover - defensive
         run.status = InvoiceRun.RunStatus.FAILED
         run.error_count = run.total_documents
@@ -227,7 +222,7 @@ def api_invoices_run(request):
 def api_invoices_runs(request):
     business = get_current_business(request.user)
     if business is None:
-        return JsonResponse({"error": "No business context"}, status=400)
+        return HttpResponseBadRequest("No business context")
     runs = InvoiceRun.objects.filter(business=business).order_by("-created_at")[:50]
     data = [
         {
@@ -251,7 +246,7 @@ def api_invoices_runs(request):
 def api_invoices_run_detail(request, run_id: int):
     business = get_current_business(request.user)
     if business is None:
-        return JsonResponse({"error": "No business context"}, status=400)
+        return HttpResponseBadRequest("No business context")
     run = InvoiceRun.objects.filter(business=business, pk=run_id).first()
     if not run:
         return JsonResponse({"error": "Run not found"}, status=404)
@@ -281,7 +276,7 @@ def api_invoices_run_detail(request, run_id: int):
 def api_invoice_detail(request, invoice_id: int):
     business = get_current_business(request.user)
     if business is None:
-        return JsonResponse({"error": "No business context"}, status=400)
+        return HttpResponseBadRequest("No business context")
     doc = InvoiceDocument.objects.filter(business=business, pk=invoice_id).first()
     if not doc:
         return JsonResponse({"error": "Invoice not found"}, status=404)
@@ -305,7 +300,7 @@ def api_invoice_approve(request, invoice_id: int):
     
     business = get_current_business(request.user)
     if business is None:
-        return JsonResponse({"error": "No business context"}, status=400)
+        return HttpResponseBadRequest("No business context")
     doc = InvoiceDocument.objects.select_related("run").filter(business=business, pk=invoice_id).first()
     if not doc:
         return JsonResponse({"error": "Invoice not found"}, status=404)
@@ -406,7 +401,7 @@ def api_invoice_approve(request, invoice_id: int):
 def api_invoice_discard(request, invoice_id: int):
     business = get_current_business(request.user)
     if business is None:
-        return JsonResponse({"error": "No business context"}, status=400)
+        return HttpResponseBadRequest("No business context")
     doc = InvoiceDocument.objects.filter(business=business, pk=invoice_id).first()
     if not doc:
         return JsonResponse({"error": "Invoice not found"}, status=404)

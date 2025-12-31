@@ -15,4 +15,463 @@
 {% if dashboard_js %}
 <script type="module" src="{% static dashboard_js %}"></script>
 {% endif %}
+<script>
+  window.addEventListener("dashboard-mounted", function () {
+    var fallback = document.getElementById("dashboard-fallback");
+    if (fallback) {
+      fallback.style.display = "none";
+    }
+  });
+</script>
+{% if empty_workspace %}
+<div id="dashboard-fallback">
+  <section class="card" style="max-width:720px;margin:32px auto;">
+    <h1 class="app-page-title">Welcome to CERN Books 👋</h1>
+    <p class="app-header-subtitle">
+      Start by creating your first customer or importing a sample bank CSV.
+    </p>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:12px;">
+      <a href="{{ start_books_url }}" class="btn-pill btn-primary">Start your books</a>
+      <a href="{{ import_csv_url }}" class="btn-pill btn-secondary">Upload a sample bank CSV</a>
+    </div>
+  </section>
+</div>
+{% endif %}
+{% if not empty_workspace %}
+<div id="dashboard-fallback">
+  <header class="app-header">
+    <div class="app-title-row">
+      <div>
+        <span class="app-page-title">
+          {% if business %}{{ business.name }}{% else %}CERN Books{% endif %}
+        </span>
+        {% if business %}
+        <span class="app-currency-pill">{{ business.currency }}</span>
+        {% endif %}
+      </div>
+      <p class="app-header-subtitle">
+        Snapshot of your business today. Metrics update automatically based on invoices and expenses.
+      </p>
+    </div>
+    <div></div>
+  </header>
+
+  <section class="dashboard-metrics-grid">
+    <div class="card kpi-card">
+      <div class="kpi-label">Overdue invoices</div>
+      <div class="kpi-value">
+        {{ metrics.overdue_total|default:0|floatformat:2 }} {{ business.currency|default:"" }}
+      </div>
+      <p class="kpi-subtext">
+        {% if metrics.overdue_count %}
+        {{ metrics.overdue_count }} invoice{{ metrics.overdue_count|pluralize }} past due
+        {% else %}
+        You're all caught up. 🎉
+        {% endif %}
+      </p>
+    </div>
+    <div class="card kpi-card">
+      <div class="kpi-label">Draft invoices</div>
+      <div class="kpi-value">
+        {{ metrics.draft_total|default:0|floatformat:2 }} {{ business.currency|default:"" }}
+      </div>
+      <p class="kpi-subtext">
+        {% if metrics.draft_count %}
+        {{ metrics.draft_count }} draft{{ metrics.draft_count|pluralize }} ready to send
+        {% else %}
+        No drafts yet. Create your first invoice.
+        {% endif %}
+      </p>
+    </div>
+    <div class="card kpi-card">
+      <div class="kpi-label">Revenue (last 30 days)</div>
+      <div class="kpi-value" style="color:#16a34a;">
+        {{ metrics.revenue_30|default:0|floatformat:2 }} {{ business.currency|default:"" }}
+      </div>
+      <p class="kpi-subtext">Paid invoices during the last 30 days.</p>
+    </div>
+    <div class="card kpi-card">
+      <div class="kpi-label">Expenses (last 30 days)</div>
+      <div class="kpi-value">
+        {{ metrics.expenses_30|default:0|floatformat:2 }} {{ business.currency|default:"" }}
+      </div>
+      <p class="kpi-subtext">Spending in the last 30 days.</p>
+    </div>
+    <div class="card kpi-card">
+      <div class="kpi-label">Unpaid expenses</div>
+      <div class="kpi-value" style="color:#f97316;">
+        {{ metrics.unpaid_expenses_total|default:0|floatformat:2 }} {{ business.currency|default:"" }}
+      </div>
+      <p class="kpi-subtext">Bills logged but not yet marked as paid.</p>
+    </div>
+    <div class="card kpi-card">
+      <div class="kpi-label">Net tax position</div>
+      <div class="kpi-value">
+        {{ tax_position.net_tax|default:0|floatformat:2 }} {{ business.currency|default:"" }}
+      </div>
+      <p class="kpi-subtext">{{ tax_position_label }}</p>
+      <a class="card-meta" href="{% url 'gst_hst_report' %}" style="text-decoration:none;">View GST/HST report →</a>
+    </div>
+    {% if bank_reconciliation %}
+    <div class="card kpi-card">
+      {% with bank=bank_reconciliation.0 %}
+      <div class="kpi-label">Bank reconciliation</div>
+      <div class="kpi-value">
+        {% if bank.unreconciled %}
+        {{ bank.unreconciled }} unreconciled
+        {% else %}
+        All reconciled
+        {% endif %}
+      </div>
+      <p class="kpi-subtext">{{ bank.name }}</p>
+      <a class="card-meta" href="{% url 'reconcile_bank_account' bank.id %}" style="text-decoration:none;">Reconcile
+        →</a>
+      {% endwith %}
+    </div>
+    {% endif %}
+  </section>
+
+  <section class="dashboard-main-grid" style="margin-top:10px;">
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Cashflow overview</h2>
+        <span class="card-meta">Last 6 months</span>
+      </div>
+      <canvas id="cashflowChart" style="width:100%;height:220px;"></canvas>
+    </div>
+
+    <div class="card card-donut">
+      <div class="card-header-row">
+        <div>
+          <div class="card-kicker">This month by category</div>
+          <h2 class="card-title">Revenue and top expense categories.</h2>
+        </div>
+        <span class="pill pill-soft">This month</span>
+      </div>
+
+      <div class="donut-chart-wrapper">
+        {% if mix_chart_has_data %}
+        <canvas id="categoryDonutChart"></canvas>
+        {% else %}
+        <p class="card-meta">Add invoices or expenses to populate this chart.</p>
+        {% endif %}
+      </div>
+
+      <div class="mix-legend">
+        <div class="mix-legend-item">
+          <span class="mix-dot mix-dot--revenue"></span>
+          <span class="mix-label">Revenue</span>
+          <span class="mix-amount">{{ revenue_month|default:0|floatformat:2 }} {{ business.currency }}</span>
+          <span class="mix-percent">{{ revenue_share_percent|default:0|floatformat:1 }}%</span>
+        </div>
+        <div class="mix-legend-item">
+          <span class="mix-dot mix-dot--subs"></span>
+          <span class="mix-label">Subscriptions</span>
+          <span class="mix-amount">{{ subscriptions_month|default:0|floatformat:2 }} {{ business.currency }}</span>
+          <span class="mix-percent">{{ subscriptions_share_percent|default:0|floatformat:1 }}%</span>
+        </div>
+        <div class="mix-legend-item">
+          <span class="mix-dot mix-dot--taxes"></span>
+          <span class="mix-label">Taxes</span>
+          <span class="mix-amount">{{ taxes_month|default:0|floatformat:2 }} {{ business.currency }}</span>
+          <span class="mix-percent">{{ taxes_share_percent|default:0|floatformat:1 }}%</span>
+        </div>
+      </div>
+    </div>
+    <div class="card" style="padding:16px;margin-top:10px;">
+      <h3 class="card-title">Tax reports</h3>
+      <p class="card-meta">Jump to tax summaries.</p>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <a class="card-meta" href="{% url 'gst_hst_report' %}">GST/HST filing summary →</a>
+        <a class="card-meta" href="{% url 'us_sales_tax_report' %}">US sales tax summary →</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" style="margin-top:12px;">
+    <h2 class="card-title">Branding</h2>
+    <p class="card-meta" style="margin-top:4px;">
+      Upload your logo so CERN Books feels like home. This will show on invoices and the dashboard later.
+    </p>
+    <div style="display:flex;align-items:center;gap:12px;margin-top:14px;">
+      <div style="width:64px;height:64px;border-radius:18px;background:#0f172a;color:#fff;
+                display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;">
+        {% if business_initials %}
+        {{ business_initials }}
+        {% else %}
+        MB
+        {% endif %}
+      </div>
+      <div style="font-size:11px;display:flex;flex-direction:column;gap:6px;">
+        <button class="btn-pill btn-primary" type="button">Choose logo file</button>
+        <span class="card-meta">PNG / SVG, up to 1 MB</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="recent-invoices" class="card" style="margin-top:12px;">
+    <div class="card-header">
+      <h2 class="card-title">Recent invoices</h2>
+      <a href="{% url 'invoice_list' %}" class="card-meta" style="text-decoration:none;">View all</a>
+    </div>
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Invoice</th>
+            <th>Customer</th>
+            <th>Date</th>
+            <th style="text-align:right;">Amount</th>
+            <th style="text-align:right;">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for inv in recent_invoices %}
+          <tr>
+            <td>{{ inv.invoice_number }}</td>
+            <td>{{ inv.customer.name }}</td>
+            <td>{{ inv.issue_date }}</td>
+            <td style="text-align:right;">{{ inv.grand_total|floatformat:2 }}</td>
+            <td style="text-align:right;">
+              {% if inv.status == 'PAID' %}
+              <span class="badge badge-green">Paid</span>
+              {% elif inv.status == 'SENT' %}
+              <span class="badge badge-blue">Sent</span>
+              {% elif inv.status == 'VOID' %}
+              <span class="badge badge-red">Void</span>
+              {% else %}
+              <span class="badge">Draft</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="5">No invoices yet.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="customers" class="grid" style="margin-top:16px;grid-template-columns:repeat(2,minmax(0,1fr));">
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Customers</h2>
+        <a href="{% url 'customer_list' %}" class="card-meta">Manage</a>
+      </div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Email</th>
+              <th style="text-align:right;">Open balance</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in recent_customers %}
+            <tr>
+              <td>{{ c.name }}</td>
+              <td>{{ c.email }}</td>
+              <td style="text-align:right;">{{ c.open_balance|default:"$0.00" }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="3">No customers yet.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="suppliers" class="card">
+      <div class="card-header">
+        <h2 class="card-title">Suppliers</h2>
+        <a href="{% url 'suppliers' %}" class="card-meta">Manage</a>
+      </div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Payments</th>
+              <th style="text-align:right;">MTD spend</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in recent_suppliers %}
+            <tr>
+              <td>
+                <div style="display:flex; flex-direction:column;">
+                  <span>{{ s.name }}</span>
+                  <span class="card-meta">{{ s.default_category_name|default:"—" }}</span>
+                </div>
+              </td>
+              <td>
+                <span class="card-meta">{{ s.payment_count|default:0 }}</span>
+              </td>
+              <td style="text-align:right;">
+                <span style="font-weight:500;">{{ s.mtd_spend|default:0|floatformat:2 }} {{ business.currency|default:""
+                  }}</span>
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="3">No suppliers yet.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="grid grid-3-bottom" style="margin-top:16px;">
+    <div id="expenses" class="card">
+      <div class="card-header">
+        <h2 class="card-title">Expenses</h2>
+        <a href="{% url 'expense_list' %}" class="card-meta">View all</a>
+      </div>
+      <ul style="font-size:12px;list-style:none;padding-left:0;margin:0;">
+        {% for row in expense_summary %}
+        <li style="display:flex;justify-content:space-between;margin-bottom:4px;">
+          <span class="card-meta" style="color:#6b7280;">{{ row.name }}</span>
+          <span style="font-weight:500;">{{ row.total|floatformat:2 }}</span>
+        </li>
+        {% empty %}
+        <li>No expenses yet.</li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    <div id="categories" class="card">
+      <div class="card-header">
+        <h2 class="card-title">Categories</h2>
+        <a href="{% url 'category_list' %}" class="card-meta">Manage</a>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;font-size:11px;">
+        {% for cat in categories %}
+        <span class="chip">{{ cat.name }}</span>
+        {% empty %}
+        <span class="card-meta">No categories defined.</span>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div id="reports" class="card">
+      <h2 class="card-title">Profit &amp; Loss (MTD)</h2>
+      <div style="font-size:12px;margin-top:8px;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+          <span class="card-meta">Total revenue</span>
+          <span style="font-weight:600;color:#16a34a;">
+            {{ metrics.total_income_month|default:0|floatformat:2 }} {{ business.currency|default:"" }}
+          </span>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+          <span class="card-meta">Total expenses</span>
+          <span style="font-weight:600;color:#dc2626;">
+            {{ metrics.total_expenses_month|default:0|floatformat:2 }} {{ business.currency|default:"" }}
+          </span>
+        </div>
+        <div
+          style="display:flex;justify-content:space-between;border-top:1px dashed #e5e7eb;padding-top:8px;margin-top:4px;">
+          <span class="card-meta">Net income</span>
+          <span
+            style="font-weight:600;color:{% if metrics.net_income_month >= 0 %}#16a34a{% else %}#dc2626{% endif %};">
+            {{ metrics.net_income_month|default:0|floatformat:2 }} {{ business.currency|default:"" }}
+          </span>
+        </div>
+      </div>
+      <p class="card-meta" style="margin-top:6px;">
+        Income {{ metrics.total_income_month|default:0|floatformat:2 }} − Expenses {{
+        metrics.total_expenses_month|default:0|floatformat:2 }}
+      </p>
+    </div>
+  </section>
+</div>
+</div>
+
+<script>
+  (function () {
+    const labels = {{ chart_cashflow_labels|default: "[]" | safe
+  }};
+  const income = {{ chart_cashflow_income|default: "[]" | safe }};
+  const expenses = {{ chart_cashflow_expenses|default: "[]" | safe }};
+  const ctx = document.getElementById('cashflowChart');
+  if (!ctx) return;
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Revenue',
+          data: income,
+          borderColor: '#22c55e',
+          backgroundColor: 'rgba(34,197,94,0.1)',
+          borderWidth: 2,
+          tension: 0.35
+        },
+        {
+          label: 'Expenses',
+          data: expenses,
+          borderColor: '#f87171',
+          backgroundColor: 'rgba(248,113,113,0.1)',
+          borderWidth: 2,
+          tension: 0.35
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: true } },
+      scales: {
+        y: { beginAtZero: true }
+      }
+    }
+  });
+  }) ();
+
+  (function () {
+    const ctx = document.getElementById('categoryDonutChart');
+    if (!ctx || !window.Chart) {
+      return;
+    }
+
+    const revenueVal = {{ revenue_month|default: 0
+  }};
+  const subsVal = {{ subscriptions_month|default: 0 }};
+  const taxesVal = {{ taxes_month|default: 0 }};
+
+  const total = revenueVal + subsVal + taxesVal;
+  if (total <= 0) {
+    return;
+  }
+
+  new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Revenue', 'Subscriptions', 'Taxes'],
+      datasets: [{
+        data: [revenueVal, subsVal, taxesVal],
+        backgroundColor: ['#22c55e', '#4c6fff', '#8e44ad'],
+        borderWidth: 0
+      }]
+    },
+    options: {
+      cutout: '68%',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { enabled: true }
+      }
+    }
+  });
+  }) ();
+</script>
+
+{% endif %}
 {% endblock %}

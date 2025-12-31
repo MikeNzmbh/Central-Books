@@ -41,16 +41,6 @@ interface RankedIssue {
   related_accounts?: string[];
 }
 
-interface Anomaly {
-  code: string;
-  surface: string;
-  impact_area: string;
-  severity: string;
-  explanation: string;
-  task_code: string;
-  explanation_source?: "ai" | "auto";
-}
-
 interface BooksReviewRun {
   id: number;
   created_at: string;
@@ -70,7 +60,6 @@ interface RunDetail extends BooksReviewRun {
   llm_ranked_issues?: RankedIssue[];
   llm_suggested_checks?: string[];
   companion_enabled?: boolean;
-  anomalies?: Anomaly[];
 }
 
 // --- HELPERS ---
@@ -631,41 +620,6 @@ export default function BooksReviewPage() {
                     </div>
                   )}
                 </Card>
-
-                {/* Anomaly Detection */}
-                {selectedRun.anomalies && (
-                  <Card title="Anomaly Detection" subtitle="Deterministic + optional AI explanations">
-                    {selectedRun.anomalies.length === 0 ? (
-                      <div className="flex items-center gap-3 text-sm text-emerald-700 bg-emerald-50 border border-emerald-100 px-3 py-2 rounded-lg">
-                        <ShieldCheckIcon /> All clear for this period.
-                      </div>
-                    ) : (
-                      <ul className="space-y-2">
-                        {selectedRun.anomalies.map((a, idx) => (
-                          <li key={idx} className="p-3 border border-slate-100 rounded-lg bg-slate-50/50">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${a.severity === "high" ? "bg-rose-100 text-rose-700" :
-                                  a.severity === "medium" ? "bg-amber-100 text-amber-700" :
-                                    "bg-slate-100 text-slate-600"
-                                }`}>
-                                {a.code}
-                              </span>
-                              <span className="text-[11px] uppercase tracking-wide text-slate-500">{a.impact_area}</span>
-                              <span className="text-[10px] text-slate-500">Task: {a.task_code}</span>
-                              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${a.explanation_source === "ai"
-                                ? "bg-purple-50 text-purple-700 border-purple-200"
-                                : "bg-slate-50 text-slate-500 border-slate-200"
-                                }`}>
-                                {a.explanation_source === "ai" ? "✨ AI" : "📊 Auto"}
-                              </span>
-                            </div>
-                            <p className="text-xs text-slate-700">{a.explanation}</p>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </Card>
-                )}
 
                 {/* Deterministic Findings */}
                 <Card title="Deterministic Findings" subtitle="Rule-based validation results">

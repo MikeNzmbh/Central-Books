@@ -83,20 +83,6 @@ class Business(models.Model):
         default=False,
         help_text="Allow the AI companion to assist with extraction, classification, and anomaly detection (never auto-posts).",
     )
-    class TaxFilingFrequency(models.TextChoices):
-        MONTHLY = "MONTHLY", "Monthly"
-        QUARTERLY = "QUARTERLY", "Quarterly"
-        ANNUAL = "ANNUAL", "Annual"
-
-    tax_filing_frequency = models.CharField(
-        max_length=16,
-        choices=TaxFilingFrequency.choices,
-        default=TaxFilingFrequency.QUARTERLY,
-    )
-    tax_filing_due_day = models.PositiveSmallIntegerField(
-        default=30,
-        help_text="Day of month when tax return is due (e.g., 30 = end of next month).",
-    )
 
     class Meta:
         constraints = [
@@ -1544,37 +1530,6 @@ class BankReconciliationMatch(models.Model):
         ]
 
 
-class HighRiskAudit(models.Model):
-    class Verdict(models.TextChoices):
-        OK = "ok", "OK"
-        WARN = "warn", "Warn"
-        FAIL = "fail", "Fail"
-        SKIP = "skip", "Skip"
-
-    business = models.ForeignKey(
-        "core.Business",
-        on_delete=models.CASCADE,
-        related_name="high_risk_audits",
-    )
-    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
-    object_id = models.PositiveIntegerField()
-    target = GenericForeignKey("content_type", "object_id")
-    amount = models.DecimalField(max_digits=19, decimal_places=4)
-    currency = models.CharField(max_length=8, default="USD")
-    is_bulk_adjustment = models.BooleanField(default=False)
-    verdict = models.CharField(max_length=8, choices=Verdict.choices, default=Verdict.OK)
-    reasons = models.JSONField(default=list, blank=True)
-    raw_model_response = models.JSONField(default=dict, blank=True)
-    model_profile = models.CharField(max_length=64, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ["-created_at"]
-
-    def __str__(self):
-        return f"{self.get_verdict_display()} @ {self.created_at:%Y-%m-%d}"
-
-
 class ReceiptRun(models.Model):
     class RunStatus(models.TextChoices):
         PENDING = "PENDING", "Pending"
@@ -1728,51 +1683,6 @@ class InvoiceDocument(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
-
-
-class CompanionIssue(models.Model):
-    class Surface(models.TextChoices):
-        RECEIPTS = "receipts", "Receipts"
-        INVOICES = "invoices", "Invoices"
-        BOOKS = "books", "Books"
-        BANK = "bank", "Bank"
-
-    class RunType(models.TextChoices):
-        RECEIPTS = "receipts", "Receipts"
-        INVOICES = "invoices", "Invoices"
-        BOOKS_REVIEW = "books_review", "Books Review"
-        BANK_REVIEW = "bank_review", "Bank Review"
-
-    class Severity(models.TextChoices):
-        LOW = "low", "Low"
-        MEDIUM = "medium", "Medium"
-        HIGH = "high", "High"
-
-    class Status(models.TextChoices):
-        OPEN = "open", "Open"
-        SNOOZED = "snoozed", "Snoozed"
-        RESOLVED = "resolved", "Resolved"
-
-    business = models.ForeignKey("core.Business", on_delete=models.CASCADE, related_name="companion_issues")
-    surface = models.CharField(max_length=20, choices=Surface.choices)
-    run_type = models.CharField(max_length=30, choices=RunType.choices, blank=True)
-    run_id = models.IntegerField(null=True, blank=True, help_text="ID of the originating run (no FK enforced)")
-    severity = models.CharField(max_length=10, choices=Severity.choices, default=Severity.LOW)
-    status = models.CharField(max_length=10, choices=Status.choices, default=Status.OPEN)
-    title = models.CharField(max_length=255)
-    description = models.TextField(blank=True)
-    recommended_action = models.CharField(max_length=255, blank=True)
-    estimated_impact = models.CharField(max_length=255, blank=True)
-    data = models.JSONField(default=dict, blank=True)
-    trace_id = models.CharField(max_length=255, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        ordering = ["-created_at", "-id"]
-
-    def __str__(self):
-        return f"[{self.surface}] {self.title}"
 
 
 class BooksReviewRun(models.Model):

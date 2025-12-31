@@ -1,102 +1,106 @@
 import React from "react";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
-import BankAuditHealthCheckPage from "./BankReviewPage";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import BankReviewPage from "./BankReviewPage";
 
-// Mock data matching the new Bank Audit & Health Check API response
-const summaryPayload = {
-  banks: [
+const runsPayload = {
+  runs: [
     {
-      id: "1",
-      name: "Scotia Business Checking",
-      last4: "4923",
-      currency: "CAD",
-      status: "medium",
-      unreconciledCount: 76,
-      unreconciledAmount: "$15,827.09",
-      totalTransactions: 150,
-      balance: "$15,827.09",
-      lastSynced: "2 hours ago",
+      id: 1,
+      created_at: "2025-01-01T00:00:00Z",
+      status: "COMPLETED",
+      period_start: "2025-01-01",
+      period_end: "2025-01-31",
+      metrics: { transactions_unreconciled: 1, transactions_total: 2 },
+      overall_risk_score: "80.0",
+      trace_id: "trace-bank",
     },
   ],
-  flaggedTransactions: {
-    "1": [
-      {
-        id: "tx1",
-        date: "2025-01-01",
-        description: "Unknown Deposit",
-        amount: "$1,000.00",
-        currency: "CAD",
-        flags: ["UNMATCHED"],
-        insight: "This transaction has no matching invoice or expense.",
-      },
-    ],
-  },
-  insights: {
-    "1": [
-      {
-        id: "insight1",
-        type: "anomaly",
-        title: "Large unmatched deposit",
-        description: "Review this transaction for proper categorization.",
-      },
-    ],
-  },
-  previousAudits: [],
-  companionEnabled: true,
 };
 
-const emptyPayload = {
-  banks: [],
-  flaggedTransactions: {},
-  insights: {},
-  previousAudits: [],
-  companionEnabled: false,
+const runDetailPayload = {
+  id: 1,
+  created_at: "2025-01-01T00:00:00Z",
+  status: "COMPLETED",
+  period_start: "2025-01-01",
+  period_end: "2025-01-31",
+  metrics: { transactions_unreconciled: 1, transactions_total: 2, transactions_high_risk: 1 },
+  overall_risk_score: "80.0",
+  trace_id: "trace-bank",
+  transactions: [
+    {
+      id: 10,
+      status: "UNMATCHED",
+      raw_payload: { date: "2025-01-01", description: "Deposit", amount: "100" },
+      matched_journal_ids: [],
+      audit_flags: [{ code: "UNMATCHED_TRANSACTION", severity: "high", message: "No ledger match found." }],
+      audit_score: "90.0",
+      audit_explanations: ["Companion reflection attempted fuzzy matching on unmatched lines."],
+    },
+  ],
+  llm_explanations: ["Focus on unmatched withdrawals first."],
+  llm_ranked_transactions: [{ transaction_id: 10, priority: "high", reason: "Large unmatched withdrawal" }],
+  llm_suggested_followups: ["Confirm support for transaction 10"],
 };
 
-describe("BankAuditHealthCheckPage", () => {
+describe("BankReviewPage", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
-    globalThis.fetch = vi.fn(() =>
-      Promise.resolve(new Response(JSON.stringify(summaryPayload)))
-    ) as unknown as typeof fetch;
+    globalThis.fetch = vi.fn((url: RequestInfo | URL) => {
+      const href = String(url);
+      if (href.endsWith("/api/agentic/bank-review/runs")) {
+        return Promise.resolve(new Response(JSON.stringify(runsPayload)));
+      }
+      if (href.includes("/api/agentic/bank-review/run/1")) {
+        return Promise.resolve(new Response(JSON.stringify(runDetailPayload)));
+      }
+      if (href.endsWith("/api/agentic/bank-review/run") && href.includes("http")) {
+        return Promise.resolve(new Response(JSON.stringify({ run_id: 1, status: "COMPLETED" })));
+      }
+      return Promise.resolve(new Response("{}", { status: 200 }));
+    }) as unknown as typeof fetch;
   });
 
   afterEach(() => {
     vi.clearAllMocks();
   });
 
-  it("renders the bank audit page title", async () => {
-    render(<BankAuditHealthCheckPage />);
-    await waitFor(() =>
-      expect(screen.getByText(/Bank Audit/i)).toBeInTheDocument()
-    );
+  it("renders runs and risk badge", async () => {
+    render(<BankReviewPage />);
+    await waitFor(() => expect(screen.getByText(/Previous runs/i)).toBeInTheDocument());
+    expect(screen.getByText(/High risk/)).toBeInTheDocument();
   });
 
-  it("shows loading state initially", () => {
-    render(<BankAuditHealthCheckPage />);
-    expect(screen.getByText(/Loading/i)).toBeInTheDocument();
+  it("shows run list with correct data", async () => {
+    render(<BankReviewPage />);
+
+    // Wait for runs to load
+    await waitFor(() => expect(screen.getByText(/Previous runs/i)).toBeInTheDocument());
+
+    // Verify run data is displayed
+    expect(screen.getByText("#1")).toBeInTheDocument();
+    expect(screen.getByText("COMPLETED")).toBeInTheDocument();
+    expect(screen.getByText(/High risk/)).toBeInTheDocument();
+
+    // Verify View button exists
+    const viewButtons = screen.getAllByText(/View/i);
+    expect(viewButtons.length).toBeGreaterThan(0);
   });
 
-  it("shows empty state when no banks", async () => {
-    globalThis.fetch = vi.fn(() =>
-      Promise.resolve(new Response(JSON.stringify(emptyPayload)))
-    ) as unknown as typeof fetch;
+  it("renders AI companion insights when present", async () => {
+    render(<BankReviewPage />);
 
-    render(<BankAuditHealthCheckPage />);
-    await waitFor(() =>
-      expect(screen.getByText(/No bank accounts/i)).toBeInTheDocument()
-    );
-  });
+    await waitFor(() => expect(screen.getByText(/Previous runs/i)).toBeInTheDocument());
 
-  it("handles API errors gracefully", async () => {
-    globalThis.fetch = vi.fn(() =>
-      Promise.reject(new Error("Network error"))
-    ) as unknown as typeof fetch;
+    // Wait for the rows to load
+    await waitFor(() => expect(screen.getByText("#1")).toBeInTheDocument());
 
-    render(<BankAuditHealthCheckPage />);
-    await waitFor(() =>
-      expect(screen.getByText(/error/i)).toBeInTheDocument()
-    );
+    const viewBtns = screen.getAllByRole("button", { name: "View" });
+    fireEvent.click(viewBtns[0]);
+
+    await waitFor(() => expect(screen.getByText(/Run #1/)).toBeInTheDocument());
+    expect(screen.getByText(/AI Companion insights/i)).toBeInTheDocument();
+    expect(screen.getByText(/Focus on unmatched withdrawals first./i)).toBeInTheDocument();
+    expect(screen.getByText(/Top transactions to review/i)).toBeInTheDocument();
   });
 });

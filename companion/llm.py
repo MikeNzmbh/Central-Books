@@ -55,43 +55,13 @@ def _is_llm_enabled() -> bool:
     )
 
 
-# --- LLM Profile for model routing ---
-
-from enum import Enum
-
-
-class LLMProfile(str, Enum):
-    """
-    Model profiles for different DeepSeek use cases.
-    
-    HEAVY_REASONING: Use deepseek-reasoner (R1) for complex analysis tasks.
-                     Better accuracy, slower (~10-30s), more expensive.
-    LIGHT_CHAT: Use deepseek-chat for quick responses.
-                Faster (~2-5s), cheaper, good for simple tasks.
-    """
-    HEAVY_REASONING = "deepseek-reasoner"
-    LIGHT_CHAT = "deepseek-chat"
-
-
-def call_deepseek_reasoning(
-    prompt: str,
-    *,
-    temperature: float = 0.1,
-    profile: LLMProfile | None = None,
-    context_tag: str | None = None,
-) -> str | None:
+def call_deepseek_reasoning(prompt: str, *, temperature: float = 0.1) -> str | None:
     """
     Call DeepSeek LLM for text-based reasoning tasks.
     
     PROVIDER: DeepSeek (via COMPANION_LLM_API_KEY)
     USE FOR: Narratives, insights, rankings, summaries, reasoning
     DO NOT USE FOR: Image/vision/OCR tasks
-    
-    Args:
-        prompt: The prompt to send to the LLM.
-        temperature: Sampling temperature (default 0.1 for deterministic output).
-        profile: LLMProfile to use. Defaults to env COMPANION_LLM_MODEL or deepseek-chat when None.
-        context_tag: Optional short identifier for logging context.
     
     Returns the raw text content or None on failure/disabled.
     """
@@ -109,32 +79,7 @@ def call_deepseek_reasoning(
     else:
         model = getattr(settings, "COMPANION_LLM_MODEL", None) or default_model
 
-    if not model:
-        logger.warning("[Companion LLM] No model resolved (profile=%s context=%s)", profile, context_tag)
-        return None
-    
-    # Reasoner needs more time and tokens
-    if model == LLMProfile.HEAVY_REASONING.value:
-        timeout = getattr(settings, "COMPANION_LLM_TIMEOUT_SECONDS", 30)  # Longer for reasoner
-        max_tokens = getattr(settings, "COMPANION_LLM_MAX_TOKENS", 1024)  # More tokens
-    else:
-        timeout = getattr(settings, "COMPANION_LLM_TIMEOUT_SECONDS", 15)
-        max_tokens = getattr(settings, "COMPANION_LLM_MAX_TOKENS", 512)
-
-    logger.debug(
-        "[Companion LLM] model=%s profile=%s timeout=%s max_tokens=%s context=%s",
-        model,
-        profile.name if profile else None,
-        timeout,
-        max_tokens,
-        context_tag,
-    )
     logger.info("[PROVIDER: DeepSeek] Calling %s model for text reasoning", model)
-    
-    # Ensure API URL ends with /chat/completions
-    api_url = api_base.rstrip("/")
-    if not api_url.endswith("/chat/completions"):
-        api_url = f"{api_url}/chat/completions"
     
     try:
         response = requests.post(
@@ -160,15 +105,12 @@ def call_deepseek_reasoning(
             logger.warning("[PROVIDER: DeepSeek] Empty choices in response")
             return None
         message = choices[0].get("message") or {}
-        # DeepSeek Reasoner (R1) returns content in 'reasoning_content', not 'content'
-        content = message.get("content") or message.get("reasoning_content")
+        content = message.get("content")
         if content:
-            logger.info("[PROVIDER: DeepSeek] Reasoning call succeeded (model=%s)", model)
+            logger.info("[PROVIDER: DeepSeek] Reasoning call succeeded")
         return content
-    except requests.exceptions.HTTPError as exc:
-        logger.error("[PROVIDER: DeepSeek] HTTP error: status=%s response=%s", 
-                    exc.response.status_code if exc.response else "unknown",
-                    exc.response.text[:500] if exc.response else "no response")
+    except Exception as exc:  # pragma: no cover - defensive network wrapper
+        logger.warning("[PROVIDER: DeepSeek] Call failed: %s", exc)
         return None
     except requests.exceptions.Timeout:
         logger.warning("[PROVIDER: DeepSeek] Request timed out after %ds (model=%s)", timeout, model)
@@ -176,6 +118,110 @@ def call_deepseek_reasoning(
     except Exception as exc:  # pragma: no cover - defensive network wrapper
         logger.warning("[PROVIDER: DeepSeek] Call failed: %s", exc)
         return None
+
+
+# Backwards compatibility alias
+call_companion_llm = call_deepseek_reasoning
+
+
+def call_openai_vision(
+    prompt: str,
+    image_base64: str,
+    image_type: str = "image/jpeg",
+    *,
+    temperature: float = 0.1,
+    max_tokens: int = 1024,
+) -> str | None:
+    """
+    Call OpenAI Vision API for image analysis.
+    
+    PROVIDER: OpenAI (gpt-4o-mini)
+    USE FOR: Receipt OCR, invoice OCR, document image extraction
+    DO NOT USE FOR: Text-only reasoning tasks (use call_deepseek_reasoning instead)
+    
+    Args:
+        prompt: Instructions for what to extract from the image
+        image_base64: Base64-encoded image data
+        image_type: MIME type of the image (default: image/jpeg)
+        temperature: Sampling temperature (default: 0.1 for deterministic output)
+        max_tokens: Maximum tokens in response (default: 1024)
+    
+    Returns:
+        Extracted text content or None if OCR failed/disabled
+    """
+    openai_key = getattr(settings, "OPENAI_API_KEY", None)
+    
+    if not openai_key:
+        logger.warning(
+            "[PROVIDER: OpenAI] Vision OCR disabled - OPENAI_API_KEY not set. "
+            "Set this environment variable to enable receipt/invoice OCR."
+        )
+        return None
+    
+    logger.info("[PROVIDER: OpenAI] Calling gpt-4o-mini for vision OCR")
+    
+    try:
+        response = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {openai_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": "gpt-4o-mini",  # Vision-capable model
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:{image_type};base64,{image_base64}",
+                                },
+                            },
+                            {
+                                "type": "text",
+                                "text": prompt,
+                            },
+                        ],
+                    }
+                ],
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+            },
+            timeout=45,
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            choices = data.get("choices") or []
+            if choices:
+                content = choices[0].get("message", {}).get("content")
+                if content:
+                    logger.info("[PROVIDER: OpenAI] Vision OCR succeeded")
+                    return content
+            logger.warning("[PROVIDER: OpenAI] Vision API returned empty choices")
+            return None
+        else:
+            # Extract error details for logging
+            body_snippet = response.text[:400] if response.text else "(empty)"
+            logger.warning(
+                "[PROVIDER: OpenAI] Vision API error. status=%s error=%s",
+                response.status_code,
+                body_snippet,
+            )
+            return None
+            
+    except requests.exceptions.Timeout:
+        logger.warning("[PROVIDER: OpenAI] Vision API timed out after 45s")
+        return None
+    except Exception as exc:
+        logger.warning("[PROVIDER: OpenAI] Vision API call failed: %s", exc)
+        return None
+
+
+# Backwards compatibility alias
+call_vision_llm = call_openai_vision
 
 
 # Backwards compatibility alias

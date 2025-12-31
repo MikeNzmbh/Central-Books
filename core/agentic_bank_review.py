@@ -58,7 +58,6 @@ def run_bank_reconciliation_workflow(
     period_end: date | None,
     triggered_by_user_id: int,
     ai_companion_enabled: bool | None = None,
-    user_name: str | None = None,
 ) -> BankReconciliationResult:
     """
     Review-only reconciliation helper. Deterministic matching/audit runs first; AI companion is an optional, best-effort reasoning layer that never mutates data.
@@ -233,14 +232,7 @@ def run_bank_reconciliation_workflow(
 
         llm_metrics = {k: v for k, v in metrics.items() if k != "trace_events"}
         try:
-            # Determine risk level for tone
-            risk_level = "low" if len(high_risk) == 0 else "high" if len(high_risk) >= 3 else "medium"
-            llm_result = reason_about_bank_review(
-                metrics=llm_metrics,
-                transactions=subset,
-                user_name=user_name,
-                risk_level=risk_level,
-            )
+            llm_result = reason_about_bank_review(metrics=llm_metrics, transactions=subset)
             if llm_result:
                 llm_explanations = llm_result.explanations
                 llm_ranked_transactions = [tx.model_dump() for tx in llm_result.ranked_transactions]

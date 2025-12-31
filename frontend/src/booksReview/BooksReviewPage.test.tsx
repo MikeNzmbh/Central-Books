@@ -66,37 +66,43 @@ describe("BooksReviewPage", () => {
     vi.clearAllMocks();
   });
 
-  it("renders the books review page", async () => {
-    render(<BooksReviewPage />);
+  it("renders runs and shows risk badge", async () => {
+    render(<BooksReviewPage defaultCurrency="USD" />);
 
-    // Wait for page to load - check for title
-    await waitFor(() => expect(screen.getByText(/Books Review/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/Previous reviews/i)).toBeInTheDocument());
+    expect(screen.getByText(/High risk/)).toBeInTheDocument();
   });
 
-  it("shows run history section", async () => {
-    render(<BooksReviewPage />);
+  it("shows run list with correct data", async () => {
+    render(<BooksReviewPage defaultCurrency="USD" />);
 
-    // Wait for runs to load - check for "Run History" heading
-    await waitFor(() => expect(screen.getByText(/Run History/i)).toBeInTheDocument());
+    // Wait for runs to load
+    await waitFor(() => expect(screen.getByText(/Previous reviews/i)).toBeInTheDocument());
+
+    // Verify run data is displayed
+    expect(screen.getByText("#1")).toBeInTheDocument();
+    expect(screen.getByText("COMPLETED")).toBeInTheDocument();
+    expect(screen.getByText(/High risk/)).toBeInTheDocument();
+
+    // Verify View button exists
+    const viewButtons = screen.getAllByText(/View/i);
+    expect(viewButtons.length).toBeGreaterThan(0);
   });
 
-  it("shows risk assessment when run is selected", async () => {
-    render(<BooksReviewPage />);
+  it("renders companion insights when llm data is present", async () => {
+    render(<BooksReviewPage defaultCurrency="USD" />);
 
-    await waitFor(() => expect(screen.getByText(/Run History/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/Previous reviews/i)).toBeInTheDocument());
 
-    // Risk badge should be visible (may appear multiple times)
-    expect(screen.getAllByText(/High Risk/i).length).toBeGreaterThan(0);
-  });
+    // Wait for the rows to load (Wait for specific ID to ensure rows are present)
+    await waitFor(() => expect(screen.getByText("#1")).toBeInTheDocument());
 
-  it("renders neural analysis when llm data is present", async () => {
-    render(<BooksReviewPage />);
+    const viewBtns = screen.getAllByRole("button", { name: "View" });
+    fireEvent.click(viewBtns[0]);
 
-    // Wait for content to load
-    await waitFor(() => expect(screen.getByText(/Neural Analysis/i)).toBeInTheDocument());
-
-    // Check for LLM explanations
-    expect(screen.getByText(/Ledger looks healthy overall/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/Run #1/)).toBeInTheDocument());
+    expect(screen.getByText(/AI Companion insights/i)).toBeInTheDocument();
+    expect(screen.getByText(/Ledger looks healthy overall./i)).toBeInTheDocument();
     expect(screen.getByText(/Unusual spike/i)).toBeInTheDocument();
   });
 });

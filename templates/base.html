@@ -407,10 +407,118 @@
     <script type="module" src="{% static sidebar_js %}"></script>
     {% endif %}
 
-    {% vite_asset 'sidebar' 'css' as sidebar_css %}
-    {% if sidebar_css %}
-    <link rel="stylesheet" href="{% static sidebar_css %}">
-    {% endif %}
+        <nav>
+          <div class="sidebar-nav-section-label">Main</div>
+          <a href="{% url 'dashboard' %}"
+            class="sidebar-link{% if request.resolver_match.url_name == 'dashboard' %} active{% endif %}">
+            <span class="sidebar-link-dot"></span> Dashboard
+          </a>
+
+          <div class="sidebar-nav-section-label">Sales</div>
+          <a href="{% url 'customer_list' %}"
+            class="sidebar-link{% if request.resolver_match.url_name == 'customer_list' %} active{% endif %}">
+            <span class="sidebar-link-dot"></span> Customers
+          </a>
+          <a href="{% url 'product_list' %}"
+            class="sidebar-link{% if request.resolver_match.url_name == 'product_list' or request.resolver_match.url_name == 'item_create' or request.resolver_match.url_name == 'item_update' %} active{% endif %}">
+            <span class="sidebar-link-dot"></span> Products &amp; Services
+          </a>
+          <a href="{% url 'invoice_list' %}"
+            class="sidebar-link{% if request.resolver_match.url_name == 'invoice_list' %} active{% endif %}">
+            <span class="sidebar-link-dot"></span> Invoices
+          </a>
+
+          <div class="sidebar-nav-section-label">Expenses</div>
+          <a href="{% url 'suppliers' %}"
+            class="sidebar-link{% if request.resolver_match.url_name == 'suppliers' %} active{% endif %}">
+            <span class="sidebar-link-dot"></span> Suppliers
+          </a>
+          <a href="{% url 'expense_list' %}"
+            class="sidebar-link{% if request.resolver_match.url_name == 'expense_list' %} active{% endif %}">
+            <span class="sidebar-link-dot"></span> Expenses
+          </a>
+          <a href="{% url 'receipts_page' %}"
+            class="sidebar-link{% if request.resolver_match.url_name == 'receipts_page' %} active{% endif %}">
+            <span class="sidebar-link-dot"></span> Receipts
+          </a>
+          <a href="{% url 'companion_overview_page' %}"
+            class="sidebar-link{% if request.resolver_match.url_name == 'companion_overview_page' or request.resolver_match.url_name == 'invoices_ai_page' or request.resolver_match.url_name == 'books_review_page' or request.resolver_match.url_name == 'bank_review_page' %} active{% endif %}">
+            <span class="sidebar-link-dot"></span> AI Companion
+          </a>
+          <a href="{% url 'category_list' %}"
+            class="sidebar-link{% if request.resolver_match.url_name == 'category_list' %} active{% endif %}">
+            <span class="sidebar-link-dot"></span> Categories
+          </a>
+
+          <div class="sidebar-nav-section-label">Banking</div>
+          {% with current=request.resolver_match.url_name %}
+          <a href="{% url 'banking_accounts_feed' %}"
+            class="sidebar-link{% if current == 'banking_accounts_feed' or current == 'bank_account_list' or current == 'bank_feeds_overview' or current == 'bank_feed_review' or current == 'bank_account_create' or current == 'bank_account_edit' or current == 'bank_import' or current == 'bank_feed_spa' %} active{% endif %}">
+            <span class="sidebar-link-dot"></span> Banking
+          </a>
+          <a href="{% url 'reconciliation_entry' %}"
+            class="sidebar-link{% if current == 'reconciliation_entry' %} active{% endif %}">
+            <span class="sidebar-link-dot"></span> Reconciliation
+          </a>
+          {% endwith %}
+
+          <div class="sidebar-nav-section-label">Reports</div>
+          <a href="{% url 'report_pnl' %}"
+            class="sidebar-link{% if request.resolver_match.url_name == 'report_pnl' %} active{% endif %}">
+            <span class="sidebar-link-dot"></span> Profit &amp; Loss
+          </a>
+          <a href="{% url 'cashflow_report' %}"
+            class="sidebar-link{% if request.resolver_match.url_name == 'cashflow_report' %} active{% endif %}">
+            <span class="sidebar-link-dot"></span> Cashflow
+          </a>
+          <a href="{% url 'account_list' %}"
+            class="sidebar-link{% if request.resolver_match.url_name == 'account_list' %} active{% endif %}">
+            <span class="sidebar-link-dot"></span> Chart of Accounts
+          </a>
+
+          <div class="sidebar-nav-section-label">Account</div>
+          {% if request.user.is_authenticated %}
+          <a href="{% url 'account_settings' %}"
+            class="sidebar-link{% if request.resolver_match.url_name == 'account_settings' %} active{% endif %}">
+            <span class="sidebar-link-dot"></span> Account settings
+          </a>
+          {% endif %}
+        </nav>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="sidebar-user-row">
+          <div class="sidebar-user-avatar">
+            {% if user.is_authenticated %}
+            {{ user.username|slice:":1"|upper }}
+            {% else %}
+            ?
+            {% endif %}
+          </div>
+          <div>
+            <div class="sidebar-user-name">
+              {% if user.is_authenticated %}
+              {{ user.get_full_name|default:user.email|default:user.username }}
+              {% else %}
+              Guest
+              {% endif %}
+            </div>
+            <div class="sidebar-user-caption">
+              {% if user.is_authenticated and user.email %}
+              {{ user.email }}
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        {% if request.user.is_authenticated %}
+        <form method="post" action="{% url 'logout' %}">
+          {% csrf_token %}
+          <button class="sidebar-logout-btn" type="submit">Logout</button>
+        </form>
+        {% endif %}
+      </div>
+    </aside>
 
     <main class="app-main">
       {% if is_impersonating %}

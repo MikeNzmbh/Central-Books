@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Activity,
@@ -40,102 +39,6 @@ interface RunSummary {
 interface SurfaceSummary {
   recent_runs: RunSummary[];
   totals_last_30_days: Record<string, number>;
-  open_issues_count?: number;
-  high_risk_issues_count?: number;
-  headline_issue?: { id: number; title: string; severity: string } | null;
-}
-
-// Radar axis type
-interface RadarAxis {
-  score: number;
-  open_issues: number;
-}
-
-// Radar type
-interface CompanionRadar {
-  cash_reconciliation: RadarAxis;
-  revenue_invoices: RadarAxis;
-  expenses_receipts: RadarAxis;
-  tax_compliance: RadarAxis;
-}
-
-// Story type
-interface CompanionStory {
-  overall_summary: string;
-  timeline_bullets: string[];
-}
-
-// Coverage axis type
-interface CoverageAxis {
-  coverage_percent: number;
-  total_items: number;
-  covered_items: number;
-}
-
-// Coverage type (books is optional - may be omitted until we have real metrics)
-interface CompanionCoverage {
-  receipts: CoverageAxis;
-  invoices: CoverageAxis;
-  banking: CoverageAxis;
-  books?: CoverageAxis;  // Optional: omitted when no real books metrics available
-}
-
-// Close-readiness type
-interface CloseReadiness {
-  status: "ready" | "not_ready";
-  blocking_reasons: string[];
-  blocking_items?: { reason: string; task_code?: string | null; surface?: string | null }[];
-}
-
-interface FinanceSnapshot {
-  cash_health: { ending_cash: number; monthly_burn: number; runway_months: number | null };
-  revenue_expense: { months: string[]; revenue: number[]; expense: number[] };
-  ar_health: { buckets: Record<string, number>; total_overdue: number };
-  narrative?: string;
-  narrative_source?: "ai" | "auto";
-}
-
-interface TaxGuardianIssue {
-  code: string;
-  severity: string;
-  description: string;
-  task_code: string;
-}
-
-interface TaxGuardian {
-  status: "all_clear" | "issues";
-  issues: TaxGuardianIssue[];
-}
-
-interface TaxSummary {
-  period_key: string;
-  has_snapshot: boolean;
-  net_tax: number | null;
-  jurisdictions: Array<{
-    code: string;
-    taxable_sales: number;
-    tax_collected: number;
-    tax_on_purchases: number;
-    net_tax: number;
-    currency?: string;
-  }>;
-  anomaly_counts: {
-    low: number;
-    medium: number;
-    high: number;
-  };
-  anomalies?: TaxGuardianIssue[];
-}
-
-// Playbook step type
-interface PlaybookStep {
-  label: string;
-  surface: "receipts" | "invoices" | "bank" | "books" | "tax";
-  severity: "low" | "medium" | "high";
-  url: string;
-  issue_id?: number | null;
-  task_code?: string;
-  requires_premium?: boolean;
 }
 
 interface CompanionSummary {
@@ -147,10 +50,6 @@ interface CompanionSummary {
     bank_review: SurfaceSummary;
   };
   global: {
-    headline_issue?: { id: number; title: string; severity: string; surface: string };
-    open_issues_total?: number;
-    open_issues_by_severity?: Record<string, number>;
-    open_issues_by_surface?: Record<string, number>;
     last_books_review: {
       run_id: number;
       period_start: string;
@@ -162,14 +61,6 @@ interface CompanionSummary {
     high_risk_items_30d: Record<string, number>;
     agent_retries_30d: number;
   };
-  radar?: CompanionRadar;
-  story?: CompanionStory;
-  coverage?: CompanionCoverage;
-  close_readiness?: CloseReadiness;
-  finance_snapshot?: FinanceSnapshot;
-  tax?: TaxSummary;
-  tax_guardian?: TaxGuardian;
-  playbook?: PlaybookStep[];
 }
 
 interface SurfaceConfig {
@@ -178,14 +69,6 @@ interface SurfaceConfig {
   icon: React.FC<{ className?: string }>;
   href: string;
 }
-
-type CompanionIssue = {
-  id: number;
-  title: string;
-  severity: string;
-  surface: string;
-  recommended_action?: string;
-};
 
 // --- SURFACE CONFIG -------------------------------------------------------
 
@@ -214,19 +97,6 @@ const StatusBadge: React.FC<{ children: React.ReactNode; variant?: string; class
   return (
     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-md border ${styles[variant] || styles.neutral} ${className}`}>
       {children}
-    </span>
-  );
-};
-
-const SeverityPill: React.FC<{ value: string }> = ({ value }) => {
-  const map: Record<string, string> = {
-    high: "bg-rose-100 text-rose-700 border border-rose-200",
-    medium: "bg-amber-100 text-amber-800 border border-amber-200",
-    low: "bg-slate-100 text-slate-700 border border-slate-200",
-  };
-  return (
-    <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${map[value] || map.low}`}>
-      {value}
     </span>
   );
 };
@@ -313,15 +183,6 @@ const formatTimeAgo = (isoDate: string): string => {
   return `${diffDays} days ago`;
 };
 
-export const formatCurrency = (value: number | null | undefined, currency: string = "USD") => {
-  const num = typeof value === "number" ? value : 0;
-  try {
-    return new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 0 }).format(num);
-  } catch {
-    return `$${num.toFixed(0)}`;
-  }
-};
-
 // --- MAIN COMPONENT -------------------------------------------------------
 
 const CompanionOverviewPage: React.FC = () => {
@@ -329,54 +190,34 @@ const CompanionOverviewPage: React.FC = () => {
   const [healthScore, setHealthScore] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [issues, setIssues] = useState<CompanionIssue[]>([]);
-  const totalTaxAnomalies =
-    summary?.tax
-      ? (summary.tax.anomaly_counts?.low || 0) +
-      (summary.tax.anomaly_counts?.medium || 0) +
-      (summary.tax.anomaly_counts?.high || 0)
-      : summary?.tax_guardian?.issues?.length || 0;
-  const taxStatus = totalTaxAnomalies > 0 ? "issues" : "all_clear";
 
   const loadSummary = async () => {
     setLoading(true);
     try {
-      // Fetch both APIs in parallel - summary for surfaces, issues for checklist
-      const [summaryRes, issuesRes] = await Promise.all([
-        fetch("/api/agentic/companion/summary", {
-          method: "GET",
-          credentials: "same-origin",
-          headers: { Accept: "application/json" },
-        }),
-        fetch("/api/agentic/companion/issues?status=open", {
-          method: "GET",
-          credentials: "same-origin",
-          headers: { Accept: "application/json" },
-        }),
+      // Fetch both APIs in parallel - summary for surfaces, context-summary for health score
+      const [summaryRes, healthRes] = await Promise.all([
+        fetch("/api/agentic/companion/summary"),
+        fetch("/api/agentic/companion/context-summary/"),
       ]);
 
-      const summaryText = await summaryRes.text();
-      let summaryJson: any = null;
-      try {
-        summaryJson = JSON.parse(summaryText);
-      } catch {
-        const status = summaryRes.status ? ` (status ${summaryRes.status})` : "";
-        throw new Error(`Server returned an unexpected response${status}.`);
-      }
+      const summaryJson = await summaryRes.json();
       if (!summaryRes.ok) throw new Error(summaryJson.error || "Failed to load summary");
       setSummary(summaryJson);
 
-      const issuesText = await issuesRes.text();
-      try {
-        const issuesJson = JSON.parse(issuesText);
-        if (issuesRes.ok && Array.isArray(issuesJson.issues)) {
-          setIssues((issuesJson.issues as any[]).slice(0, 5));
+      // Get health score from context-summary (same source as dashboard)
+      if (healthRes.ok) {
+        const healthJson = await healthRes.json();
+        console.log("[DEBUG] Health API response:", healthJson);
+        const score = healthJson.health_index?.score;
+        if (typeof score === "number") {
+          console.log("[DEBUG] Setting health score to:", score);
+          setHealthScore(score);
+        } else {
+          console.log("[DEBUG] No valid health_index.score found, will use fallback");
         }
-      } catch {
-        // ignore issues parse errors
+      } else {
+        console.log("[DEBUG] Health API response not ok:", healthRes.status);
       }
-
-      // Health score will use fallback calculation (line 271)
     } catch (err: any) {
       console.error("[DEBUG] Error loading summary:", err);
       setError(err?.message || "Failed to load summary");
@@ -389,10 +230,10 @@ const CompanionOverviewPage: React.FC = () => {
     loadSummary();
   }, []);
 
-  // Compute derived values from API data (with defensive null checks)
-  const highRiskCounts = summary?.global?.high_risk_items_30d || { receipts: 0, invoices: 0, bank_transactions: 0 };
+  // Compute derived values from API data
+  const highRiskCounts = summary?.global.high_risk_items_30d || { receipts: 0, invoices: 0, bank_transactions: 0 };
   const totalHighRisk = (highRiskCounts.receipts || 0) + (highRiskCounts.invoices || 0) + (highRiskCounts.bank_transactions || 0);
-  const agentRetries = summary?.global?.agent_retries_30d || 0;
+  const agentRetries = summary?.global.agent_retries_30d || 0;
 
   // Use backend health score if available, otherwise compute fallback
   const displayHealthScore = healthScore ?? Math.max(0, Math.min(100, 100 - totalHighRisk * 2 - Math.floor(agentRetries / 2)));
@@ -402,13 +243,13 @@ const CompanionOverviewPage: React.FC = () => {
 
   // Build surface data from API
   const getSurfaceData = (key: string) => {
-    if (!summary) return { lastRun: "No runs", health: 0, highRisk: 0, statusMessage: "Loading...", openIssues: 0, highRiskIssues: 0, headline: null as any };
+    if (!summary) return { lastRun: "No runs", health: 0, highRisk: 0, statusMessage: "Loading..." };
 
-    const surfaceKey = key as keyof CompanionSummary["surfaces"];
-    const surface = summary.surfaces?.[surfaceKey];
+    const surfaceKey = key as keyof typeof summary.surfaces;
+    const surface = summary.surfaces[surfaceKey];
     const latest = surface?.recent_runs?.[0];
 
-    if (!latest) return { lastRun: "No runs yet", health: 100, highRisk: 0, statusMessage: "Ready to start", openIssues: surface?.open_issues_count || 0, highRiskIssues: surface?.high_risk_issues_count || 0, headline: surface?.headline_issue || null };
+    if (!latest) return { lastRun: "No runs yet", health: 100, highRisk: 0, statusMessage: "Ready to start" };
 
     const highRisk = latest.high_risk_count || 0;
     const docs = latest.documents_total || latest.transactions_total || 0;
@@ -425,50 +266,39 @@ const CompanionOverviewPage: React.FC = () => {
       docs,
       statusMessage,
       riskLevel: latest.risk_level,
-      openIssues: surface?.open_issues_count || 0,
-      highRiskIssues: surface?.high_risk_issues_count || 0,
-      headline: surface?.headline_issue || null,
     };
   };
 
-  // Build activity log from recent runs (with defensive null checks)
-  let activityLog: { id: string; timestamp: string; surface: string; action: string; details: string; status: string }[] = [];
-  try {
-    if (summary?.surfaces) {
-      activityLog = [
-        ...(summary.surfaces.receipts?.recent_runs?.slice(0, 1).map(r => ({
-          id: `r-${r.id}`,
-          timestamp: r.created_at ? new Date(r.created_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }) : "--:--",
-          surface: "Receipts",
-          action: `Run #${r.id}`,
-          details: `${r.documents_total || 0} docs processed`,
-          status: (r.high_risk_count || 0) > 0 ? "warning" : "success",
-        })) || []),
-        ...(summary.surfaces.invoices?.recent_runs?.slice(0, 1).map(r => ({
-          id: `i-${r.id}`,
-          timestamp: r.created_at ? new Date(r.created_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }) : "--:--",
-          surface: "Invoices",
-          action: `Run #${r.id}`,
-          details: `${r.documents_total || 0} docs processed`,
-          status: (r.high_risk_count || 0) > 0 ? "warning" : "success",
-        })) || []),
-        ...(summary.surfaces.bank_review?.recent_runs?.slice(0, 1).map(r => ({
-          id: `b-${r.id}`,
-          timestamp: r.created_at ? new Date(r.created_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }) : "--:--",
-          surface: "Bank Review",
-          action: `Run #${r.id}`,
-          details: `${r.transactions_total || 0} transactions`,
-          status: (r.unreconciled || 0) > 0 ? "warning" : "success",
-        })) || []),
-      ].slice(0, 4);
-    }
-  } catch (e) {
-    console.error("Error building activityLog:", e);
-    activityLog = [];
-  }
+  // Build activity log from recent runs
+  const activityLog = summary ? [
+    ...(summary.surfaces.receipts.recent_runs.slice(0, 1).map(r => ({
+      id: `r-${r.id}`,
+      timestamp: new Date(r.created_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }),
+      surface: "Receipts",
+      action: `Run #${r.id}`,
+      details: `${r.documents_total || 0} docs processed`,
+      status: (r.high_risk_count || 0) > 0 ? "warning" : "success",
+    }))),
+    ...(summary.surfaces.invoices.recent_runs.slice(0, 1).map(r => ({
+      id: `i-${r.id}`,
+      timestamp: new Date(r.created_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }),
+      surface: "Invoices",
+      action: `Run #${r.id}`,
+      details: `${r.documents_total || 0} docs processed`,
+      status: (r.high_risk_count || 0) > 0 ? "warning" : "success",
+    }))),
+    ...(summary.surfaces.bank_review.recent_runs.slice(0, 1).map(r => ({
+      id: `b-${r.id}`,
+      timestamp: new Date(r.created_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }),
+      surface: "Bank Review",
+      action: `Run #${r.id}`,
+      details: `${r.transactions_total || 0} transactions`,
+      status: (r.unreconciled || 0) > 0 ? "warning" : "success",
+    }))),
+  ].slice(0, 4) : [];
 
-  // Issues from high-risk items (for fallback display)
-  const highRiskIssues = (highRiskCounts.receipts || 0) > 0 ? [{
+  // Issues from high-risk items
+  const issues = (highRiskCounts.receipts || 0) > 0 ? [{
     id: 1,
     surface: "Receipts",
     description: `${highRiskCounts.receipts} high-risk receipts pending review`,
@@ -484,17 +314,6 @@ const CompanionOverviewPage: React.FC = () => {
     hidden: { opacity: 0, y: 10 },
     show: { opacity: 1, y: 0, transition: { duration: 0.4 } }
   };
-
-  if (loading && !summary) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-500 border-t-transparent mx-auto mb-3" />
-          <p className="text-sm text-slate-500">Loading Companion data...</p>
-        </div>
-      </div>
-    );
-  }
 
   if (error) {
     return (
@@ -562,328 +381,6 @@ const CompanionOverviewPage: React.FC = () => {
             <a className="underline font-semibold" href="/settings/account">Go to settings</a>
           </div>
         )}
-
-        {/* --- Risk Radar Section --- */}
-        {summary?.radar && (
-          <motion.section
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-6"
-          >
-            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Risk Radar
-            </h3>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {Object.entries(summary.radar).map(([key, axis]) => {
-                const labels: Record<string, string> = {
-                  cash_reconciliation: "Cash & Reconciliation",
-                  revenue_invoices: "Revenue & Invoices",
-                  expenses_receipts: "Expenses & Receipts",
-                  tax_compliance: "Tax & Compliance",
-                };
-                const scoreColor = axis.score >= 80 ? "text-emerald-600" :
-                  axis.score >= 50 ? "text-amber-600" : "text-rose-600";
-                return (
-                  <div
-                    key={key}
-                    className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm"
-                  >
-                    <div className="text-xs font-medium text-slate-500">
-                      {labels[key] || key}
-                    </div>
-                    <div className="mt-1.5 flex items-baseline justify-between">
-                      <span className={`text-2xl font-bold ${scoreColor}`}>
-                        {axis.score}
-                      </span>
-                      <span className="text-xs text-slate-400">
-                        {axis.open_issues === 0 ? "✓ Clear" : `${axis.open_issues} open`}
-                      </span>
-                    </div>
-                    <div className="mt-2 h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
-                      <div
-                        className={`h-full rounded-full ${axis.score >= 80 ? "bg-emerald-500" :
-                          axis.score >= 50 ? "bg-amber-500" : "bg-rose-500"
-                          }`}
-                        style={{ width: `${axis.score}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </motion.section>
-        )}
-
-        {/* --- Story Section --- */}
-        {summary?.story && summary.story.overall_summary && (
-          <motion.section
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="mb-6 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm"
-          >
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              This Week's Story
-            </h3>
-            <p className="mt-2 text-sm text-slate-800 leading-relaxed">
-              {summary.story.overall_summary}
-            </p>
-            {summary.story.timeline_bullets?.length > 0 && (
-              <ul className="mt-3 space-y-2">
-                {summary.story.timeline_bullets.map((item, idx) => (
-                  <li key={idx} className="flex gap-3 text-sm text-slate-700">
-                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-400" />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </motion.section>
-        )}
-
-        {/* --- Coverage Section --- */}
-        {summary?.coverage && (
-          <motion.section
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15 }}
-            className="mb-6"
-          >
-            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Coverage
-            </h3>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {Object.entries(summary.coverage).map(([key, axis]) => {
-                const labels: Record<string, string> = {
-                  receipts: "Receipts",
-                  invoices: "Invoices",
-                  banking: "Banking",
-                  books: "Books",
-                };
-                const pctColor = axis.coverage_percent >= 80 ? "text-emerald-600" :
-                  axis.coverage_percent >= 50 ? "text-amber-600" : "text-rose-600";
-                return (
-                  <div
-                    key={key}
-                    className="rounded-xl border border-slate-200 bg-white px-3 py-2.5"
-                  >
-                    <div className="text-xs font-medium text-slate-500">
-                      {labels[key] || key}
-                    </div>
-                    <div className="mt-1 flex items-baseline justify-between">
-                      <span className={`text-xl font-semibold ${pctColor}`}>
-                        {axis.coverage_percent.toFixed(0)}%
-                      </span>
-                      <span className="text-[0.7rem] text-slate-500">
-                        {axis.covered_items}/{axis.total_items}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </motion.section>
-        )}
-
-        {/* --- Close-Readiness + Playbook Row --- */}
-        <div className="grid gap-4 mb-6 lg:grid-cols-2">
-          {/* Close-Readiness Pill */}
-          {summary?.close_readiness && (
-            <motion.section
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm"
-            >
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Close Readiness
-              </h3>
-              <div className="mt-2 flex items-center gap-2">
-                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${summary.close_readiness.status === "ready"
-                  ? "bg-emerald-100 text-emerald-800"
-                  : "bg-amber-100 text-amber-800"
-                  }`}>
-                  <span className={`h-1.5 w-1.5 rounded-full ${summary.close_readiness.status === "ready" ? "bg-emerald-500" : "bg-amber-500"
-                    }`} />
-                  {summary.close_readiness.status === "ready" ? "Close-ready" : "Not close-ready"}
-                </span>
-                {summary.close_readiness.blocking_reasons.length > 0 && (
-                  <span className="text-xs text-slate-500">
-                    ({summary.close_readiness.blocking_reasons.length} blocker{summary.close_readiness.blocking_reasons.length > 1 ? "s" : ""})
-                  </span>
-                )}
-              </div>
-              {summary.close_readiness.blocking_reasons.length > 0 && (
-                <ul className="mt-2 space-y-1 text-xs text-slate-600">
-                  {summary.close_readiness.blocking_reasons.slice(0, 3).map((reason, idx) => (
-                    <li key={idx} className="flex gap-2">
-                      <span className="text-amber-500">•</span>
-                      <span>{reason}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </motion.section>
-          )}
-
-          {/* Today's Playbook */}
-          {summary?.playbook && summary.playbook.length > 0 && (
-            <motion.section
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.25 }}
-              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm"
-            >
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Today's Playbook
-              </h3>
-              <ul className="mt-2 space-y-1.5 text-sm text-slate-800">
-                {summary.playbook.map((step, idx) => {
-                  const badgeColor = step.severity === "high"
-                    ? "bg-rose-100 text-rose-700"
-                    : step.severity === "medium"
-                      ? "bg-amber-100 text-amber-700"
-                      : "bg-slate-100 text-slate-700";
-                  return (
-                    <li key={idx} className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className={`shrink-0 h-5 w-5 rounded-full flex items-center justify-center text-[0.65rem] font-bold ${badgeColor}`}>
-                          {idx + 1}
-                        </span>
-                        <Link
-                          to={step.url}
-                          className="text-left truncate hover:underline"
-                        >
-                          {step.label}
-                        </Link>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        {step.requires_premium && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 text-slate-600 px-2 py-0.5 text-[10px] font-semibold border border-slate-200">
-                            Premium
-                          </span>
-                        )}
-                        <span className="text-[0.65rem] uppercase tracking-wide text-slate-500">
-                          {step.surface}
-                        </span>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            </motion.section>
-          )}
-
-          {/* Finance Companion */}
-          {summary?.finance_snapshot && (
-            <motion.section
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.28 }}
-              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm"
-            >
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Finance Companion
-                </h3>
-                {summary.finance_snapshot.narrative && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 text-[10px] font-semibold">
-                    ✨ AI
-                  </span>
-                )}
-              </div>
-              <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-                <div>
-                  <p className="text-[11px] uppercase tracking-wide text-slate-500 font-semibold">Ending cash</p>
-                  <p className="text-base font-bold text-slate-900">
-                    {formatCurrency(summary.finance_snapshot.cash_health?.ending_cash)}
-                  </p>
-                  <p className="text-[11px] text-slate-500">
-                    Burn ~{formatCurrency(summary.finance_snapshot.cash_health?.monthly_burn)} / mo
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[11px] uppercase tracking-wide text-slate-500 font-semibold">Runway</p>
-                  <p className="text-base font-bold text-slate-900">
-                    {summary.finance_snapshot.cash_health?.runway_months
-                      ? `${summary.finance_snapshot.cash_health.runway_months.toFixed(1)} mo`
-                      : "N/A"}
-                  </p>
-                  <p className="text-[11px] text-slate-500">
-                    Overdue AR: {formatCurrency(summary.finance_snapshot.ar_health?.total_overdue)}
-                  </p>
-                </div>
-              </div>
-              {summary.finance_snapshot.narrative && (
-                <p className="mt-2 text-xs text-slate-600 leading-relaxed">
-                  {summary.finance_snapshot.narrative}
-                </p>
-              )}
-            </motion.section>
-          )}
-
-          {/* Tax Guardian */}
-          {(summary?.tax || summary?.tax_guardian) && (
-            <motion.section
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm hover:ring-1 hover:ring-emerald-200 transition-all"
-            >
-              <div className="flex items-center justify-between">
-                <Link to={`/tax${summary.tax?.period_key ? `?period=${summary.tax.period_key}` : ""}`} className="text-xs font-semibold uppercase tracking-wide text-slate-500 hover:text-emerald-700">
-                  Tax Guardian
-                </Link>
-                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${taxStatus === "all_clear"
-                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                  : "bg-amber-50 text-amber-700 border-amber-200"
-                  }`}>
-                  {taxStatus === "all_clear" ? "All clear" : "Issues"}
-                </span>
-              </div>
-              {summary.tax && (
-                <div className="mt-2 text-xs text-slate-700 space-y-1">
-                  <div className="flex items-center justify-between">
-                    <Link to={`/tax?period=${summary.tax.period_key}`} className="font-semibold hover:text-emerald-700">
-                      Period {summary.tax.period_key}
-                    </Link>
-                    {summary.tax.net_tax !== null && (
-                      <span className="text-slate-600">
-                        Net tax: {formatCurrency(summary.tax.net_tax || 0)}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 text-[11px] text-slate-600">
-                    <Link to={`/tax?period=${summary.tax.period_key}&severity=low`} className="inline-flex items-center gap-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 hover:bg-emerald-100 transition-colors">
-                      Low {summary.tax.anomaly_counts.low ?? 0}
-                    </Link>
-                    <Link to={`/tax?period=${summary.tax.period_key}&severity=medium`} className="inline-flex items-center gap-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 hover:bg-amber-100 transition-colors">
-                      Med {summary.tax.anomaly_counts.medium ?? 0}
-                    </Link>
-                    <Link to={`/tax?period=${summary.tax.period_key}&severity=high`} className="inline-flex items-center gap-1 rounded-full bg-red-50 text-red-700 border border-red-200 px-2 py-0.5 hover:bg-red-100 transition-colors">
-                      High {summary.tax.anomaly_counts.high ?? 0}
-                    </Link>
-                  </div>
-                  {summary.tax.anomalies && summary.tax.anomalies.length > 0 && (
-                    <ul className="mt-1 space-y-1">
-                      {summary.tax.anomalies.slice(0, 3).map((issue, idx) => (
-                        <li key={idx} className="flex items-start gap-2">
-                          <span className="text-amber-500 mt-0.5">•</span>
-                          <span className="flex-1">
-                            <span className="font-semibold">{issue.code}</span>: {issue.description}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  <Link to={`/tax?period=${summary.tax.period_key}`} className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-emerald-900 mt-2">
-                    View details →
-                  </Link>
-                </div>
-              )}
-            </motion.section>
-          )}
-        </div>
 
         <motion.div
           variants={container}
@@ -984,74 +481,39 @@ const CompanionOverviewPage: React.FC = () => {
             {/* Left Column: Surfaces (2/3) */}
             <div className="lg:col-span-2 space-y-6">
 
-              {/* Today's checklist */}
-              <Card>
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                      <ShieldAlert className="w-4 h-4 text-rose-600" />
-                      Today's checklist
-                    </h3>
-                    <p className="text-xs text-slate-500">
-                      Top open issues across surfaces. The companion suggests, you decide.
-                    </p>
-                  </div>
-                  <a href="/ai-companion/issues" className="text-xs font-semibold text-sky-700 hover:text-sky-900">
-                    View all →
-                  </a>
-                </div>
-                {issues.length === 0 ? (
-                  <div className="text-sm text-slate-500">No open issues. Your books look clean for now.</div>
-                ) : (
-                  <div className="space-y-2">
-                    {issues.map((issue) => (
-                      <div key={issue.id} className="border border-slate-200 rounded-lg p-3 flex items-start gap-3 bg-slate-50">
-                        <SeverityPill value={issue.severity} />
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[11px] uppercase text-slate-500">{issue.surface}</span>
-                            <span className="font-semibold text-slate-900">{issue.title}</span>
-                          </div>
-                          <div className="text-xs text-slate-600">
-                            {issue.recommended_action || "Review this item"}
-                          </div>
+              {/* Alert Banner */}
+              <AnimatePresence>
+                {issues.map(issue => (
+                  <motion.div
+                    key={issue.id}
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                  >
+                    <div className="flex items-center justify-between p-4 bg-white rounded-xl border border-rose-100 shadow-[0_2px_12px_rgba(244,63,94,0.08)] relative overflow-hidden group cursor-pointer hover:border-rose-200 transition-colors">
+                      <div className="absolute left-0 top-0 bottom-0 w-1 bg-rose-500" />
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-full bg-rose-50 flex items-center justify-center text-rose-600 border border-rose-100">
+                          <ShieldAlert className="w-5 h-5" />
                         </div>
-                        <a href="/ai-companion/issues" className="text-xs text-sky-700 hover:text-sky-900">
-                          View details
-                        </a>
+                        <div>
+                          <h4 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+                            High Priority Issue
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-700 font-medium">URGENT</span>
+                          </h4>
+                          <p className="text-xs text-slate-500 mt-0.5">{issue.description}</p>
+                        </div>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </Card>
-
-              {/* Issue counts by surface */}
-              <Card>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {surfaceConfigs.map((config) => {
-                    const surfaceKey = config.key === "books_review" ? "books" : config.key === "bank_review" ? "bank" : config.key;
-                    const surfaceData = summary?.surfaces[config.key as keyof typeof summary.surfaces];
-                    return (
-                      <div key={config.key} className="border border-slate-100 rounded-lg p-3 bg-slate-50">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-semibold text-slate-800">{config.title}</span>
-                          <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-200 text-slate-700">
-                            Open: {surfaceData?.open_issues_count || 0}
-                          </span>
-                        </div>
-                        <div className="text-xs text-slate-600 mt-1">
-                          High-risk: {surfaceData?.high_risk_issues_count || 0}
-                        </div>
-                        {surfaceData?.headline_issue && (
-                          <div className="text-xs text-slate-600 mt-1">
-                            Headline: {surfaceData.headline_issue.title}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </Card>
+                      <a
+                        href="/receipts"
+                        className="px-4 py-2 bg-white border border-slate-200 text-slate-700 text-xs font-semibold rounded-lg hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 transition-all shadow-sm"
+                      >
+                        Review Now
+                      </a>
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
 
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">

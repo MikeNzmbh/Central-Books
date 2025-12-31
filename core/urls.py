@@ -6,8 +6,6 @@ from agentic.interfaces.api import urlpatterns as agentic_urlpatterns
 from taxes import views as tax_views
 from . import views_reconciliation
 from . import views_receipts, views_invoices, views_books_review, views_bank_review, views_companion
-from . import views_bank_audit  # Bank Audit Health Check API (Option B)
-from . import views_dashboard  # Dashboard API (Option B architecture)
 from . import views_monitoring  # Monitoring agent Slack endpoint
 from . import views_auth  # Auth API endpoints
 from . import views_list_apis  # Invoice/Expense list APIs (Option B)
@@ -29,11 +27,6 @@ from .views_invoices import (
 from .views_books_review import api_books_review_run, api_books_review_runs, api_books_review_run_detail
 from .views_bank_review import api_bank_review_run, api_bank_review_runs, api_bank_review_run_detail
 from .views_companion import api_companion_summary, companion_overview_page
-from . import views_tax_guardian, views_tax_settings
-from . import views_tax_product_rules
-from . import views_tax_catalog
-from . import views_tax_import
-from . import views_tax_documents
 from .views_reports import (
     pnl_ledger_debug,
     reconciliation_report_view,
@@ -337,66 +330,8 @@ urlpatterns = [
     path("api/agentic/bank-review/runs", views_bank_review.api_bank_review_runs, name="api_bank_review_runs"),
     path("api/agentic/bank-review/run/<int:run_id>", views_bank_review.api_bank_review_run_detail, name="api_bank_review_run_detail"),
     path("bank-review/", views_bank_review.bank_review_page, name="bank_review_page"),
-    # Bank Audit Health Check API (Option B)
-    path("api/agentic/bank-audit/summary", views_bank_audit.api_bank_audit_summary, name="api_bank_audit_summary"),
     path("api/agentic/companion/summary", views_companion.api_companion_summary, name="api_companion_summary"),
-    path("api/agentic/companion/issues", views_companion.api_companion_issues, name="api_companion_issues"),
-    path("api/agentic/companion/issues/<int:issue_id>", views_companion.api_companion_issue_patch, name="api_companion_issue_patch"),
-    path("api/agentic/companion/story/refresh", views_companion.api_companion_story_refresh, name="api_companion_story_refresh"),
-    # Tax Guardian APIs (deterministic)
-    path("api/tax/periods/", views_tax_guardian.api_tax_periods, name="api_tax_periods"),
-    path("api/tax/periods/<str:period_key>/", views_tax_guardian.api_tax_period_detail, name="api_tax_period_detail"),
-    path("api/tax/periods/<str:period_key>/anomalies/", views_tax_guardian.api_tax_period_anomalies, name="api_tax_period_anomalies"),
-    path("api/tax/periods/<str:period_key>/anomalies/<uuid:anomaly_id>/", views_tax_guardian.api_tax_anomaly_update, name="api_tax_anomaly_update"),
-    path("api/tax/periods/<str:period_key>/refresh/", views_tax_guardian.api_tax_period_refresh, name="api_tax_period_refresh"),
-    path("api/tax/periods/<str:period_key>/llm-enrich/", views_tax_guardian.api_tax_period_llm_enrich, name="api_tax_period_llm_enrich"),
-    path("api/tax/periods/<str:period_key>/status/", views_tax_guardian.api_tax_period_status, name="api_tax_period_status"),
-    path("api/tax/periods/<str:period_key>/reset/", views_tax_guardian.api_tax_period_reset, name="api_tax_period_reset"),
-    path("api/tax/periods/<str:period_key>/payments/", views_tax_guardian.api_tax_period_payments, name="api_tax_period_payments"),
-    path("api/tax/periods/<str:period_key>/payments/<uuid:payment_id>/", views_tax_guardian.api_tax_period_payment_detail, name="api_tax_period_payment_detail"),
-    path("api/tax/periods/<str:period_key>/export.json", views_tax_guardian.api_tax_export_json, name="api_tax_export_json"),
-    path("api/tax/periods/<str:period_key>/export.csv", views_tax_guardian.api_tax_export_csv, name="api_tax_export_csv"),
-    path("api/tax/periods/<str:period_key>/export-ser.csv", views_tax_guardian.api_tax_export_ser_csv, name="api_tax_export_ser_csv"),
-    path("api/tax/periods/<str:period_key>/anomalies/export.csv", views_tax_guardian.api_tax_anomalies_export_csv, name="api_tax_anomalies_export_csv"),
-    path("api/tax/settings/", views_tax_settings.api_tax_settings, name="api_tax_settings"),
-    path("api/tax/product-rules/", views_tax_product_rules.api_tax_product_rules, name="api_tax_product_rules"),
-    path("api/tax/product-rules/<uuid:rule_id>/", views_tax_product_rules.api_tax_product_rule_detail, name="api_tax_product_rule_detail"),
-    # Tax Catalog APIs (staff/admin tooling)
-    path("api/tax/catalog/groups/", views_tax_catalog.api_tax_catalog_groups, name="api_tax_catalog_groups"),
-    path(
-        "api/tax/catalog/groups/<uuid:group_id>/",
-        views_tax_catalog.api_tax_catalog_group_detail,
-        name="api_tax_catalog_group_detail",
-    ),
-    path("api/tax/catalog/jurisdictions/", views_tax_catalog.api_tax_catalog_jurisdictions, name="api_tax_catalog_jurisdictions"),
-    path(
-        "api/tax/catalog/jurisdictions/<str:code>/",
-        views_tax_catalog.api_tax_catalog_jurisdiction_detail,
-        name="api_tax_catalog_jurisdiction_detail",
-    ),
-    path("api/tax/catalog/rates/", views_tax_catalog.api_tax_catalog_rates, name="api_tax_catalog_rates"),
-    path(
-        "api/tax/catalog/rates/<uuid:rate_id>/",
-        views_tax_catalog.api_tax_catalog_rate_detail,
-        name="api_tax_catalog_rate_detail",
-    ),
-    path("api/tax/catalog/product-rules/", views_tax_catalog.api_tax_catalog_product_rules, name="api_tax_catalog_product_rules"),
-    path(
-        "api/tax/catalog/product-rules/<uuid:rule_id>/",
-        views_tax_catalog.api_tax_catalog_product_rule_detail,
-        name="api_tax_catalog_product_rule_detail",
-    ),
-    # Tax Catalog Import APIs (staff/admin tooling)
-    path("api/tax/catalog/import/preview/", views_tax_import.api_tax_catalog_import_preview, name="api_tax_catalog_import_preview"),
-    path("api/tax/catalog/import/apply/", views_tax_import.api_tax_catalog_import_apply, name="api_tax_catalog_import_apply"),
-    # Tax document drilldown APIs (deterministic)
-    path("api/tax/document/invoice/<int:invoice_id>/", views_tax_documents.api_tax_document_invoice, name="api_tax_document_invoice"),
-    path("api/tax/document/expense/<int:expense_id>/", views_tax_documents.api_tax_document_expense, name="api_tax_document_expense"),
     path("ai-companion/", companion_overview_page, name="companion_overview_page"),
-    path("ai-companion/issues", views_companion.companion_issues_page, name="companion_issues_page"),
-    path("ai-companion/issues/", views_companion.companion_issues_page, name="companion_issues_page_slash"),
-    # React router deep-link support for /ai-companion/* (e.g., /ai-companion/tax)
-    path("ai-companion/<path:rest>", companion_overview_page, name="companion_overview_page_catchall"),
     path("accounts/", views.chart_of_accounts_spa, name="account_list"),
     path("accounts/<int:account_id>/", account_detail_view, name="account_detail"),
     path(

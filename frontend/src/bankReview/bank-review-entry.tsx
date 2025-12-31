@@ -1,7 +1,7 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import "../index.css";
-import BankAuditHealthCheckPage from "./BankReviewPage";
+import BankReviewPage from "./BankReviewPage";
 
 const rootEl = document.getElementById("bank-review-root");
 
@@ -9,9 +9,9 @@ if (rootEl) {
   const root = createRoot(rootEl);
   root.render(
     <React.StrictMode>
-      <BankAuditHealthCheckPage />
+      <BankReviewPage />
     </React.StrictMode>
   );
 } else {
-  console.warn("Bank audit health check root not found");
+  console.warn("Bank review root not found");
 }
