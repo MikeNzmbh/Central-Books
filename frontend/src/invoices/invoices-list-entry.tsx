@@ -1,7 +1,7 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
-import "../index.css";
+import "../setup";
 import { TransactionsPageContent } from "../transactions/TransactionsPage";
 
 const rootEl = document.getElementById("invoices-list-root");
@@ -18,3 +18,4 @@ if (rootEl) {
 } else {
     console.warn("Invoices list root not found");
 }
+

@@ -1,25 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { ensureCsrfToken, getCsrfToken as getCsrfTokenSync } from "../utils/csrf";
 
 // --- CSRF HELPERS ---
-function getCookie(name: string): string | null {
-  if (typeof document === "undefined") return null;
-  const cookies = document.cookie ? document.cookie.split(";") : [];
-  for (const cookie of cookies) {
-    const trimmed = cookie.trim();
-    if (trimmed.startsWith(`${name}=`)) {
-      return decodeURIComponent(trimmed.substring(name.length + 1));
-    }
-  }
-  return null;
-}
-
 function getCsrfToken(): string {
-  return (
-    document.querySelector<HTMLInputElement>("[name=csrfmiddlewaretoken]")?.value ||
-    getCookie("csrftoken") ||
-    ""
-  );
+  return getCsrfTokenSync();
 }
 
 // --- TYPES ---
@@ -233,6 +218,7 @@ export default function BooksReviewPage() {
 
   // Initialize dates to current week
   useEffect(() => {
+    ensureCsrfToken().catch(() => undefined);
     const now = new Date();
     const dayOfWeek = now.getDay();
     const startOfWeek = new Date(now);

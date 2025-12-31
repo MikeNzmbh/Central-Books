@@ -96,11 +96,11 @@ export const SuppliersDonutCard: React.FC<SuppliersCardProps> = ({
                                 </p>
                             </div>
                             <div className="text-right shrink-0">
-                                <p className="text-sm font-bold text-slate-900">
+                                <p className="text-sm font-bold text-slate-900 font-mono-soft">
                                     {formatMoney(supplier.mtdSpend)}
                                 </p>
                                 <p className="text-[10px] text-slate-400">
-                                    {supplier.paymentCount || 0} payment{(supplier.paymentCount || 0) !== 1 ? "s" : ""}
+                                    <span className="font-mono-soft">{supplier.paymentCount || 0}</span> payment{(supplier.paymentCount || 0) !== 1 ? "s" : ""}
                                 </p>
                             </div>
                         </div>
@@ -111,10 +111,10 @@ export const SuppliersDonutCard: React.FC<SuppliersCardProps> = ({
             {/* Footer Summary */}
             <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
                 <span className="text-xs text-slate-500">
-                    Total: <span className="font-semibold text-slate-700">{formatMoney(totalSpend)}</span>
+                    Total: <span className="font-semibold text-slate-700 font-mono-soft">{formatMoney(totalSpend)}</span>
                 </span>
                 <span className="text-xs text-slate-400">
-                    {totalPayments} payment{totalPayments !== 1 ? "s" : ""} this month
+                    <span className="font-mono-soft">{totalPayments}</span> payment{totalPayments !== 1 ? "s" : ""} this month
                 </span>
             </div>
         </div>

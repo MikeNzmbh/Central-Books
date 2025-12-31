@@ -7,55 +7,55 @@
   <div class="page-header">
     <div>
       <h1 class="page-title">Journal entries</h1>
-      <p class="page-subtitle">Shadow ledger entries created from invoices and expenses.</p>
+      <p class="page-subtitle">Journal entries created from invoices and expenses.</p>
     </div>
   </div>
 
   {% if entries %}
-    <div class="card">
-      <div class="table-wrapper">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Description</th>
-              <th>Source</th>
-              <th>Lines</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for entry in entries %}
-              <tr>
-                <td>{{ entry.date|date:"M j, Y" }}</td>
-                <td>{{ entry.description }}</td>
-                <td>
-                  {% if entry.source_object %}
-                    {{ entry.source_content_type.model|title }} #{{ entry.source_object_id }}
-                  {% else %}
-                    —
-                  {% endif %}
-                </td>
-                <td>
-                  <table class="inner-ledger">
-                    {% for line in entry.lines.all %}
-                      <tr>
-                        <td>{{ line.account }}</td>
-                        <td style="text-align:right;">{{ line.debit|floatformat:2 }}</td>
-                        <td style="text-align:right;">{{ line.credit|floatformat:2 }}</td>
-                      </tr>
-                    {% endfor %}
-                  </table>
-                </td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
+  <div class="card">
+    <div class="table-wrapper">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Description</th>
+            <th>Source</th>
+            <th>Lines</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for entry in entries %}
+          <tr>
+            <td>{{ entry.date|date:"M j, Y" }}</td>
+            <td>{{ entry.description }}</td>
+            <td>
+              {% if entry.source_object %}
+              {{ entry.source_content_type.model|title }} #{{ entry.source_object_id }}
+              {% else %}
+              —
+              {% endif %}
+            </td>
+            <td>
+              <table class="inner-ledger">
+                {% for line in entry.lines.all %}
+                <tr>
+                  <td>{{ line.account }}</td>
+                  <td style="text-align:right;">{{ line.debit|floatformat:2 }}</td>
+                  <td style="text-align:right;">{{ line.credit|floatformat:2 }}</td>
+                </tr>
+                {% endfor %}
+              </table>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
+  </div>
   {% else %}
-    <div class="card" style="padding:24px;">
-      <p class="empty-row">No journal entries yet. Save an invoice or expense to see postings here.</p>
-    </div>
+  <div class="card" style="padding:24px;">
+    <p class="empty-row">No journal entries yet. Save an invoice or expense to see postings here.</p>
+  </div>
   {% endif %}
 </div>
 
@@ -65,10 +65,12 @@
     border-collapse: collapse;
     font-size: 12px;
   }
+
   .inner-ledger td {
     padding: 2px 6px;
-    border-top: 1px solid rgba(15,23,42,0.08);
+    border-top: 1px solid rgba(15, 23, 42, 0.08);
   }
+
   .inner-ledger tr:first-child td {
     border-top: none;
   }

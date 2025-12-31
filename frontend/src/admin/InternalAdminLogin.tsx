@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { ensureCsrfToken } from "../utils/csrf";
 
 export const InternalAdminLogin: React.FC = () => {
   const navigate = useNavigate();
@@ -19,10 +20,12 @@ export const InternalAdminLogin: React.FC = () => {
     setLoading(true);
 
     try {
+      const csrfToken = await ensureCsrfToken();
       const response = await fetch("/api/auth/login/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          ...(csrfToken ? { "X-CSRFToken": csrfToken } : {}),
         },
         credentials: "same-origin",
         body: JSON.stringify({ username, password }),

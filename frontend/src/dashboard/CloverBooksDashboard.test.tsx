@@ -1,59 +1,88 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import CloverBooksDashboard from "./CloverBooksDashboard";
 
 vi.mock("../contexts/AuthContext", () => ({
   useAuth: () => ({ logout: vi.fn() }),
 }));
-vi.mock("../companion/CompanionPanel", () => ({
-  __esModule: true,
-  default: () => <div data-testid="companion-panel" />,
-}));
 
-describe("CloverBooksDashboard P&L card", () => {
-  it("shows explanatory message when there is no ledger activity in the period", () => {
-    render(
-      <CloverBooksDashboard
-        metrics={{
-          revenue_month: 0,
-          expenses_month: 0,
-          net_income_month: 0,
-          pl_period_label: "This month",
-          pl_prev_period_label: "Last month",
-          pl_prev_income: 0,
-          pl_prev_expenses: 0,
-          pl_prev_net: 0,
-          pl_debug: { no_ledger_activity_for_period: true },
-        }}
-      />
-    );
+const summaryPayload = {
+  tax: {
+    period_key: "2025-12",
+    net_tax: 14500,
+    anomaly_counts: { low: 0, medium: 2, high: 0 },
+  },
+};
 
-    expect(screen.getAllByText(/No income or expenses have been posted/i).length).toBeGreaterThan(0);
+const periodsPayload = {
+  periods: [
+    {
+      period_key: "2025-12",
+      due_date: "2099-01-30",
+      is_due_soon: false,
+      is_overdue: false,
+    },
+  ],
+};
+
+describe("CloverBooksDashboard Tax Guardian card", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.startsWith("/api/agentic/companion/summary")) {
+        return new Response(JSON.stringify(summaryPayload), {
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      if (url.startsWith("/api/tax/periods/")) {
+        return new Response(JSON.stringify(periodsPayload), {
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return new Response("Not found", { status: 404 });
+    }) as unknown as typeof fetch;
   });
 
-  it("renders P&L values and comparison when data exists", () => {
-    render(
-      <CloverBooksDashboard
-        metrics={{
-          revenue_month: 1200,
-          expenses_month: 400,
-          net_income_month: 800,
-          pl_period_label: "This month (Dec 01–Dec 31)",
-          pl_prev_period_label: "Last month",
-          pl_prev_income: 900,
-          pl_prev_expenses: 300,
-          pl_prev_net: 600,
-          pl_debug: { no_ledger_activity_for_period: false },
-        }}
-      />
-    );
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
 
-    expect(screen.queryByText(/No income or expenses have been posted/i)).not.toBeInTheDocument();
-    expect(screen.getByText("This month (Dec 01–Dec 31)")).toBeInTheDocument();
-    expect(screen.getByText(/vs Last month/i)).toBeInTheDocument();
-    expect(screen.getByText(/Revenue \$1,200\.00/)).toBeInTheDocument();
-    expect(screen.getByText(/Expenses \$400\.00/)).toBeInTheDocument();
+  it("renders tax guardian summary and link", async () => {
+    render(<CloverBooksDashboard metrics={{}} />);
+
+    expect(screen.getByText(/Tax Guardian/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/Period/i)).toBeInTheDocument());
+
+    expect(screen.getByText(/Attention/i)).toBeInTheDocument();
+    expect(screen.getByText(/2 anomalies need review/i)).toBeInTheDocument();
+    expect(screen.getByText(/Due Jan 30/i)).toBeInTheDocument();
+
+    const link = screen.getByRole("link", { name: /^View$/i });
+    expect(link).toHaveAttribute("href", "/ai-companion/tax?period=2025-12");
+  });
+
+  it("shows inline retry on error", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.startsWith("/api/agentic/companion/summary")) {
+        return new Response("fail", { status: 500 });
+      }
+      if (url.startsWith("/api/tax/periods/")) {
+        return new Response(JSON.stringify(periodsPayload), {
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return new Response("Not found", { status: 404 });
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    render(<CloverBooksDashboard metrics={{}} />);
+
+    await waitFor(() => expect(screen.getByText(/Unable to load tax status/i)).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: /Try again/i }));
+    expect(fetchMock).toHaveBeenCalled();
   });
 });

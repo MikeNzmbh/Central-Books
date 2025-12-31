@@ -1,6 +1,7 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import CustomersPage from './CustomersPage';
+import "../setup";
 
 const container = document.getElementById('customers-root');
 if (container) {

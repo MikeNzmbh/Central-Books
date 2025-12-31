@@ -1,7 +1,7 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { AdminRoot } from "./admin/AdminRoutes";
-import "./index.css";
+import "./setup";
 
 const rootElement = document.getElementById("admin-root");
 if (!rootElement) {

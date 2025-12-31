@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import CloverBooksLoginPage from "./LoginPage";
-import "../index.css";
+import { CloverLoginPage } from "./CloverBooksAuthPages";
+import "../setup";
 
 /**
  * Option B Login Entry
+ * Uses CloverLoginPage with BinaryWarpSphere animation
  * Fetches config from /api/auth/config instead of reading from DOM.
  */
 
@@ -45,7 +46,7 @@ function LoginApp() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="min-h-screen flex items-center justify-center bg-[#F6F7F9]">
         <div className="text-slate-400 text-sm">Loading...</div>
       </div>
     );
@@ -53,19 +54,19 @@ function LoginApp() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="min-h-screen flex items-center justify-center bg-[#F6F7F9]">
         <div className="text-rose-600 text-sm">{error}</div>
       </div>
     );
   }
 
   return (
-    <CloverBooksLoginPage
+    <CloverLoginPage
       action="/login/"
       csrfToken={config?.csrfToken}
       nextUrl={config?.nextUrl}
       googleEnabled={config?.googleEnabled}
-      googleLoginUrl={config?.googleLoginUrl}
+      googleLoginUrl={config?.googleLoginUrl || undefined}
     />
   );
 }

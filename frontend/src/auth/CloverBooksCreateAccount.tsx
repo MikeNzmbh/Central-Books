@@ -1,4 +1,5 @@
 import React from "react";
+import { backendUrl } from "../utils/apiClient";
 
 interface CloverBooksCreateAccountProps {
   action?: string;
@@ -16,7 +17,7 @@ const CloverBooksCreateAccount: React.FC<CloverBooksCreateAccountProps> = ({
   initialBusinessName = "",
 }) => {
   const googleSignup = () => {
-    window.location.href = "/accounts/google/login/?process=signup";
+    window.location.href = backendUrl("/accounts/google/login/?process=signup");
   };
 
   return (

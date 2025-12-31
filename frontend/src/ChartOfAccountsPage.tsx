@@ -125,9 +125,9 @@ const ChartOfAccountsPage: React.FC<ChartOfAccountsPageProps> = ({ payload, newA
             <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-right text-xs text-slate-500 shadow-sm">
               <div className="text-[10px] uppercase tracking-[0.18em] text-slate-400 mb-1">Accounts overview</div>
               <div className="flex items-center justify-end gap-3 text-[11px]">
-                <span className="text-slate-600">{formatCountLabel(activeCount, "active account")}</span>
+                <span className="text-slate-600 font-mono-soft">{formatCountLabel(activeCount, "active account")}</span>
                 <span className="h-1 w-1 rounded-full bg-slate-300" />
-                <span className="text-slate-400">{formatCountLabel(archivedCount, "archived")}</span>
+                <span className="text-slate-400 font-mono-soft">{formatCountLabel(archivedCount, "archived")}</span>
               </div>
             </div>
           </div>
@@ -151,7 +151,7 @@ const ChartOfAccountsPage: React.FC<ChartOfAccountsPageProps> = ({ payload, newA
                         {ACCOUNT_TYPE_LABEL[t]}
                       </span>
                     </div>
-                    <span className={`text-xs font-semibold ${color}`}>{formatMoney(total, currencyCode)}</span>
+                    <span className={`text-xs font-semibold font-mono-soft ${color}`}>{formatMoney(total, currencyCode)}</span>
                   </div>
                 );
               })}
@@ -279,9 +279,8 @@ const ChartOfAccountsPage: React.FC<ChartOfAccountsPageProps> = ({ payload, newA
                       <td className="max-w-[240px] px-3 py-2 align-middle">
                         <div className="flex items-center gap-2">
                           <span
-                            className={`inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] ${
-                              acc.favorite ? "text-amber-400" : "text-slate-300"
-                            }`}
+                            className={`inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] ${acc.favorite ? "text-amber-400" : "text-slate-300"
+                              }`}
                             aria-hidden="true"
                           >
                             ★
@@ -301,7 +300,7 @@ const ChartOfAccountsPage: React.FC<ChartOfAccountsPageProps> = ({ payload, newA
                           <span className="inline-flex items-center rounded-full bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-500 ring-1 ring-slate-200">Archived</span>
                         )}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-2 text-right text-[11px] font-semibold text-slate-900">{formatMoney(acc.balance, currencyCode)}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right text-[11px] font-semibold text-slate-900 font-mono-soft">{formatMoney(acc.balance, currencyCode)}</td>
                       <td className="whitespace-nowrap px-4 py-2 text-right">
                         <a
                           href={acc.detailUrl || "#"}

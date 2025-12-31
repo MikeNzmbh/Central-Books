@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { createRoot } from "react-dom/client";
-import "../index.css";
+import "../setup";
 import ProfitAndLossReportPage, {
     PlPeriodPreset,
     PlComparePreset,

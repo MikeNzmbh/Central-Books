@@ -1,7 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import BankSetupPage from "./BankSetupPage";
-import "../index.css";
+import "../setup";
 
 const rootEl = document.getElementById("bank-setup-root");
 

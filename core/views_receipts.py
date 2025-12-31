@@ -15,6 +15,7 @@ from django.utils import timezone
 from .agentic_receipts import ReceiptInputDocument, run_receipts_workflow
 from .ledger_services import post_journal_entry_from_proposal
 from .models import ReceiptDocument, ReceiptRun
+from .permissions import has_permission
 from .utils import get_current_business
 
 ALLOWED_RECEIPT_EXTS = {"pdf", "jpg", "jpeg", "png", "heic"}
@@ -84,7 +85,10 @@ def _serialize_doc(doc: ReceiptDocument) -> dict:
 def api_receipts_run(request):
     business = get_current_business(request.user)
     if business is None:
-        return HttpResponseBadRequest("No business context")
+        return JsonResponse({"error": "No business context"}, status=400)
+    
+    if not has_permission(request.user, business, "receipts.upload"):
+        return JsonResponse({"error": "Permission denied"}, status=403)
 
     files = request.FILES.getlist("files") or request.FILES.getlist("documents")
     error = _validate_files(files)
@@ -216,7 +220,11 @@ def api_receipts_run(request):
 def api_receipts_runs(request):
     business = get_current_business(request.user)
     if business is None:
-        return HttpResponseBadRequest("No business context")
+        return JsonResponse({"error": "No business context"}, status=400)
+    
+    if not has_permission(request.user, business, "receipts.view"):
+        return JsonResponse({"error": "Permission denied"}, status=403)
+    
     runs = ReceiptRun.objects.filter(business=business).order_by("-created_at")[:50]
     data = [
         {
@@ -238,7 +246,11 @@ def api_receipts_runs(request):
 def api_receipts_run_detail(request, run_id: int):
     business = get_current_business(request.user)
     if business is None:
-        return HttpResponseBadRequest("No business context")
+        return JsonResponse({"error": "No business context"}, status=400)
+    
+    if not has_permission(request.user, business, "receipts.view"):
+        return JsonResponse({"error": "Permission denied"}, status=403)
+    
     run = ReceiptRun.objects.filter(business=business, pk=run_id).first()
     if not run:
         return JsonResponse({"error": "Run not found"}, status=404)
@@ -268,7 +280,11 @@ def api_receipts_run_detail(request, run_id: int):
 def api_receipt_detail(request, receipt_id: int):
     business = get_current_business(request.user)
     if business is None:
-        return HttpResponseBadRequest("No business context")
+        return JsonResponse({"error": "No business context"}, status=400)
+    
+    if not has_permission(request.user, business, "receipts.view"):
+        return JsonResponse({"error": "Permission denied"}, status=403)
+    
     doc = ReceiptDocument.objects.filter(business=business, pk=receipt_id).first()
     if not doc:
         return JsonResponse({"error": "Receipt not found"}, status=404)
@@ -280,7 +296,11 @@ def api_receipt_detail(request, receipt_id: int):
 def api_receipt_approve(request, receipt_id: int):
     business = get_current_business(request.user)
     if business is None:
-        return HttpResponseBadRequest("No business context")
+        return JsonResponse({"error": "No business context"}, status=400)
+    
+    if not has_permission(request.user, business, "receipts.approve"):
+        return JsonResponse({"error": "Permission denied"}, status=403)
+    
     doc = ReceiptDocument.objects.select_related("run").filter(business=business, pk=receipt_id).first()
     if not doc:
         return JsonResponse({"error": "Receipt not found"}, status=404)
@@ -362,7 +382,11 @@ def api_receipt_approve(request, receipt_id: int):
 def api_receipt_discard(request, receipt_id: int):
     business = get_current_business(request.user)
     if business is None:
-        return HttpResponseBadRequest("No business context")
+        return JsonResponse({"error": "No business context"}, status=400)
+    
+    if not has_permission(request.user, business, "expenses.delete"):
+        return JsonResponse({"error": "Permission denied"}, status=403)
+    
     doc = ReceiptDocument.objects.filter(business=business, pk=receipt_id).first()
     if not doc:
         return JsonResponse({"error": "Receipt not found"}, status=404)

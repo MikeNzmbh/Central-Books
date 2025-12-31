@@ -91,7 +91,7 @@ function BreakdownRow(props: { label: string; value: number; tone?: "primary" | 
         <div className="space-y-1">
             <div className="flex items-center justify-between text-xs font-medium text-slate-500">
                 <span>{label}</span>
-                <span className="tabular-nums text-slate-700">{value}%</span>
+                <span className="font-mono-soft text-slate-700">{value}%</span>
             </div>
             <div className="h-2 w-full rounded-full bg-slate-100 overflow-hidden">
                 <div
@@ -212,8 +212,8 @@ function TaskCard({ task, onPrimary, onSecondary }: { task: CompanionTask; onPri
 export function DashboardCompanionPanel(props: DashboardCompanionPanelProps) {
     const {
         greetingName,
-        headline = "Health pulse and focus areas",
-        aiSummary = "I checked your books and everything looks fine for now. Keep reconciling regularly.",
+        headline = "Financial Health Dashboard",
+        aiSummary,
         breakdown,
         insights,
         tasks,
@@ -239,9 +239,21 @@ export function DashboardCompanionPanel(props: DashboardCompanionPanelProps) {
         return greetingName ? `${base}, ${greetingName}` : base;
     }, [greetingName]);
 
+    const summaryCopy = useMemo(() => {
+        if (aiSummary) return aiSummary;
+        if (tasks.length > 0) {
+            const issueLabel = tasks.length === 1 ? "issue" : "issues";
+            const pronoun = tasks.length === 1 ? "it" : "them";
+            return `You have ${tasks.length} open ${issueLabel} in your books — let's tackle ${pronoun} to get back on track.`;
+        }
+        return "Everything looks on track — keep reconciling regularly.";
+    }, [aiSummary, tasks.length]);
+
+    const summaryHint = "Stay on top of reconciliation for best results.";
+
     return (
-        <section className="relative rounded-[2.5rem] bg-white p-1 ring-1 ring-slate-200/60 shadow-[0_0_60px_-15px_rgba(99,102,241,0.25),0_0_30px_-10px_rgba(59,130,246,0.15)]">
-            <div className="relative z-10 rounded-[2.2rem] border border-white/50 bg-white px-6 py-6 sm:px-8 sm:py-8">
+        <section className="relative rounded-[2.5rem] bg-gradient-to-br from-white via-slate-50 to-slate-100 p-1 ring-1 ring-slate-200/60 shadow-[0_0_60px_-15px_rgba(99,102,241,0.25),0_0_30px_-10px_rgba(59,130,246,0.15)] font-sans">
+            <div className="relative z-10 rounded-[2.2rem] border border-white/60 bg-white/90 px-6 py-6 sm:px-8 sm:py-8">
                 <div className="flex flex-col gap-8">
 
                     {/* Header */}
@@ -257,7 +269,7 @@ export function DashboardCompanionPanel(props: DashboardCompanionPanelProps) {
 
                             <h2 className="text-2xl font-bold tracking-tight text-slate-900">{headline}</h2>
                             <p className="text-sm text-slate-500 max-w-2xl leading-relaxed">
-                                {greeting}. This panel tracks reconciliation, invoices, expenses, tax, and bank health for your workspace.
+                                {greeting}. We're monitoring your reconciliation, invoices, expenses, tax, and bank health in real-time.
                             </p>
                         </div>
 
@@ -267,7 +279,7 @@ export function DashboardCompanionPanel(props: DashboardCompanionPanelProps) {
                                 onClick={onOpenFullCompanion}
                                 className="group inline-flex items-center justify-center gap-1 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 hover:text-slate-900 transition-all"
                             >
-                                Open Full Companion
+                                Explore Insights
                                 <ChevronRight className="h-3 w-3 text-slate-400 group-hover:text-slate-600 transition-colors" />
                             </button>
                         )}
@@ -278,15 +290,18 @@ export function DashboardCompanionPanel(props: DashboardCompanionPanelProps) {
                         {/* Left Column: Breakdown & Summary */}
                         <div className="flex flex-col gap-6">
                             {/* Summary Card */}
-                            <div className="rounded-3xl border border-indigo-50 bg-gradient-to-br from-indigo-50/50 to-white p-6 shadow-sm">
+                            <div className="rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-50/50 to-white p-6 shadow-sm">
                                 <div className="flex items-start gap-4">
-                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-200">
+                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-lg shadow-slate-300">
                                         <Sparkles className="h-5 w-5" />
                                     </div>
                                     <div className="space-y-1">
-                                        <div className="text-xs font-bold uppercase tracking-widest text-indigo-400">AI Summary</div>
+                                        <div className="text-xs font-bold uppercase tracking-widest text-slate-400">Intelligent Summary</div>
                                         <p className="text-sm leading-relaxed text-slate-700 font-medium">
-                                            {aiSummary}
+                                            {summaryCopy}
+                                        </p>
+                                        <p className="text-xs text-slate-500">
+                                            {summaryHint}
                                         </p>
                                     </div>
                                 </div>
@@ -295,7 +310,7 @@ export function DashboardCompanionPanel(props: DashboardCompanionPanelProps) {
                             {/* Breakdown Bars */}
                             <div className="rounded-3xl border border-slate-100 bg-slate-50/50 p-6">
                                 <div className="mb-4 flex items-center justify-between">
-                                    <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Health Breakdown</span>
+                                    <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Performance Metrics</span>
                                     <span className="text-[10px] font-medium text-slate-400 bg-white px-2 py-1 rounded-full shadow-sm">
                                         Snapshot: {breakdown.dateLabel}
                                     </span>
@@ -320,7 +335,7 @@ export function DashboardCompanionPanel(props: DashboardCompanionPanelProps) {
 
                             {/* Filter Tabs */}
                             <div className="flex items-center justify-between">
-                                <div className="text-xs font-bold uppercase tracking-widest text-slate-400">Action Items</div>
+                                <div className="text-xs font-bold uppercase tracking-widest text-slate-400">Requires Attention</div>
                                 <div className="flex rounded-lg bg-slate-100 p-0.5">
                                     {["all", "high"].map((sev) => (
                                         <button
@@ -329,7 +344,7 @@ export function DashboardCompanionPanel(props: DashboardCompanionPanelProps) {
                                             className={`rounded-md px-2.5 py-1 text-[10px] font-bold uppercase transition-all ${activeFilter === sev ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
                                                 }`}
                                         >
-                                            {sev}
+                                            {sev.toUpperCase()}
                                         </button>
                                     ))}
                                 </div>

@@ -1,7 +1,7 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import CashflowReportPage, { CashflowReportProps } from "./CashflowReportPage";
-import "../index.css";
+import "../setup";
 
 const container = document.getElementById("cashflow-report-root");
 const dataEl = document.getElementById("cashflow-report-data");

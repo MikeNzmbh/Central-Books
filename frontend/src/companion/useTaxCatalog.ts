@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { parseCookies } from "../utils/cookies";
+import { ensureCsrfToken, getCsrfToken } from "../utils/csrf";
 
 type CatalogListResponse<T> = {
   count: number;
@@ -9,11 +9,6 @@ type CatalogListResponse<T> = {
   next_offset: number | null;
 };
 
-const getCsrfToken = (): string | undefined => {
-  const cookies = parseCookies(document.cookie || "");
-  return cookies.csrftoken;
-};
-
 const apiFetch = async (input: RequestInfo | URL, init: RequestInit = {}) => {
   const method = (init.method || "GET").toUpperCase();
   const headers: Record<string, string> = {
@@ -21,7 +16,7 @@ const apiFetch = async (input: RequestInfo | URL, init: RequestInit = {}) => {
     ...(init.headers as Record<string, string> | undefined),
   };
   if (method !== "GET") {
-    const csrf = getCsrfToken();
+    const csrf = (getCsrfToken() || (await ensureCsrfToken())) || "";
     if (csrf) headers["X-CSRFToken"] = csrf;
     if (init.body !== undefined && !headers["Content-Type"]) {
       headers["Content-Type"] = "application/json";
@@ -116,7 +111,7 @@ export type TaxImportApplyResult = {
 
 const apiFetchForm = async (input: RequestInfo | URL, form: FormData) => {
   const headers: Record<string, string> = { Accept: "application/json" };
-  const csrf = getCsrfToken();
+  const csrf = (getCsrfToken() || (await ensureCsrfToken())) || "";
   if (csrf) headers["X-CSRFToken"] = csrf;
   return fetch(input, {
     method: "POST",

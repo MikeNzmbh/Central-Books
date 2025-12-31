@@ -39,6 +39,36 @@ export const CardTitle = ({ className, children, ...props }: React.HTMLAttribute
     </h3>
 );
 
+export const CardDescription = ({ className, children, ...props }: React.HTMLAttributes<HTMLParagraphElement>) => (
+    <p className={cn("text-sm text-slate-500", className)} {...props}>
+        {children}
+    </p>
+);
+
+// Switch Component
+export const Switch = ({ checked, onCheckedChange, disabled, className, ...props }: React.HTMLAttributes<HTMLButtonElement> & { checked?: boolean; onCheckedChange?: (checked: boolean) => void; disabled?: boolean }) => (
+    <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        disabled={disabled}
+        className={cn(
+            "relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 disabled:cursor-not-allowed disabled:opacity-50",
+            checked ? "bg-slate-900" : "bg-slate-200",
+            className
+        )}
+        onClick={() => !disabled && onCheckedChange?.(!checked)}
+        {...props}
+    >
+        <span
+            className={cn(
+                "pointer-events-none block h-5 w-5 rounded-full bg-white shadow-lg ring-0 transition-transform",
+                checked ? "translate-x-5" : "translate-x-0"
+            )}
+        />
+    </button>
+);
+
 // Button Component
 export const Button = React.forwardRef<
     HTMLButtonElement,
@@ -362,9 +392,13 @@ export const Tabs = ({ value, onValueChange, children, className, ...props }: Re
     );
 };
 
-export const TabsList = ({ className, children, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+export const TabsList = ({ className, children, currentValue, onValueChange, ...props }: React.HTMLAttributes<HTMLDivElement> & { currentValue?: string; onValueChange?: (value: string) => void }) => (
     <div className={cn("inline-flex h-10 items-center justify-center rounded-md bg-slate-100 p-1", className)} {...props}>
-        {children}
+        {React.Children.map(children, child =>
+            React.isValidElement(child)
+                ? React.cloneElement(child as any, { currentValue, onValueChange })
+                : child
+        )}
     </div>
 );
 
@@ -376,7 +410,7 @@ export const TabsTrigger = ({ value, className, children, onValueChange, current
             onClick={() => onValueChange?.(value)}
             className={cn(
                 "inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium transition-all",
-                isActive ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900",
+                isActive ? "bg-white text-slate-900 shadow-sm mb-accent-underline" : "text-slate-600 hover:text-slate-900",
                 className
             )}
             {...props}
@@ -394,3 +428,104 @@ export const TabsContent = ({ value, className, children, currentValue, ...props
         </div>
     );
 };
+
+// DialogFooter Component
+export const DialogFooter = ({ className, children, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+    <div className={cn("flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2", className)} {...props}>
+        {children}
+    </div>
+);
+
+// Textarea Component
+export const Textarea = React.forwardRef<HTMLTextAreaElement, React.TextareaHTMLAttributes<HTMLTextAreaElement>>(
+    ({ className, ...props }, ref) => (
+        <textarea
+            ref={ref}
+            className={cn(
+                "flex min-h-[80px] w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400 disabled:cursor-not-allowed disabled:opacity-50",
+                className
+            )}
+            {...props}
+        />
+    )
+);
+Textarea.displayName = "Textarea";
+
+// Tooltip Components
+type TooltipContextType = {
+    open: boolean;
+    setOpen: (open: boolean) => void;
+    delayDuration: number;
+};
+
+const TooltipContext = React.createContext<TooltipContextType | null>(null);
+
+export const TooltipProvider = ({ children, delayDuration = 200 }: { children: React.ReactNode; delayDuration?: number }) => {
+    return <>{children}</>;
+};
+
+export const Tooltip = ({ children, delayDuration = 200 }: { children: React.ReactNode; delayDuration?: number }) => {
+    const [open, setOpen] = React.useState(false);
+
+    return (
+        <TooltipContext.Provider value={{ open, setOpen, delayDuration }}>
+            <div className="relative inline-block">
+                {children}
+            </div>
+        </TooltipContext.Provider>
+    );
+};
+
+export const TooltipTrigger = React.forwardRef<HTMLSpanElement, React.HTMLAttributes<HTMLSpanElement> & { asChild?: boolean }>(
+    ({ asChild, children, ...props }, ref) => {
+        const ctx = React.useContext(TooltipContext);
+        const timeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+        const onMouseEnter = () => {
+            if (timeoutRef.current) clearTimeout(timeoutRef.current);
+            timeoutRef.current = setTimeout(() => {
+                ctx?.setOpen(true);
+            }, ctx?.delayDuration ?? 200);
+        };
+
+        const onMouseLeave = () => {
+            if (timeoutRef.current) clearTimeout(timeoutRef.current);
+            ctx?.setOpen(false);
+        };
+
+        if (asChild && React.isValidElement(children)) {
+            return React.cloneElement(children as React.ReactElement<any>, {
+                onMouseEnter,
+                onMouseLeave,
+                ref,
+                ...props,
+            });
+        }
+
+        return (
+            <span ref={ref} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} {...props}>
+                {children}
+            </span>
+        );
+    }
+);
+TooltipTrigger.displayName = "TooltipTrigger";
+
+export const TooltipContent = ({ className, children, ...props }: React.HTMLAttributes<HTMLDivElement>) => {
+    const ctx = React.useContext(TooltipContext);
+    if (!ctx?.open) return null;
+
+    return (
+        <div
+            className={cn(
+                "absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 text-xs bg-slate-900 text-white rounded-md shadow-md whitespace-nowrap",
+                className
+            )}
+            {...props}
+        >
+            {children}
+            <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px border-4 border-transparent border-t-slate-900" />
+        </div>
+    );
+};
+

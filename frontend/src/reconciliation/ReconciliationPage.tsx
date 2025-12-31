@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import {
   AlertTriangle,
   Check,
@@ -52,8 +52,9 @@ import { Separator } from "../components/ui/separator";
 
 import "../index.css";
 import { ReportExportButton } from "../reports/ReportExportButton";
-import CompanionStrip from "../companion/CompanionStrip";
-import { parseCookies } from "../utils/cookies";
+import { ensureCsrfToken, getCsrfToken as getCsrfTokenSync } from "../utils/csrf";
+import { usePermissions } from "../hooks/usePermissions";
+import { ToastProvider, useToast } from "../contexts/ToastContext";
 
 // --- Types ---
 
@@ -174,11 +175,7 @@ async function fetchJson<T = any>(url: string, options?: RequestInit): Promise<T
 }
 
 function getCsrfToken() {
-  // First try the cookie (most reliable for SPAs)
-  const cookieToken = parseCookies(document.cookie).csrftoken;
-  if (cookieToken) return cookieToken;
-  // Fallback to form input if exists
-  return document.querySelector<HTMLInputElement>("[name=csrfmiddlewaretoken]")?.value || "";
+  return getCsrfTokenSync();
 }
 
 function formatAmount(amount: number, currency: string) {
@@ -214,6 +211,15 @@ function EmptyState({ canReconcile, reason }: { canReconcile: boolean; reason: s
 }
 
 export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: string }) {
+  const { can } = usePermissions();
+  const { showToast } = useToast();
+  React.useEffect(() => {
+    ensureCsrfToken().catch(() => undefined);
+  }, []);
+  // RBAC: check permissions for complete and reset actions
+  const canComplete = can("reconciliation.complete_session");
+  const canReset = can("reconciliation.reset_session");
+
   const [state, setState] = useState<ReconciliationPageState>({
     bankAccounts: [],
     activeBankId: bankAccountId || null,
@@ -565,11 +571,22 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
         }),
       });
 
+      // Show toast with undo option
+      showToast({
+        message: "Transaction matched",
+        type: "success",
+        onUndo: () => onUnmatch(txId),
+      });
+
       // Refresh session and feed after match
       await loadSession(state.activeBankId, state.activePeriodId);
     } catch (e: any) {
       console.error(e);
       setActionError(e?.message || "Could not match transaction.");
+      showToast({
+        message: e?.message || "Could not match transaction",
+        type: "error",
+      });
     }
   };
 
@@ -731,8 +748,6 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
       </div>
 
       <main className="flex-1 px-4 py-6 md:px-8">
-        <CompanionStrip context="reconciliation" className="mb-6" />
-
         {state.error && (
           <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 flex items-center gap-3 justify-between">
             <div className="flex items-center gap-2">
@@ -1058,7 +1073,7 @@ function SessionSetupBar({
                 ? "border-emerald-200 bg-emerald-50/50 text-emerald-700"
                 : "border-amber-200 bg-amber-50/50 text-amber-700"
                 }`}>
-                <span className="text-sm font-bold">
+                <span className="text-sm font-bold font-mono-soft">
                   {session ? session.difference.toFixed(2) : "—"}
                 </span>
                 <span className="text-xs font-medium opacity-70">{activeBank?.currency}</span>
@@ -1162,7 +1177,7 @@ function ProgressSummary({ session }: ProgressSummaryProps) {
         <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
           Reconciliation Progress
         </span>
-        <span className="text-2xl font-bold text-slate-900 ml-auto">
+        <span className="text-2xl font-bold text-slate-900 ml-auto font-mono-soft">
           {session.reconciledPercent.toFixed(0)}%
         </span>
       </div>
@@ -1500,7 +1515,7 @@ function TransactionRow({ tx, onToggleInclude, onMatch, onAddAsNew, onUnmatch, i
               size="sm"
               onClick={() => onMatch(tx.id)}
               disabled={actionsDisabled}
-              title="Link this transaction to an existing journal entry"
+              title="Link this transaction to an existing record"
               className="h-7 rounded-full bg-slate-900 px-3 text-[11px] font-medium text-white hover:bg-slate-800"
             >
               Match
@@ -1511,7 +1526,7 @@ function TransactionRow({ tx, onToggleInclude, onMatch, onAddAsNew, onUnmatch, i
               size="sm"
               onClick={() => onAddAsNew(tx.id)}
               disabled={actionsDisabled}
-              title="Create a new journal entry and mark as reconciled"
+              title="Create a new record and mark as reconciled"
               className="h-7 rounded-full border-slate-200 px-3 text-[11px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
             >
               Reconcile
@@ -1524,7 +1539,7 @@ function TransactionRow({ tx, onToggleInclude, onMatch, onAddAsNew, onUnmatch, i
             size="sm"
             onClick={() => onUnmatch(tx.id)}
             disabled={actionsDisabled}
-            title="Remove the link to journal entry and mark as unreconciled"
+            title="Remove the link and mark as unreconciled"
             className="h-7 rounded-full border-slate-200 px-3 text-[11px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
           >
             Unmatch

@@ -79,8 +79,8 @@ Key screens (see demo video for full walkthrough):
 └─────────────────────────────┬───────────────────────────────┘
                               │
 ┌─────────────────────────────▼───────────────────────────────┐
-│                    REACT FRONTEND                            │
-│         (Vite + TypeScript + Tailwind CSS)                  │
+│                    VERCEL FRONTENDS                          │
+│   Customer App (React/Vite) + Admin App (React/Vite)         │
 └─────────────────────────────┬───────────────────────────────┘
                               │
 ┌─────────────────────────────▼───────────────────────────────┐
@@ -106,7 +106,7 @@ Key screens (see demo video for full walkthrough):
 | Layer | Technology |
 |-------|------------|
 | **Backend** | Django 5.x, Django REST Framework, PostgreSQL |
-| **Frontend** | React 18, TypeScript, Vite, Tailwind CSS |
+| **Frontends** | Customer app: React 18, TypeScript, Vite. Admin app: React 18, TypeScript, Vite. |
 | **LLM (Text)** | DeepSeek Chat (deepseek-chat) for structured JSON output |
 | **LLM (Vision)** | OpenAI GPT-4o-mini for receipt OCR/extraction |
 
@@ -144,11 +144,27 @@ python manage.py createsuperuser
 python manage.py runserver
 ```
 
-### Frontend Setup
+### Customer Frontend (Vite)
 
 ```bash
-# Navigate to frontend directory
+# Navigate to customer frontend directory
 cd frontend
+
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+
+# Or build for production
+npm run build
+```
+
+### Admin Frontend (Vite)
+
+```bash
+# Navigate to admin frontend directory
+cd apps/admin
 
 # Install dependencies
 npm install
@@ -162,9 +178,9 @@ npm run build
 
 ### Access the Application
 
-- **Django Admin**: http://localhost:8000/admin/
-- **Main App**: http://localhost:8000/
-- **AI Companion**: http://localhost:8000/ai-companion/
+- **Backend API**: http://localhost:8000/api/health
+- **Customer app (dev)**: http://localhost:5173
+- **Admin app (dev)**: http://localhost:5174
 
 ---
 
@@ -175,6 +191,11 @@ Copy `.env.example` to `.env` and configure:
 ```bash
 cp .env.example .env
 ```
+
+Frontend env examples:
+
+- `frontend/.env.example`
+- `apps/admin/.env.example`
 
 ### Key Variables
 
@@ -189,10 +210,25 @@ cp .env.example .env
 | `COMPANION_LLM_TIMEOUT_SECONDS` | Request timeout (default: 60) |
 | `COMPANION_LLM_MAX_TOKENS` | Max tokens per response (default: 2048) |
 | `OPENAI_API_KEY` | OpenAI API key for vision/OCR tasks |
+| `VITE_API_BASE_URL` | Backend base URL for both Vite frontends (set in each frontend .env) |
 
 > ⚠️ **Security**: Never commit secrets to the repository. All sensitive values are set via environment variables.
 
 See [`.env.example`](.env.example) for the complete list.
+
+---
+
+## Deployment Mapping
+
+- **Customer frontend**: Vercel -> `https://app.<domain>`
+- **Admin frontend**: Vercel -> `https://admin.<domain>`
+- **Backend API**: Django host (Render, Fly, etc.) -> `https://api.<domain>` or your backend URL
+
+Recommended backend envs for cross-subdomain session auth:
+
+- `FRONTEND_ROOT_DOMAIN=<domain>`
+- `SESSION_COOKIE_DOMAIN=.<domain>`
+- `CSRF_COOKIE_DOMAIN=.<domain>`
 
 ---
 

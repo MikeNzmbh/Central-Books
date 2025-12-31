@@ -3,7 +3,7 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import CashflowReportPrintPage from "./CashflowReportPrintPage";
 import { CashflowReportProps } from "./CashflowReportPage";
-import "../index.css";
+import "../setup";
 
 const container = document.getElementById("cashflow-report-print-root");
 const dataEl = document.getElementById("cashflow-report-print-data");

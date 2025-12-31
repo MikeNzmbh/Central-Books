@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import "./index.css";
+import "./setup";
 
 type IconProps = React.SVGProps<SVGSVGElement>;
 const stroke = {
@@ -437,7 +437,7 @@ const BankCoaViewPage: React.FC<BankCoaViewProps> = (props) => {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5">
                     <div className="text-[11px] uppercase tracking-wide text-slate-500">Ledger balance</div>
-                    <div className="mt-1 text-lg font-semibold text-slate-900">{formatMoney(props.balance, props.currency)}</div>
+                    <div className="mt-1 text-lg font-semibold text-slate-900 font-mono-soft">{formatMoney(props.balance, props.currency)}</div>
                     <div className="mt-1 flex items-center gap-1 text-[11px] text-emerald-600">
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                       In sync with last close
@@ -445,7 +445,7 @@ const BankCoaViewPage: React.FC<BankCoaViewProps> = (props) => {
                   </div>
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5">
                     <div className="text-[11px] uppercase tracking-wide text-slate-500">Bank feed balance</div>
-                    <div className="mt-1 text-lg font-semibold text-slate-900">{formatMoney(props.bankFeedBalance, props.currency)}</div>
+                    <div className="mt-1 text-lg font-semibold text-slate-900 font-mono-soft">{formatMoney(props.bankFeedBalance, props.currency)}</div>
                     {(() => {
                       const difference = Math.abs(props.balance - props.bankFeedBalance);
                       const unreconciledText = props.unreconciledCount
@@ -462,7 +462,7 @@ const BankCoaViewPage: React.FC<BankCoaViewProps> = (props) => {
                       return (
                         <div className="mt-1 flex items-center gap-1 text-[11px] text-amber-600">
                           <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-                          Off by {formatMoney(difference, props.currency)} · {unreconciledText}
+                          Off by <span className="font-mono-soft">{formatMoney(difference, props.currency)}</span> · {unreconciledText}
                         </div>
                       );
                     })()}
@@ -497,7 +497,7 @@ const BankCoaViewPage: React.FC<BankCoaViewProps> = (props) => {
               <div className="flex items-center justify-between rounded-b-3xl border-t border-slate-200 bg-slate-50 px-4 py-3 text-[11px] text-slate-500">
                 <span className="inline-flex items-center gap-1.5">
                   <AlertIcon className="h-3.5 w-3.5 text-amber-500" />
-                  {props.unreconciledCount || 0} unreconciled items since last close.
+                  <span className="font-mono-soft">{props.unreconciledCount || 0}</span> unreconciled items since last close.
                 </span>
                 <button className="rounded-full border border-slate-300 bg-white px-3 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50">
                   Open reconciliation
@@ -706,7 +706,7 @@ const BankCoaViewPage: React.FC<BankCoaViewProps> = (props) => {
                     </tbody>
                   </table>
                   <div className="border-t border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
-                    Showing {filteredTransactions.length} of {transactions.length} transactions.
+                    Showing <span className="font-mono-soft">{filteredTransactions.length}</span> of <span className="font-mono-soft">{transactions.length}</span> transactions.
                   </div>
                 </div>
 
@@ -751,7 +751,7 @@ const BankCoaViewPage: React.FC<BankCoaViewProps> = (props) => {
                             <div className="text-[11px] text-slate-500">{row.date}</div>
                             <div className="text-[11px] text-slate-900">{row.description || "Ledger entry"}</div>
                             <div className="text-[10px] text-slate-500">
-                              {row.source} · {formatMoney(row.amount, props.currency)} · Running {formatMoney(row.runningBalance, props.currency)}
+                              {row.source} · <span className="font-mono-soft">{formatMoney(row.amount, props.currency)}</span> · Running <span className="font-mono-soft">{formatMoney(row.runningBalance, props.currency)}</span>
                             </div>
                           </div>
                         ))}

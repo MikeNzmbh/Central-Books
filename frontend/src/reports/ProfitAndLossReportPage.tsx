@@ -98,7 +98,7 @@ const TrendBadge: React.FC<{ value: number | null | undefined; inverse?: boolean
     const textColor = isPositive ? "text-emerald-600" : "text-rose-500";
     const arrow = value >= 0 ? "↑" : "↓";
     return (
-        <span className={`text-[11px] font-medium ${textColor}`}>
+        <span className={`text-[11px] font-medium font-mono-soft ${textColor}`}>
             {arrow} {Math.abs(value).toFixed(1)}%
         </span>
     );
@@ -220,7 +220,7 @@ const ProfitAndLossReportPage: React.FC<ProfitAndLossReportProps> = ({
                             {/* Net Income */}
                             <div className="rounded-3xl bg-white shadow-sm border border-slate-100 px-4 py-4 flex flex-col gap-2">
                                 <p className="text-[11px] font-medium text-slate-500 uppercase">Net Income</p>
-                                <p className={`text-xl font-semibold tracking-tight ${kpi.netIncome >= 0 ? '' : 'text-rose-500'}`}>
+                                <p className={`text-xl font-semibold tracking-tight font-mono-soft ${kpi.netIncome >= 0 ? '' : 'text-rose-500'}`}>
                                     {formatCurrency(kpi.netIncome, currency)}
                                 </p>
                                 <p className="text-[11px] text-slate-500">
@@ -231,7 +231,7 @@ const ProfitAndLossReportPage: React.FC<ProfitAndLossReportProps> = ({
                             {/* Total Revenue */}
                             <div className="rounded-3xl bg-white shadow-sm border border-slate-100 px-4 py-4 flex flex-col gap-2">
                                 <p className="text-[11px] font-medium text-slate-500 uppercase">Total Revenue</p>
-                                <p className="text-xl font-semibold tracking-tight">
+                                <p className="text-xl font-semibold tracking-tight font-mono-soft">
                                     {formatCurrency(kpi.income, currency)}
                                 </p>
                                 <p className="text-[11px] text-slate-500">Income from sales and services.</p>
@@ -240,7 +240,7 @@ const ProfitAndLossReportPage: React.FC<ProfitAndLossReportProps> = ({
                             {/* Total Expenses */}
                             <div className="rounded-3xl bg-white shadow-sm border border-slate-100 px-4 py-4 flex flex-col gap-2">
                                 <p className="text-[11px] font-medium text-slate-500 uppercase">Total Expenses</p>
-                                <p className="text-xl font-semibold tracking-tight">
+                                <p className="text-xl font-semibold tracking-tight font-mono-soft">
                                     {formatCurrency(kpi.expenses + kpi.cogs, currency)}
                                 </p>
                                 <p className="text-[11px] text-slate-500">COGS and operating expenses combined.</p>
@@ -249,7 +249,7 @@ const ProfitAndLossReportPage: React.FC<ProfitAndLossReportProps> = ({
                             {/* Gross Margin - Dark card like Cash Runway */}
                             <div className="rounded-3xl bg-slate-900 text-slate-50 px-4 py-4 flex flex-col gap-2">
                                 <p className="text-[11px] font-medium text-slate-300 uppercase">Gross Margin</p>
-                                <p className="text-xl font-semibold tracking-tight">
+                                <p className="text-xl font-semibold tracking-tight font-mono-soft">
                                     {kpi.grossMarginPct != null ? `${kpi.grossMarginPct.toFixed(1)}%` : "—"}
                                 </p>
                                 <p className="text-[11px] text-slate-300">
@@ -356,7 +356,7 @@ const ProfitAndLossReportPage: React.FC<ProfitAndLossReportProps> = ({
                                     {/* Gross Margin */}
                                     <div className="flex flex-col items-center gap-2 p-4 rounded-2xl bg-slate-50">
                                         <p className="text-[11px] text-slate-500 uppercase">Gross</p>
-                                        <p className="text-lg font-semibold text-slate-900">
+                                        <p className="text-lg font-semibold text-slate-900 font-mono-soft">
                                             {kpi.grossMarginPct != null ? `${kpi.grossMarginPct.toFixed(1)}%` : "—"}
                                         </p>
                                         {kpi.changeGrossProfitPct != null && (
@@ -367,7 +367,7 @@ const ProfitAndLossReportPage: React.FC<ProfitAndLossReportProps> = ({
                                     {/* Net Margin */}
                                     <div className="flex flex-col items-center gap-2 p-4 rounded-2xl bg-slate-50">
                                         <p className="text-[11px] text-slate-500 uppercase">Net</p>
-                                        <p className={`text-lg font-semibold ${kpi.netMarginPct != null && kpi.netMarginPct >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                                        <p className={`text-lg font-semibold font-mono-soft ${kpi.netMarginPct != null && kpi.netMarginPct >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
                                             {kpi.netMarginPct != null ? `${kpi.netMarginPct.toFixed(1)}%` : "—"}
                                         </p>
                                         {kpi.changeNetIncomePct != null && (
@@ -385,7 +385,7 @@ const ProfitAndLossReportPage: React.FC<ProfitAndLossReportProps> = ({
                                         {expenseRows.slice(0, 3).map((row) => (
                                             <div key={row.id} className="flex items-center justify-between text-[11px]">
                                                 <span className="text-slate-500 truncate mr-2">{row.name}</span>
-                                                <span className="text-rose-500 font-medium">
+                                                <span className="text-rose-500 font-medium font-mono-soft">
                                                     {formatCurrency(row.amount, currency)}
                                                 </span>
                                             </div>
@@ -604,7 +604,7 @@ const ProfitAndLossReportPage: React.FC<ProfitAndLossReportProps> = ({
                                                     </td>
                                                     <td className="px-4 sm:px-6 py-3 text-right">
                                                         {kpi.changeNetIncomePct != null && (
-                                                            <span className={`text-[11px] font-medium ${kpi.changeNetIncomePct >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                            <span className={`text-[11px] font-medium font-mono-soft ${kpi.changeNetIncomePct >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                                                                 {kpi.changeNetIncomePct >= 0 ? '↑' : '↓'} {Math.abs(kpi.changeNetIncomePct).toFixed(1)}%
                                                             </span>
                                                         )}

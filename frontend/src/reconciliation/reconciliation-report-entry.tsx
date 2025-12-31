@@ -2,7 +2,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import ReconciliationReportPage from "./ReconciliationReportPage";
-import "../index.css";
+import "../setup";
 
 const rootEl = document.getElementById("reconciliation-report-root");
 if (!rootEl) {

@@ -1,7 +1,8 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import "./index.css";
+import "./setup";
 import BankingAccountsAndFeedPage from "./BankingAccountsAndFeedPage";
+import { AuthProvider } from "./contexts/AuthContext";
 
 const rootEl = document.getElementById("banking-root") as HTMLElement | null;
 
@@ -12,7 +13,9 @@ if (rootEl) {
 
   ReactDOM.createRoot(rootEl).render(
     <React.StrictMode>
-      <BankingAccountsAndFeedPage overviewUrl={overviewUrl} feedUrl={feedUrl} importUrl={importUrl} />
+      <AuthProvider>
+        <BankingAccountsAndFeedPage overviewUrl={overviewUrl} feedUrl={feedUrl} importUrl={importUrl} />
+      </AuthProvider>
     </React.StrictMode>
   );
 }

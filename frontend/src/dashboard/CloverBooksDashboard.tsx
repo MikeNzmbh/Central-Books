@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { DashboardCompanionPanel, CompanionBreakdown, CompanionInsight, CompanionTask } from "./DashboardCompanionPanel";
 import { useAuth } from "../contexts/AuthContext";
 import { AICommandStrip } from "./AICommandStrip";
@@ -92,6 +92,70 @@ type CashflowSeries = {
   expenses?: number[];
 };
 
+type TaxGuardianStatus = "all_clear" | "attention" | "high_risk";
+
+type CompanionSummaryTax = {
+  tax?: {
+    period_key: string;
+    net_tax: number | null;
+    anomaly_counts?: { low?: number; medium?: number; high?: number };
+  };
+};
+
+type TaxPeriodsResponse = {
+  periods?: Array<{
+    period_key: string;
+    due_date?: string;
+    is_due_soon?: boolean;
+    is_overdue?: boolean;
+  }>;
+};
+
+type TaxGuardianCardData = {
+  periodKey: string;
+  netTaxDue: number | null;
+  dueDate: string | null;
+  status: TaxGuardianStatus;
+  openAnomalies: number;
+  dueLabel: "On track" | "At risk" | "Unknown";
+};
+
+function sumSeverityCounts(counts?: { low?: number; medium?: number; high?: number }): number {
+  return (counts?.low ?? 0) + (counts?.medium ?? 0) + (counts?.high ?? 0);
+}
+
+function parseISODateToLocal(iso: string): Date | null {
+  const core = iso.split("T")[0];
+  const parts = core.split("-");
+  if (parts.length !== 3) return null;
+  const year = Number(parts[0]);
+  const month = Number(parts[1]);
+  const day = Number(parts[2]);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
+  const d = new Date(year, month - 1, day);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function formatShortDate(iso: string): string {
+  const d = parseISODateToLocal(iso);
+  if (!d) return "—";
+  const month = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getMonth()];
+  return `${month} ${d.getDate()}`;
+}
+
+async function fetchJson<T>(url: string): Promise<T> {
+  const res = await fetch(url, {
+    method: "GET",
+    credentials: "same-origin",
+    headers: { Accept: "application/json" },
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Request failed (${res.status}) ${text}`.trim());
+  }
+  return (await res.json()) as T;
+}
+
 export interface CloverBooksDashboardProps {
   username?: string;
   currency?: string;
@@ -148,6 +212,10 @@ const CloverBooksDashboard: React.FC<CloverBooksDashboardProps> = ({
   }, [currency]);
 
   const formatMoney = (value?: number) => formatter.format(value || 0);
+  const formatMoneyOrDash = (value: number | null | undefined) => {
+    if (value === null || value === undefined || !Number.isFinite(value)) return "—";
+    return formatter.format(value);
+  };
   const pnlZero =
     (metrics?.revenue_month || 0) === 0 &&
     (metrics?.expenses_month || 0) === 0 &&
@@ -160,6 +228,60 @@ const CloverBooksDashboard: React.FC<CloverBooksDashboardProps> = ({
   const showNoActivityMessage = pnlZero && (noLedgerActivity || Boolean(plMessage));
   const plPeriodLabel = metrics?.pl_period_label || "This month";
   const plPrevPeriodLabel = metrics?.pl_prev_period_label || "last month";
+
+  const [taxGuardianCard, setTaxGuardianCard] = useState<TaxGuardianCardData | null>(null);
+  const [taxGuardianLoading, setTaxGuardianLoading] = useState(true);
+  const [taxGuardianError, setTaxGuardianError] = useState<string | null>(null);
+
+  const loadTaxGuardianCard = useCallback(async () => {
+    setTaxGuardianLoading(true);
+    setTaxGuardianError(null);
+    try {
+      const [summary, periods] = await Promise.all([
+        fetchJson<CompanionSummaryTax>("/api/agentic/companion/summary"),
+        fetchJson<TaxPeriodsResponse>("/api/tax/periods/"),
+      ]);
+
+      const periodKey = summary?.tax?.period_key || periods?.periods?.[0]?.period_key || "";
+      const anomalyCounts = summary?.tax?.anomaly_counts;
+      const openAnomalies = sumSeverityCounts(anomalyCounts);
+
+      const periodMeta = periods?.periods?.find((p) => p.period_key === periodKey);
+      const dueDate = periodMeta?.due_date || null;
+
+      const dueAtRisk = Boolean(periodMeta?.is_overdue) || Boolean(periodMeta?.is_due_soon);
+      const dueLabel: TaxGuardianCardData["dueLabel"] = !dueDate ? "Unknown" : dueAtRisk ? "At risk" : "On track";
+
+      const status: TaxGuardianStatus = (() => {
+        if (periodMeta?.is_overdue) return "high_risk";
+        const high = anomalyCounts?.high ?? 0;
+        const medium = anomalyCounts?.medium ?? 0;
+        const low = anomalyCounts?.low ?? 0;
+        if (high > 0) return "high_risk";
+        if (medium > 0 || low > 0) return "attention";
+        return "all_clear";
+      })();
+
+      setTaxGuardianCard({
+        periodKey,
+        netTaxDue: summary?.tax?.net_tax ?? null,
+        dueDate,
+        status,
+        openAnomalies,
+        dueLabel,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      setTaxGuardianError(message);
+      setTaxGuardianCard(null);
+    } finally {
+      setTaxGuardianLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadTaxGuardianCard();
+  }, [loadTaxGuardianCard]);
 
   const cashflowBars = useMemo(() => {
     const labels = cashflow?.labels || [];
@@ -300,7 +422,9 @@ const CloverBooksDashboard: React.FC<CloverBooksDashboardProps> = ({
           <div className="space-y-1">
             <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">Overview</p>
             <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-slate-900">
-              Morning, {greetingName}. Your books are in good shape.
+              Morning, {greetingName}.<br className="hidden md:block" />
+              <span className="text-slate-400">Your books are </span>
+              <span className="mb-accent-underline">in good shape.</span>
             </h1>
             <p className="text-sm text-slate-500">
               Live snapshot across cash, invoices, expenses, suppliers, and profit &amp; loss.
@@ -335,7 +459,7 @@ const CloverBooksDashboard: React.FC<CloverBooksDashboardProps> = ({
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-3xl border border-slate-100 bg-white/90 px-4 py-4 shadow-sm">
               <p className="text-xs font-medium text-slate-500">Cash on hand</p>
-              <p className="mt-2 text-xl font-semibold text-slate-900">{formatMoney(metrics?.cash_on_hand)}</p>
+              <p className="mt-2 text-xl font-semibold text-slate-900 font-mono-soft">{formatMoney(metrics?.cash_on_hand)}</p>
               <div className="mt-1 flex items-center gap-1.5 text-[11px] text-emerald-600">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                 <span>Updated live from ledger balances</span>
@@ -344,7 +468,7 @@ const CloverBooksDashboard: React.FC<CloverBooksDashboardProps> = ({
 
             <div className="rounded-3xl border border-slate-100 bg-white/90 px-4 py-4 shadow-sm">
               <p className="text-xs font-medium text-slate-500">Open invoices</p>
-              <p className="mt-2 text-xl font-semibold text-slate-900">{formatMoney(metrics?.open_invoices_total)}</p>
+              <p className="mt-2 text-xl font-semibold text-slate-900 font-mono-soft">{formatMoney(metrics?.open_invoices_total)}</p>
               <div className="mt-1 flex items-center justify-between text-[11px] text-slate-600">
                 <span>{metrics?.open_invoices_count || 0} awaiting payment</span>
                 <span className="rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-700">
@@ -354,30 +478,68 @@ const CloverBooksDashboard: React.FC<CloverBooksDashboardProps> = ({
             </div>
 
             <div className="rounded-3xl border border-slate-100 bg-white/90 px-4 py-4 shadow-sm">
-              <p className="text-xs font-medium text-slate-500">Profit &amp; loss</p>
-              <p className="mt-0.5 text-[11px] text-slate-500">{plPeriodLabel}</p>
-              {showNoActivityMessage ? (
-                <div className="mt-2 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2 text-[12px] text-slate-600">
-                  No income or expenses have been posted to your ledger for this period. Try last month or another date
-                  range.
+              <div className="flex items-start justify-between gap-3">
+                <p className="text-xs font-medium text-slate-500">Tax Guardian</p>
+                <a
+                  href={`/ai-companion/tax${taxGuardianCard?.periodKey ? `?period=${encodeURIComponent(taxGuardianCard.periodKey)}` : ""}`}
+                  className="text-[11px] font-semibold text-sky-700 hover:text-sky-900"
+                >
+                  View
+                </a>
+              </div>
+
+              {taxGuardianLoading ? (
+                <div className="mt-2 space-y-2 animate-pulse">
+                  <div className="h-4 w-36 rounded-md bg-slate-200/70" />
+                  <div className="h-7 w-32 rounded-md bg-slate-200/70" />
+                  <div className="h-6 w-full rounded-full bg-slate-200/70" />
+                </div>
+              ) : taxGuardianError ? (
+                <div className="mt-2">
+                  <p className="text-sm font-medium text-rose-700">Unable to load tax status</p>
+                  <button
+                    type="button"
+                    onClick={loadTaxGuardianCard}
+                    className="mt-2 inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+                  >
+                    Try again
+                  </button>
                 </div>
               ) : (
                 <>
-                  <p className="mt-2 text-xl font-semibold text-slate-900">{formatMoney(metrics?.net_income_month)}</p>
-                  <div className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-600">
-                    <span className="rounded-full bg-sky-50 px-2 py-0.5 font-medium text-sky-700">
-                      Revenue {formatMoney(metrics?.revenue_month)}
+                  <p className="mt-0.5 text-[11px] text-slate-500">
+                    Period · <span className="font-mono-soft">{taxGuardianCard?.periodKey || "—"}</span>
+                  </p>
+                  <p className="mt-2 text-xl font-semibold text-slate-900 font-mono-soft">
+                    {formatMoneyOrDash(taxGuardianCard?.netTaxDue)}
+                  </p>
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px]">
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-semibold ${taxGuardianCard?.status === "all_clear"
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          : taxGuardianCard?.status === "attention"
+                            ? "bg-amber-50 text-amber-700 border-amber-200"
+                            : "bg-rose-50 text-rose-700 border-rose-200"
+                        }`}
+                    >
+                      {taxGuardianCard?.status === "all_clear"
+                        ? "All clear"
+                        : taxGuardianCard?.status === "attention"
+                          ? "Attention"
+                          : "High risk"}
                     </span>
-                    <span>Expenses {formatMoney(metrics?.expenses_month)}</span>
+                    <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-medium text-slate-700">
+                      Due {taxGuardianCard?.dueDate ? formatShortDate(taxGuardianCard.dueDate) : "—"} · {taxGuardianCard?.dueLabel || "Unknown"}
+                    </span>
                   </div>
-                  <div className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-600">
-                    <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700">
-                      vs {plPrevPeriodLabel}
-                    </span>
-                    <span>
-                      Revenue {formatMoney(metrics?.pl_prev_income ?? 0)} · Expenses {formatMoney(metrics?.pl_prev_expenses ?? 0)}
-                    </span>
-                  </div>
+                  {taxGuardianCard && taxGuardianCard.openAnomalies > 0 ? (
+                    <div className="mt-2 flex items-center gap-1.5 text-[11px] text-amber-700">
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                      <span>
+                        {taxGuardianCard.openAnomalies} anomal{taxGuardianCard.openAnomalies === 1 ? "y" : "ies"} need review
+                      </span>
+                    </div>
+                  ) : null}
                 </>
               )}
             </div>
@@ -387,19 +549,32 @@ const CloverBooksDashboard: React.FC<CloverBooksDashboardProps> = ({
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs uppercase tracking-wide text-slate-500">Cashflow — last 6 periods</p>
+                <p className="mt-0.5 text-[11px] text-slate-400">
+                  {cashflowBars.length
+                    ? `${cashflowBars[0].label} → ${cashflowBars[cashflowBars.length - 1].label}`
+                    : "Waiting for activity"}
+                </p>
                 <p className="mt-1 text-lg font-semibold text-slate-900">
                   Smooth and trending {cashflowBars.length ? "with your real numbers" : "— add data to populate."}
                 </p>
               </div>
-              <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700 whitespace-nowrap">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                  Inflows
-                </span>
-                <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 font-medium text-rose-700 whitespace-nowrap">
-                  <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
-                  Outflows
-                </span>
+              <div className="flex flex-col items-end gap-2">
+                <a
+                  href={safeUrl(urls?.cashflowReport)}
+                  className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium hover:bg-slate-50"
+                >
+                  View cashflow report
+                </a>
+                <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700 whitespace-nowrap">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    Inflows
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 font-medium text-rose-700 whitespace-nowrap">
+                    <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+                    Outflows
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -427,20 +602,6 @@ const CloverBooksDashboard: React.FC<CloverBooksDashboardProps> = ({
                 )}
               </div>
               <div className="absolute inset-0 bg-gradient-to-t from-white/40 to-transparent" />
-            </div>
-
-            <div className="flex items-center justify-between text-[11px] text-slate-500">
-              <span>
-                {cashflowBars.length
-                  ? `${cashflowBars[0].label} → ${cashflowBars[cashflowBars.length - 1].label} `
-                  : "Waiting for activity"}
-              </span>
-              <a
-                href={safeUrl(urls?.cashflowReport)}
-                className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium hover:bg-slate-50"
-              >
-                View cashflow report
-              </a>
             </div>
           </div>
         </section>
@@ -480,18 +641,18 @@ const CloverBooksDashboard: React.FC<CloverBooksDashboardProps> = ({
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="rounded-2xl bg-slate-50/80 border border-slate-100 px-3 py-3">
                 <p className="text-[11px] text-slate-500">Open</p>
-                <p className="mt-1 text-lg font-semibold text-slate-900">{formatMoney(metrics?.open_invoices_total)}</p>
-                <p className="mt-0.5 text-[11px] text-slate-500">{metrics?.open_invoices_count || 0} invoices</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900 font-mono-soft">{formatMoney(metrics?.open_invoices_total)}</p>
+                <p className="mt-0.5 text-[11px] text-slate-500"><span className="font-mono-soft">{metrics?.open_invoices_count || 0}</span> invoices</p>
               </div>
               <div className="rounded-2xl bg-slate-50/80 border border-slate-100 px-3 py-3">
                 <p className="text-[11px] text-slate-500">Overdue</p>
-                <p className="mt-1 text-lg font-semibold text-amber-700">{formatMoney(metrics?.overdue_total)}</p>
-                <p className="mt-0.5 text-[11px] text-amber-700">{metrics?.overdue_count || 0} clients</p>
+                <p className="mt-1 text-lg font-semibold text-amber-700 font-mono-soft">{formatMoney(metrics?.overdue_total)}</p>
+                <p className="mt-0.5 text-[11px] text-amber-700"><span className="font-mono-soft">{metrics?.overdue_count || 0}</span> clients</p>
               </div>
               <div className="rounded-2xl bg-slate-50/80 border border-slate-100 px-3 py-3">
                 <p className="text-[11px] text-slate-500">Collected (30d)</p>
-                <p className="mt-1 text-lg font-semibold text-emerald-700">{formatMoney(metrics?.revenue_30)}</p>
-                <p className="mt-0.5 text-[11px] text-emerald-700">vs expenses {formatMoney(metrics?.expenses_30)}</p>
+                <p className="mt-1 text-lg font-semibold text-emerald-700 font-mono-soft">{formatMoney(metrics?.revenue_30)}</p>
+                <p className="mt-0.5 text-[11px] text-emerald-700">vs expenses <span className="font-mono-soft">{formatMoney(metrics?.expenses_30)}</span></p>
               </div>
             </div>
 
@@ -510,7 +671,7 @@ const CloverBooksDashboard: React.FC<CloverBooksDashboardProps> = ({
                     >
                       <span className="flex-1 truncate">#{inv.number} · {inv.customer}</span>
                       <span className="w-24 text-right text-slate-500">{inv.due_label}</span>
-                      <span className="w-20 text-right font-medium text-slate-900">{formatMoney(inv.amount)}</span>
+                      <span className="w-20 text-right font-medium text-slate-900 font-mono-soft">{formatMoney(inv.amount)}</span>
                     </a>
                   ))
                 ) : (
@@ -547,7 +708,7 @@ const CloverBooksDashboard: React.FC<CloverBooksDashboardProps> = ({
                         <span className="font-medium text-slate-900">{item.description}</span>
                         <span className="text-[11px] text-slate-500">{item.note}</span>
                       </div>
-                      <span className={`font - semibold ${item.amount >= 0 ? "text-emerald-700" : "text-rose-600"} `}>
+                      <span className={`font-semibold font-mono-soft ${item.amount >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
                         {item.amount >= 0 ? "+" : "-"}{formatMoney(Math.abs(item.amount))}
                       </span>
                     </div>
@@ -577,14 +738,14 @@ const CloverBooksDashboard: React.FC<CloverBooksDashboardProps> = ({
               <div className="grid gap-3 sm:grid-cols-3 text-xs">
                 <div className="rounded-2xl bg-slate-50/80 border border-slate-100 px-3 py-3">
                   <p className="text-[11px] text-slate-500">This month</p>
-                  <p className="mt-1 text-lg font-semibold text-slate-900">{formatMoney(metrics?.expenses_month)}</p>
-                  <p className="mt-0.5 text-[11px] text-slate-500">vs revenue {formatMoney(metrics?.revenue_month)}</p>
+                  <p className="mt-1 text-lg font-semibold text-slate-900 font-mono-soft">{formatMoney(metrics?.expenses_month)}</p>
+                  <p className="mt-0.5 text-[11px] text-slate-500">vs revenue <span className="font-mono-soft">{formatMoney(metrics?.revenue_month)}</span></p>
                 </div>
                 {expenseSummary.slice(0, 2).map((entry) => (
                   <div key={entry.name} className="rounded-2xl bg-slate-50/80 border border-slate-100 px-3 py-3">
                     <p className="text-[11px] text-slate-500">Top category</p>
                     <p className="mt-1 text-sm font-semibold text-slate-900">{entry.name}</p>
-                    <p className="mt-0.5 text-[11px] text-slate-500">{formatMoney(entry.total)}</p>
+                    <p className="mt-0.5 text-[11px] text-slate-500 font-mono-soft">{formatMoney(entry.total)}</p>
                   </div>
                 ))}
                 {expenseSummary.length === 0 && (

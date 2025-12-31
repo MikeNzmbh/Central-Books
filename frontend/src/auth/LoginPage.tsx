@@ -1,4 +1,5 @@
 import React from "react";
+import { backendUrl } from "../utils/apiClient";
 
 export interface CloverBooksLoginPageProps {
   action?: string;
@@ -86,10 +87,10 @@ const CloverBooksLoginPage: React.FC<CloverBooksLoginPageProps> = ({
   nextUrl,
   errors = [],
   googleEnabled = true,
-  googleLoginUrl = "/accounts/google/login/",
+  googleLoginUrl = backendUrl("/accounts/google/login/"),
 }) => {
   const googleLogin = () => {
-    window.location.href = googleLoginUrl || "/accounts/google/login/?process=login";
+    window.location.href = googleLoginUrl || backendUrl("/accounts/google/login/?process=login");
   };
 
   return (

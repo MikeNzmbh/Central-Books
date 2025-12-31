@@ -12,6 +12,7 @@ from django.views.decorators.http import require_GET, require_POST
 from django.db import models
 from django.db.models import Q
 from core.utils import get_current_business
+from core.permissions import has_permission
 from core.services.periods import resolve_comparison, resolve_period
 from core.services.reconciliation_engine import ReconciliationEngine
 from core.services.bank_reconciliation import (
@@ -34,6 +35,28 @@ from core.models import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _require_reconciliation_permission(request, business, *, action="view"):
+    """
+    RBAC-based permission check for Reconciliation endpoints.
+    
+    Actions:
+    - view: requires bank.view_transactions or reconciliation.view
+    - reconcile: requires bank.reconcile
+    - complete: requires reconciliation.complete_session
+    - reset: requires reconciliation.reset_session
+    """
+    permission_map = {
+        "view": "reconciliation.view",
+        "reconcile": "bank.reconcile",
+        "complete": "reconciliation.complete_session",
+        "reset": "reconciliation.reset_session",
+    }
+    required_permission = permission_map.get(action, "reconciliation.view")
+    if not has_permission(request.user, business, required_permission):
+        return JsonResponse({"error": "Permission denied"}, status=403)
+    return None
 
 @login_required
 def reconcile_bank_account(request: HttpRequest, pk: int) -> HttpResponse:
@@ -1051,6 +1074,11 @@ def api_reconciliation_complete_v1(request: HttpRequest, session_id: int):
     business, error = _ensure_business(request)
     if error:
         return error
+    
+    # Completing a session requires complete_session permission
+    forbidden = _require_reconciliation_permission(request, business, action="complete")
+    if forbidden:
+        return forbidden
 
     session = get_object_or_404(ReconciliationSession, pk=session_id, business=business)
     payload, error = _complete_session(session)
@@ -1065,12 +1093,15 @@ def api_reconciliation_reopen_session(request: HttpRequest, session_id: int):
     business, error = _ensure_business(request)
     if error:
         return error
+
+    # Reopening a completed session is a staff-only recovery action.
     if not request.user.is_staff:
-        return _json_error(
-            "You do not have permission to reopen this reconciliation period.",
-            status=403,
-            code="forbidden",
-        )
+        return JsonResponse({"error": "Permission denied"}, status=403)
+    
+    # Reopening a session requires reset_session permission (high privilege)
+    forbidden = _require_reconciliation_permission(request, business, action="reset")
+    if forbidden:
+        return forbidden
 
     session = get_object_or_404(ReconciliationSession, pk=session_id, business=business)
     if session.status != ReconciliationSession.Status.COMPLETED:
@@ -1098,6 +1129,11 @@ def api_reconciliation_delete_session(request: HttpRequest, session_id: int):
     business, error = _ensure_business(request)
     if error:
         return error
+    
+    # Deleting a session requires reset_session permission (high privilege)
+    forbidden = _require_reconciliation_permission(request, business, action="reset")
+    if forbidden:
+        return forbidden
 
     session = get_object_or_404(ReconciliationSession, pk=session_id, business=business)
     

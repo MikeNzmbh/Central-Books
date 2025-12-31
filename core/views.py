@@ -563,6 +563,12 @@ def _expense_preview(form) -> dict:
     }
 
 
+def welcome_view(request):
+    if request.user.is_authenticated:
+        return redirect("dashboard")
+    return render(request, "welcome.html")
+
+
 def signup_view(request):
     errors: list[str] = []
     initial_email = ""
@@ -4769,12 +4775,54 @@ def banking_accounts_feed_spa(request):
     return render(request, "banking_accounts_feed.html")
 
 
-@login_required(login_url="/internal-admin/login/")
+@login_required
+def inventory_spa(request):
+    return render(request, "inventory.html")
+
+
 def admin_spa(request):
     """Internal admin dashboard - React SPA."""
-    profile = getattr(request.user, "internal_admin_profile", None)
-    if not (request.user.is_staff or profile):
+    # Public invite redemption route is intentionally unauthenticated so invited
+    # employees can create/activate their account before they have admin access.
+    if str(getattr(request, "path", "")).startswith("/internal-admin/invite/"):
+        return render(request, "admin_spa.html")
+
+    if not request.user.is_authenticated:
+        return redirect(f"/internal-admin/login/?next={request.get_full_path()}")
+    try:
+        from internal_admin.permissions import can_access_admin_panel
+
+        if not can_access_admin_panel(request.user):
+            return HttpResponseForbidden("You are not authorized to access internal admin.")
+    except Exception:
         return HttpResponseForbidden("You are not authorized to access internal admin.")
+    try:
+        from internal_admin.access_policy import check_internal_admin_access
+
+        allowed, reason = check_internal_admin_access(request, request.user)
+        if not allowed:
+            try:
+                from internal_admin.utils import log_admin_action
+
+                log_admin_action(
+                    request,
+                    action="access.denied",
+                    obj=None,
+                    extra={
+                        "path": getattr(request, "path", ""),
+                        "method": getattr(request, "method", ""),
+                        "required_role": "INTERNAL_ADMIN",
+                        "view": "admin_spa",
+                        "reason": reason,
+                    },
+                    level="WARNING",
+                    category="security",
+                )
+            except Exception:
+                pass
+            return HttpResponseForbidden("Access restricted by internal admin policy.")
+    except Exception:
+        return HttpResponseForbidden("Access restricted by internal admin policy.")
     return render(request, "admin_spa.html")
 
 

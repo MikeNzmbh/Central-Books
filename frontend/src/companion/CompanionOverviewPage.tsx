@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import TopMetricsRow from "../components/overwatch/TopMetricsRow";
 import {
   Activity,
   AlertTriangle,
@@ -323,8 +324,8 @@ const CompanionOverviewPage: React.FC = () => {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-slate-50/50 font-sans text-slate-900 pb-12">
+	  return (
+	    <div className="min-h-screen bg-slate-50/50 font-sans text-slate-900 pb-12">
 
       {/* Subtle Mesh Gradient Background */}
       <div className="fixed inset-0 z-0 pointer-events-none opacity-40">
@@ -364,6 +365,13 @@ const CompanionOverviewPage: React.FC = () => {
               <Settings className="w-4 h-4" />
               Configure
             </a>
+            <Link
+              to="/proposals"
+              className="h-9 px-4 rounded-lg bg-white border border-slate-200 text-slate-600 text-sm font-medium shadow-sm hover:bg-slate-50 hover:border-slate-300 transition-all flex items-center gap-2"
+            >
+              <FileText className="w-4 h-4" />
+              Proposals
+            </Link>
             <button
               onClick={loadSummary}
               disabled={loading}
@@ -375,12 +383,336 @@ const CompanionOverviewPage: React.FC = () => {
           </div>
         </motion.header>
 
-        {summary && !summary.ai_companion_enabled && (
-          <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 text-amber-800 px-4 py-3 text-sm">
-            AI Companion is disabled in Settings.{" "}
-            <a className="underline font-semibold" href="/settings/account">Go to settings</a>
-          </div>
+	        {summary && !summary.ai_companion_enabled && (
+	          <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 text-amber-800 px-4 py-3 text-sm">
+	            AI Companion is disabled in Settings.{" "}
+	            <a className="underline font-semibold" href="/settings/account">Go to settings</a>
+	          </div>
+	        )}
+
+	        <TopMetricsRow className="mb-6" />
+
+	        {/* --- Risk Radar Section --- */}
+	        {summary?.radar && (
+	          <motion.section
+	            initial={{ opacity: 0, y: 10 }}
+	            animate={{ opacity: 1, y: 0 }}
+            className="mb-6"
+          >
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Risk Radar
+            </h3>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {Object.entries(summary.radar).map(([key, axis]) => {
+                const labels: Record<string, string> = {
+                  cash_reconciliation: "Cash & Reconciliation",
+                  revenue_invoices: "Revenue & Invoices",
+                  expenses_receipts: "Expenses & Receipts",
+                  tax_compliance: "Tax & Compliance",
+                };
+                const scoreColor = axis.score >= 80 ? "text-emerald-600" :
+                  axis.score >= 50 ? "text-amber-600" : "text-rose-600";
+                return (
+                  <div
+                    key={key}
+                    className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm"
+                  >
+                    <div className="text-xs font-medium text-slate-500">
+                      {labels[key] || key}
+                    </div>
+                    <div className="mt-1.5 flex items-baseline justify-between">
+                      <span className={`text-2xl font-bold ${scoreColor}`}>
+                        {axis.score}
+                      </span>
+                      <span className="text-xs text-slate-400">
+                        {axis.open_issues === 0 ? "✓ Clear" : `${axis.open_issues} open`}
+                      </span>
+                    </div>
+                    <div className="mt-2 h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${axis.score >= 80 ? "bg-emerald-500" :
+                          axis.score >= 50 ? "bg-amber-500" : "bg-rose-500"
+                          }`}
+                        style={{ width: `${axis.score}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </motion.section>
         )}
+
+        {/* --- Story Section --- */}
+        {summary?.story && summary.story.overall_summary && (
+          <motion.section
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="mb-6 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm"
+          >
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              This Week's Story
+            </h3>
+            <p className="mt-2 text-sm text-slate-800 leading-relaxed">
+              {summary.story.overall_summary}
+            </p>
+            {summary.story.timeline_bullets?.length > 0 && (
+              <ul className="mt-3 space-y-2">
+                {summary.story.timeline_bullets.map((item, idx) => (
+                  <li key={idx} className="flex gap-3 text-sm text-slate-700">
+                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-400" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </motion.section>
+        )}
+
+        {/* --- Coverage Section --- */}
+        {summary?.coverage && (
+          <motion.section
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+            className="mb-6"
+          >
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Coverage
+            </h3>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {Object.entries(summary.coverage).map(([key, axis]) => {
+                const labels: Record<string, string> = {
+                  receipts: "Receipts",
+                  invoices: "Invoices",
+                  banking: "Banking",
+                  books: "Books",
+                };
+                const pctColor = axis.coverage_percent >= 80 ? "text-emerald-600" :
+                  axis.coverage_percent >= 50 ? "text-amber-600" : "text-rose-600";
+                return (
+                  <div
+                    key={key}
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2.5"
+                  >
+                    <div className="text-xs font-medium text-slate-500">
+                      {labels[key] || key}
+                    </div>
+                    <div className="mt-1 flex items-baseline justify-between">
+                      <span className={`text-xl font-semibold ${pctColor}`}>
+                        {axis.coverage_percent.toFixed(0)}%
+                      </span>
+                      <span className="text-[0.7rem] text-slate-500">
+                        {axis.covered_items}/{axis.total_items}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </motion.section>
+        )}
+
+        {/* --- Close-Readiness + Playbook Row --- */}
+        <div className="grid gap-4 mb-6 lg:grid-cols-2">
+          {/* Close-Readiness Pill */}
+          {summary?.close_readiness && (
+            <motion.section
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm"
+            >
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Close Readiness
+              </h3>
+              <div className="mt-2 flex items-center gap-2">
+                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${summary.close_readiness.status === "ready"
+                  ? "bg-emerald-100 text-emerald-800"
+                  : "bg-amber-100 text-amber-800"
+                  }`}>
+                  <span className={`h-1.5 w-1.5 rounded-full ${summary.close_readiness.status === "ready" ? "bg-emerald-500" : "bg-amber-500"
+                    }`} />
+                  {summary.close_readiness.status === "ready" ? "Close-ready" : "Not close-ready"}
+                </span>
+                {summary.close_readiness.blocking_reasons.length > 0 && (
+                  <span className="text-xs text-slate-500">
+                    ({summary.close_readiness.blocking_reasons.length} blocker{summary.close_readiness.blocking_reasons.length > 1 ? "s" : ""})
+                  </span>
+                )}
+              </div>
+              {summary.close_readiness.blocking_reasons.length > 0 && (
+                <ul className="mt-2 space-y-1 text-xs text-slate-600">
+                  {summary.close_readiness.blocking_reasons.slice(0, 3).map((reason, idx) => (
+                    <li key={idx} className="flex gap-2">
+                      <span className="text-amber-500">•</span>
+                      <span>{reason}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </motion.section>
+          )}
+
+          {/* Today's Playbook */}
+          {summary?.playbook && summary.playbook.length > 0 && (
+            <motion.section
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.25 }}
+              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm"
+            >
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Today's Playbook
+              </h3>
+              <ul className="mt-2 space-y-1.5 text-sm text-slate-800">
+                {summary.playbook.map((step, idx) => {
+                  const badgeColor = step.severity === "high"
+                    ? "bg-rose-100 text-rose-700"
+                    : step.severity === "medium"
+                      ? "bg-amber-100 text-amber-700"
+                      : "bg-slate-100 text-slate-700";
+                  return (
+                    <li key={idx} className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className={`shrink-0 h-5 w-5 rounded-full flex items-center justify-center text-[0.65rem] font-bold ${badgeColor}`}>
+                          {idx + 1}
+                        </span>
+                        <Link
+                          to={step.url}
+                          className="text-left truncate hover:underline"
+                        >
+                          {step.label}
+                        </Link>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {step.requires_premium && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 text-slate-600 px-2 py-0.5 text-[10px] font-semibold border border-slate-200">
+                            Premium
+                          </span>
+                        )}
+                        <span className="text-[0.65rem] uppercase tracking-wide text-slate-500">
+                          {step.surface}
+                        </span>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </motion.section>
+          )}
+
+          {/* Finance Companion */}
+          {summary?.finance_snapshot && (
+            <motion.section
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.28 }}
+              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm"
+            >
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Finance Companion
+                </h3>
+                {summary.finance_snapshot.narrative && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 text-[10px] font-semibold">
+                    ✨ AI
+                  </span>
+                )}
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide text-slate-500 font-semibold">Ending cash</p>
+                  <p className="text-base font-bold text-slate-900">
+                    {formatCurrency(summary.finance_snapshot.cash_health?.ending_cash)}
+                  </p>
+                  <p className="text-[11px] text-slate-500">
+                    Burn ~{formatCurrency(summary.finance_snapshot.cash_health?.monthly_burn)} / mo
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide text-slate-500 font-semibold">Runway</p>
+                  <p className="text-base font-bold text-slate-900">
+                    {summary.finance_snapshot.cash_health?.runway_months
+                      ? `${summary.finance_snapshot.cash_health.runway_months.toFixed(1)} mo`
+                      : "N/A"}
+                  </p>
+                  <p className="text-[11px] text-slate-500">
+                    Overdue AR: {formatCurrency(summary.finance_snapshot.ar_health?.total_overdue)}
+                  </p>
+                </div>
+              </div>
+              {summary.finance_snapshot.narrative && (
+                <p className="mt-2 text-xs text-slate-600 leading-relaxed">
+                  {summary.finance_snapshot.narrative}
+                </p>
+              )}
+            </motion.section>
+          )}
+
+          {/* Tax Guardian */}
+          {(summary?.tax || summary?.tax_guardian) && (
+            <motion.section
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm hover:ring-1 hover:ring-emerald-200 transition-all"
+            >
+              <div className="flex items-center justify-between">
+                <Link to={`/tax${summary.tax?.period_key ? `?period=${summary.tax.period_key}` : ""}`} className="text-xs font-semibold uppercase tracking-wide text-slate-500 hover:text-emerald-700">
+                  Tax Guardian
+                </Link>
+                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${taxStatus === "all_clear"
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  : "bg-amber-50 text-amber-700 border-amber-200"
+                  }`}>
+                  {taxStatus === "all_clear" ? "All clear" : "Issues"}
+                </span>
+              </div>
+              {summary.tax && (
+                <div className="mt-2 text-xs text-slate-700 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <Link to={`/tax?period=${summary.tax.period_key}`} className="font-semibold hover:text-emerald-700">
+                      Period {summary.tax.period_key}
+                    </Link>
+                    {summary.tax.net_tax !== null && (
+                      <span className="text-slate-600">
+                        Net tax: {formatCurrency(summary.tax.net_tax || 0)}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 text-[11px] text-slate-600">
+                    <Link to={`/tax?period=${summary.tax.period_key}&severity=low`} className="inline-flex items-center gap-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 hover:bg-emerald-100 transition-colors">
+                      Low {summary.tax.anomaly_counts.low ?? 0}
+                    </Link>
+                    <Link to={`/tax?period=${summary.tax.period_key}&severity=medium`} className="inline-flex items-center gap-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 hover:bg-amber-100 transition-colors">
+                      Med {summary.tax.anomaly_counts.medium ?? 0}
+                    </Link>
+                    <Link to={`/tax?period=${summary.tax.period_key}&severity=high`} className="inline-flex items-center gap-1 rounded-full bg-red-50 text-red-700 border border-red-200 px-2 py-0.5 hover:bg-red-100 transition-colors">
+                      High {summary.tax.anomaly_counts.high ?? 0}
+                    </Link>
+                  </div>
+                  {summary.tax.anomalies && summary.tax.anomalies.length > 0 && (
+                    <ul className="mt-1 space-y-1">
+                      {summary.tax.anomalies.slice(0, 3).map((issue, idx) => (
+                        <li key={idx} className="flex items-start gap-2">
+                          <span className="text-amber-500 mt-0.5">•</span>
+                          <span className="flex-1">
+                            <span className="font-semibold">{issue.code}</span>: {issue.description}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <Link to={`/tax?period=${summary.tax.period_key}`} className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-emerald-900 mt-2">
+                    View details →
+                  </Link>
+                </div>
+              )}
+            </motion.section>
+          )}
+        </div>
 
         <motion.div
           variants={container}

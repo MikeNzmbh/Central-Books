@@ -385,19 +385,21 @@ const BankingAccountsAndFeedPage: React.FC<BankingAccountsAndFeedPageProps> = ({
                     "flex min-w-[260px] flex-col justify-between rounded-2xl border px-4 py-3 text-left transition-all",
                     "hover:-translate-y-[1px] hover:shadow-md",
                     isActive
-                      ? "border-slate-900 bg-slate-900 text-white"
+                      ? "border-slate-200 bg-white text-slate-900 shadow-md ring-1 ring-slate-200"
                       : "border-slate-200 bg-slate-50/80 text-slate-900"
                   )}
                 >
                   <div className="flex items-center justify-between">
                     <div className="space-y-0.5">
                       <div className="text-[10px] font-bold uppercase tracking-[0.18em] opacity-70">Account</div>
-                      <div className="text-sm font-bold tracking-tight">{account.name}</div>
-                      <div className={cn("text-[11px] tracking-wide", isActive ? "text-slate-100/80" : "text-slate-500")}>
+                      <div className="text-sm font-bold tracking-tight">
+                        <span className={isActive ? "mb-accent-underline" : undefined}>{account.name}</span>
+                      </div>
+                      <div className="text-[11px] tracking-wide text-slate-500">
                         {account.institution} · ··{account.last4}
                       </div>
                     </div>
-                    <Banknote className={cn("h-5 w-5", isActive ? "text-emerald-300" : "text-emerald-500")} />
+                    <Banknote className={cn("h-5 w-5 text-emerald-500", isActive && "text-emerald-600")} />
                   </div>
 
                   <div className="mt-4 flex items-end justify-between">
@@ -408,7 +410,7 @@ const BankingAccountsAndFeedPage: React.FC<BankingAccountsAndFeedPageProps> = ({
                           ? <span className="opacity-60">••••••</span>
                           : formatCurrency(account.balance, account.currency)}
                       </div>
-                      <div className={cn("mt-1 text-[11px] tracking-wide", isActive ? "text-slate-100/80" : "text-slate-500")}>
+                      <div className="mt-1 text-[11px] tracking-wide text-slate-500">
                         {account.balanceMasked || account.clearedBalance === null
                           ? "Cleared ••••••"
                           : `Cleared ${formatCurrency(account.clearedBalance, account.currency)}`}
@@ -418,14 +420,14 @@ const BankingAccountsAndFeedPage: React.FC<BankingAccountsAndFeedPageProps> = ({
                       <span
                         className={cn(
                           "rounded-full px-2.5 py-1 text-[10px] font-bold tracking-wide border",
-                          account.status === "ok" && (isActive ? "border-emerald-300 text-emerald-100" : "border-emerald-500 text-emerald-600"),
+                          account.status === "ok" && "border-emerald-200 bg-emerald-50 text-emerald-700",
                           account.status === "warning" && "border-amber-500 bg-amber-50 text-amber-700"
                         )}
                       >
                         {account.status === "ok" && "In sync"}
                         {account.status === "warning" && "Needs review"}
                       </span>
-                      <div className={cn("text-[11px] tracking-wide", isActive ? "text-slate-100/80" : "text-slate-500")}>
+                      <div className="text-[11px] tracking-wide text-slate-500">
                         {account.lastSync}
                       </div>
                     </div>

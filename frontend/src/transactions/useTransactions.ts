@@ -24,6 +24,7 @@ export interface TransactionStats {
     overdueCount: number;
     revenueYtd?: number;
     expensesYtd?: number;
+    avgInvoiceValue?: number;
 }
 
 interface InvoiceApiItem {
@@ -50,10 +51,10 @@ interface ExpenseApiItem {
 interface InvoiceApiResponse {
     invoices: InvoiceApiItem[];
     stats: {
-        total_count: number;
-        open_balance: number;
-        revenue_ytd: number;
-        overdue_count: number;
+        total_invoices: number;
+        open_balance_total: string;
+        revenue_ytd: string;
+        avg_invoice_value: string;
     };
     currency: string;
 }
@@ -134,11 +135,23 @@ export function useTransactions(kind: TransactionKind) {
                 }));
 
                 setRows(transformed);
+
+                // Count overdue invoices from transformed rows
+                const today = new Date();
+                const overdueCount = transformed.filter(inv => {
+                    const dueDate = new Date(inv.dueDate);
+                    return inv.status.toLowerCase() !== 'paid' &&
+                        inv.status.toLowerCase() !== 'void' &&
+                        inv.status.toLowerCase() !== 'draft' &&
+                        dueDate < today;
+                }).length;
+
                 setStats({
-                    openBalance: data.stats.open_balance || 0,
-                    totalCount: data.stats.total_count || 0,
-                    overdueCount: data.stats.overdue_count || 0,
-                    revenueYtd: data.stats.revenue_ytd || 0,
+                    openBalance: parseFloat(data.stats.open_balance_total) || 0,
+                    totalCount: data.stats.total_invoices || 0,
+                    overdueCount: overdueCount,
+                    revenueYtd: parseFloat(data.stats.revenue_ytd) || 0,
+                    avgInvoiceValue: parseFloat(data.stats.avg_invoice_value) || 0,
                 });
                 setCurrency(data.currency);
             } else {
