@@ -1,7 +1,7 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import ChartOfAccountsPage, { ChartOfAccountsBootPayload } from "./ChartOfAccountsPage";
-import "./index.css";
+import "./setup";
 
 const el = document.getElementById("chart-of-accounts-root");
 const dataEl = document.getElementById("chart-of-accounts-data");

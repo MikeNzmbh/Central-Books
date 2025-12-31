@@ -288,14 +288,14 @@ export const PERMISSIONS: PermissionSpec[] = [
   {
     action: "companion.shadow.write",
     category: "AI",
-    label: "Write Shadow Ledger",
-    description: "Allow writing AI proposals to the Shadow Ledger (never posts canonical entries).",
+    label: "Write AI Proposals",
+    description: "Allow writing AI proposals (never posts canonical entries).",
   },
   {
     action: "companion.shadow.wipe",
     category: "AI",
-    label: "Wipe Shadow Ledger",
-    description: "Clear Shadow Ledger proposals for a workspace (safe; does not affect canonical ledger).",
+    label: "Clear AI Proposals",
+    description: "Clear AI proposals for a workspace (safe; does not affect canonical ledger).",
   },
 ];
 

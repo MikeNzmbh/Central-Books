@@ -428,3 +428,104 @@ export const TabsContent = ({ value, className, children, currentValue, ...props
         </div>
     );
 };
+
+// DialogFooter Component
+export const DialogFooter = ({ className, children, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+    <div className={cn("flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2", className)} {...props}>
+        {children}
+    </div>
+);
+
+// Textarea Component
+export const Textarea = React.forwardRef<HTMLTextAreaElement, React.TextareaHTMLAttributes<HTMLTextAreaElement>>(
+    ({ className, ...props }, ref) => (
+        <textarea
+            ref={ref}
+            className={cn(
+                "flex min-h-[80px] w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400 disabled:cursor-not-allowed disabled:opacity-50",
+                className
+            )}
+            {...props}
+        />
+    )
+);
+Textarea.displayName = "Textarea";
+
+// Tooltip Components
+type TooltipContextType = {
+    open: boolean;
+    setOpen: (open: boolean) => void;
+    delayDuration: number;
+};
+
+const TooltipContext = React.createContext<TooltipContextType | null>(null);
+
+export const TooltipProvider = ({ children, delayDuration = 200 }: { children: React.ReactNode; delayDuration?: number }) => {
+    return <>{children}</>;
+};
+
+export const Tooltip = ({ children, delayDuration = 200 }: { children: React.ReactNode; delayDuration?: number }) => {
+    const [open, setOpen] = React.useState(false);
+
+    return (
+        <TooltipContext.Provider value={{ open, setOpen, delayDuration }}>
+            <div className="relative inline-block">
+                {children}
+            </div>
+        </TooltipContext.Provider>
+    );
+};
+
+export const TooltipTrigger = React.forwardRef<HTMLSpanElement, React.HTMLAttributes<HTMLSpanElement> & { asChild?: boolean }>(
+    ({ asChild, children, ...props }, ref) => {
+        const ctx = React.useContext(TooltipContext);
+        const timeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+        const onMouseEnter = () => {
+            if (timeoutRef.current) clearTimeout(timeoutRef.current);
+            timeoutRef.current = setTimeout(() => {
+                ctx?.setOpen(true);
+            }, ctx?.delayDuration ?? 200);
+        };
+
+        const onMouseLeave = () => {
+            if (timeoutRef.current) clearTimeout(timeoutRef.current);
+            ctx?.setOpen(false);
+        };
+
+        if (asChild && React.isValidElement(children)) {
+            return React.cloneElement(children as React.ReactElement<any>, {
+                onMouseEnter,
+                onMouseLeave,
+                ref,
+                ...props,
+            });
+        }
+
+        return (
+            <span ref={ref} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} {...props}>
+                {children}
+            </span>
+        );
+    }
+);
+TooltipTrigger.displayName = "TooltipTrigger";
+
+export const TooltipContent = ({ className, children, ...props }: React.HTMLAttributes<HTMLDivElement>) => {
+    const ctx = React.useContext(TooltipContext);
+    if (!ctx?.open) return null;
+
+    return (
+        <div
+            className={cn(
+                "absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 text-xs bg-slate-900 text-white rounded-md shadow-md whitespace-nowrap",
+                className
+            )}
+            {...props}
+        >
+            {children}
+            <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px border-4 border-transparent border-t-slate-900" />
+        </div>
+    );
+};
+

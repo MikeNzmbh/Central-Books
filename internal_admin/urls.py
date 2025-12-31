@@ -5,6 +5,8 @@ from .views import (
     AdminAuditLogViewSet,
     AdminInviteViewSet,
     AdminApprovalViewSet,
+    AdminAISettingsView,
+    AdminIntegrityReportsView,
     ExpensesAuditView,
     FeatureFlagViewSet,
     ImpersonationView,
@@ -38,6 +40,8 @@ urlpatterns = [
     path("overview-metrics/", OverviewMetricsView.as_view(), name="internal-overview-metrics"),
     path("operations-overview/", OperationsOverviewView.as_view(), name="internal-operations-overview"),
     path("impersonations/", ImpersonationView.as_view(), name="internal-impersonations"),
+    path("ai/settings/", AdminAISettingsView.as_view(), name="internal-ai-settings"),
+    path("ai/integrity-reports/", AdminIntegrityReportsView.as_view(), name="internal-ai-integrity-reports"),
     # Public invite validation/redemption (no auth required)
     path("invite/<uuid:token>/", PublicInviteView.as_view(), name="internal-invite-public"),
     # Dashboard section APIs

@@ -44,6 +44,9 @@ from internal_admin.models import (
     SupportTicketNote,
 )
 from internal_admin.services import compute_overview_metrics
+from companion.models import AIIntegrityReport
+from companion.serializers_v2 import AIIntegrityReportSerializer, WorkspaceAISettingsSerializer
+from companion.v2.guardrails import ensure_ai_settings, global_ai_enabled
 
 try:
     from allauth.socialaccount.models import SocialAccount
@@ -2420,17 +2423,70 @@ class AdminApprovalViewSet(viewsets.ViewSet):
             return Response({"error": str(e)}, status=400)
         except InsufficientPermissionError as e:
             return Response({"error": str(e)}, status=403)
-        except ExecutionFailedError as e:
-            approval_req = e.approval_req
-            return Response(
-                {
-                    "id": str(approval_req.id),
-                    "status": approval_req.status,
-                    "resolved_at": approval_req.resolved_at.isoformat() if approval_req.resolved_at else None,
-                    "execution_error": approval_req.execution_error,
-                },
-                status=409,
-            )
+
+
+def _resolve_admin_workspace(request):
+    workspace_id = request.query_params.get("workspace_id") or request.data.get("workspace_id")
+    if not workspace_id:
+        return None, Response({"detail": "workspace_id is required"}, status=400)
+    try:
+        workspace = Business.objects.get(pk=int(workspace_id), is_deleted=False)
+    except (ValueError, TypeError):
+        return None, Response({"detail": "Invalid workspace_id"}, status=400)
+    except Business.DoesNotExist:
+        return None, Response({"detail": "Workspace not found"}, status=404)
+    return workspace, None
+
+
+class AdminAISettingsView(APIView):
+    permission_classes = [IsInternalAdminWithRole]
+
+    def get(self, request):
+        workspace, resp = _resolve_admin_workspace(request)
+        if resp:
+            return resp
+        settings_row = ensure_ai_settings(workspace)
+        return Response(
+            {
+                "global_ai_enabled": global_ai_enabled(),
+                "settings": WorkspaceAISettingsSerializer(settings_row).data,
+            }
+        )
+
+    def patch(self, request):
+        workspace, resp = _resolve_admin_workspace(request)
+        if resp:
+            return resp
+        if not has_min_role(request.user, AdminRole.ENGINEERING):
+            return Response({"detail": "Admin role required."}, status=403)
+        settings_row = ensure_ai_settings(workspace)
+        serializer = WorkspaceAISettingsSerializer(settings_row, data=request.data or {}, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        log_admin_action(
+            request,
+            action="ai_settings.updated",
+            obj=settings_row,
+            extra={"workspace_id": workspace.id},
+            category="ai_settings",
+        )
+        return Response(
+            {
+                "global_ai_enabled": global_ai_enabled(),
+                "settings": WorkspaceAISettingsSerializer(settings_row).data,
+            }
+        )
+
+
+class AdminIntegrityReportsView(APIView):
+    permission_classes = [IsInternalAdminWithRole]
+
+    def get(self, request):
+        workspace, resp = _resolve_admin_workspace(request)
+        if resp:
+            return resp
+        qs = AIIntegrityReport.objects.filter(workspace=workspace).order_by("-created_at")[:12]
+        return Response(AIIntegrityReportSerializer(qs, many=True).data)
 
     @action(detail=True, methods=["post"])
     def reject(self, request, pk=None):

@@ -146,6 +146,142 @@ class BankReconciliationService:
 
     @staticmethod
     @transaction.atomic
+    def create_adjustment_entry(
+        business,
+        adjustment_amount: Decimal,
+        adjustment_account: Account,
+        bank_account: "BankAccount",
+        description: str = "Adjustment for bank reconciliation",
+        date=None,
+    ) -> JournalEntry:
+        """
+        Create a journal entry to resolve a difference between bank amount and matched GL amount.
+        
+        Use for:
+        - Bank fees ($985 deposit matched to $1000 invoice, $15 fee)
+        - FX gains/losses
+        - Rounding differences
+        
+        Args:
+            business: The business context
+            adjustment_amount: Signed amount (negative = expense, positive = income)
+            adjustment_account: Account to book the adjustment (e.g., Bank Charges)
+            bank_account: The bank account for the offsetting entry
+            description: Journal entry description
+            date: Transaction date (defaults to today)
+        
+        Returns:
+            Created JournalEntry for the adjustment
+        """
+        from django.utils import timezone
+        
+        adj_date = date or timezone.now().date()
+        
+        je = JournalEntry.objects.create(
+            business=business,
+            date=adj_date,
+            description=description,
+        )
+        
+        abs_amount = abs(adjustment_amount)
+        
+        if adjustment_amount < 0:
+            # Expense (e.g., bank fee): DR Expense, CR Bank
+            JournalLine.objects.create(
+                journal_entry=je,
+                account=adjustment_account,
+                debit=abs_amount,
+                credit=Decimal("0"),
+                description=description,
+            )
+            if bank_account.account:
+                JournalLine.objects.create(
+                    journal_entry=je,
+                    account=bank_account.account,
+                    debit=Decimal("0"),
+                    credit=abs_amount,
+                    description=description,
+                )
+        else:
+            # Income (e.g., FX gain): DR Bank, CR Income
+            if bank_account.account:
+                JournalLine.objects.create(
+                    journal_entry=je,
+                    account=bank_account.account,
+                    debit=abs_amount,
+                    credit=Decimal("0"),
+                    description=description,
+                )
+            JournalLine.objects.create(
+                journal_entry=je,
+                account=adjustment_account,
+                debit=Decimal("0"),
+                credit=abs_amount,
+                description=description,
+            )
+        
+        return je
+
+    @staticmethod
+    @transaction.atomic
+    def confirm_match_with_adjustment(
+        bank_transaction: BankTransaction,
+        journal_entry: JournalEntry,
+        match_confidence: Decimal,
+        adjustment_amount: Decimal,
+        adjustment_account_id: int,
+        user: Optional[User] = None,
+        session: ReconciliationSession | None = None,
+        adjustment_description: str = "Bank fee / adjustment",
+    ) -> tuple[BankReconciliationMatch, JournalEntry | None]:
+        """
+        Confirm a match with an inline difference resolution.
+        
+        QBO "Resolve Difference" pattern: When bank amount differs from GL amount,
+        automatically create an adjustment entry for the difference.
+        
+        Args:
+            bank_transaction: The bank transaction to reconcile
+            journal_entry: The journal entry to match it to
+            match_confidence: Confidence score
+            adjustment_amount: The difference to book (negative = expense)
+            adjustment_account_id: Account ID for the adjustment (e.g., Bank Charges)
+            user: User performing the action
+            session: Reconciliation session
+            adjustment_description: Description for adjustment JE
+        
+        Returns:
+            Tuple of (match, adjustment_entry or None)
+        """
+        adjustment_entry = None
+        
+        if adjustment_amount != Decimal("0"):
+            adjustment_account = Account.objects.get(id=adjustment_account_id)
+            if adjustment_account.business_id != bank_transaction.bank_account.business_id:
+                raise ValidationError("Adjustment account must belong to the same business.")
+            
+            adjustment_entry = BankReconciliationService.create_adjustment_entry(
+                business=bank_transaction.bank_account.business,
+                adjustment_amount=adjustment_amount,
+                adjustment_account=adjustment_account,
+                bank_account=bank_transaction.bank_account,
+                description=adjustment_description,
+                date=bank_transaction.date,
+            )
+        
+        match = BankReconciliationService.confirm_match(
+            bank_transaction=bank_transaction,
+            journal_entry=journal_entry,
+            match_confidence=match_confidence,
+            user=user,
+            adjustment_entry=adjustment_entry,
+            session=session,
+        )
+        
+        return (match, adjustment_entry)
+
+    @staticmethod
+    @transaction.atomic
     def create_split_entry(
         bank_transaction: BankTransaction,
         splits: list[dict],

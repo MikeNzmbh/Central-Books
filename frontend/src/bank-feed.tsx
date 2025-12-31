@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect, useMemo } from "react";
 import ReactDOM from "react-dom/client";
-import "./index.css";
+import "./setup";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Banknote,
@@ -52,6 +52,7 @@ interface MatchCandidate {
   date: string;
   amount: number;
   confidence: number;
+  matchReason?: string; // AI-generated explanation for why this match was suggested
 }
 
 interface BankFeedTransaction {
@@ -68,11 +69,12 @@ interface BankFeedTransaction {
   importRuleHint?: string;
   hasAnomaly?: boolean;
   suggestedMatches?: MatchCandidate[];
+  suggestionConfidence?: number; // 0-100 scale
 }
 
 interface DrawerFormState {
   mode: "match" | "categorize" | "tax";
-  selectedMatchId?: string;
+  selectedMatchIds: Set<string>; // Multi-select support
   category?: string;
   taxCode?: string;
   memo?: string;
@@ -152,6 +154,77 @@ const taxCodes = [
 
 const cn = (...classes: (string | boolean | undefined)[]) => classes.filter(Boolean).join(" ");
 
+// Confidence badge component - QBO-style traffic light colors
+function ConfidenceBadge({ confidence }: { confidence?: number }) {
+  if (confidence === undefined || confidence === null) return null;
+
+  const getConfidenceColor = (c: number) => {
+    if (c >= 80) return { bg: "bg-emerald-100", text: "text-emerald-700", border: "border-emerald-200" };
+    if (c >= 50) return { bg: "bg-amber-100", text: "text-amber-700", border: "border-amber-200" };
+    return { bg: "bg-red-100", text: "text-red-700", border: "border-red-200" };
+  };
+
+  const getConfidenceLabel = (c: number) => {
+    if (c >= 80) return "High match";
+    if (c >= 50) return "Likely match";
+    return "Low match";
+  };
+
+  const colors = getConfidenceColor(confidence);
+
+  return (
+    <span className={cn(
+      "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold border",
+      colors.bg, colors.text, colors.border
+    )}>
+      <span className={cn(
+        "h-1.5 w-1.5 rounded-full",
+        confidence >= 80 ? "bg-emerald-500" : confidence >= 50 ? "bg-amber-500" : "bg-red-500"
+      )} />
+      {getConfidenceLabel(confidence)}
+    </span>
+  );
+}
+
+// "Why this match?" explanation component - QBO-style AI insight
+function WhyThisMatch({ reason, matchType }: { reason?: string; matchType?: string }) {
+  const [expanded, setExpanded] = useState(false);
+
+  if (!reason) return null;
+
+  const getMatchTypeIcon = (type?: string) => {
+    switch (type) {
+      case "RULE": return "📋";
+      case "ID_MATCH": return "🔢";
+      case "REFERENCE": return "🔗";
+      case "AMOUNT_DATE": return "📅";
+      default: return "✨";
+    }
+  };
+
+  return (
+    <div className="mt-2 rounded-xl border border-slate-100 bg-slate-50/80 p-3">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-2 text-[11px] text-slate-600 hover:text-slate-900 transition-colors w-full text-left"
+      >
+        <Sparkles className="h-3.5 w-3.5 text-blue-500" />
+        <span className="font-medium">Why this match?</span>
+        <ChevronRight className={cn(
+          "h-3 w-3 transition-transform ml-auto",
+          expanded && "rotate-90"
+        )} />
+      </button>
+      {expanded && (
+        <div className="mt-2 pt-2 border-t border-slate-100 text-[11px] text-slate-600 leading-relaxed">
+          <span className="mr-1.5">{getMatchTypeIcon(matchType)}</span>
+          {reason}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // MAIN COMPONENT
 // ---------------------------------------------------------------------------
@@ -167,7 +240,11 @@ export default function BankFeedPage() {
   const [statusFilter, setStatusFilter] = useState<FeedStatus>("for_review");
   const [search, setSearch] = useState("");
   const [selectedTxId, setSelectedTxId] = useState<number | null>(null);
-  const [drawerForm, setDrawerForm] = useState<DrawerFormState>({ mode: "match" });
+  const [drawerForm, setDrawerForm] = useState<DrawerFormState>({ mode: "match", selectedMatchIds: new Set() });
+
+  // Batch selection state
+  const [selectedTxIds, setSelectedTxIds] = useState<Set<number>>(new Set());
+  const [batchProcessing, setBatchProcessing] = useState(false);
 
   // Fetch accounts
   const fetchAccounts = useCallback(async () => {
@@ -228,6 +305,7 @@ export default function BankFeedPage() {
         category: tx.category_name || undefined,
         importRuleHint: tx.match_suggestion || undefined,
         hasAnomaly: rawStatus === "PARTIAL",
+        suggestionConfidence: tx.suggestion_confidence || undefined,
       };
     });
 
@@ -305,9 +383,14 @@ export default function BankFeedPage() {
 
   const handleOpenDrawer = (tx: BankFeedTransaction) => {
     setSelectedTxId(tx.id);
+    // Pre-select first suggested match if available
+    const initialMatches = new Set<string>();
+    if (tx.suggestedMatches?.[0]?.id) {
+      initialMatches.add(tx.suggestedMatches[0].id);
+    }
     setDrawerForm({
       mode: tx.suggestedMatches && tx.suggestedMatches.length > 0 ? "match" : tx.direction === "out" ? "categorize" : "tax",
-      selectedMatchId: tx.suggestedMatches?.[0]?.id,
+      selectedMatchIds: initialMatches,
       category: tx.category,
     });
   };
@@ -325,6 +408,73 @@ export default function BankFeedPage() {
       default: return "All";
     }
   };
+
+  // Batch selection handlers
+  const toggleTxSelection = (txId: number) => {
+    setSelectedTxIds(prev => {
+      const next = new Set(prev);
+      if (next.has(txId)) {
+        next.delete(txId);
+      } else {
+        next.add(txId);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    const visibleIds = filteredTransactions.map(tx => tx.id);
+    if (selectedTxIds.size === visibleIds.length && visibleIds.every(id => selectedTxIds.has(id))) {
+      setSelectedTxIds(new Set());
+    } else {
+      setSelectedTxIds(new Set(visibleIds));
+    }
+  };
+
+  const handleBatchExclude = async () => {
+    if (selectedTxIds.size === 0) return;
+    setBatchProcessing(true);
+    try {
+      // Call API to exclude all selected transactions
+      for (const txId of selectedTxIds) {
+        await fetch(`/api/banking/feed/transactions/${txId}/exclude/`, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      setSelectedTxIds(new Set());
+      await fetchTransactions();
+    } catch (err) {
+      console.error("Batch exclude failed:", err);
+    } finally {
+      setBatchProcessing(false);
+    }
+  };
+
+  const handleBatchCategorize = async (categoryName: string) => {
+    if (selectedTxIds.size === 0) return;
+    setBatchProcessing(true);
+    try {
+      // Call API to categorize all selected transactions
+      for (const txId of selectedTxIds) {
+        await fetch(`/api/banking/feed/transactions/${txId}/categorize/`, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ category: categoryName }),
+        });
+      }
+      setSelectedTxIds(new Set());
+      await fetchTransactions();
+    } catch (err) {
+      console.error("Batch categorize failed:", err);
+    } finally {
+      setBatchProcessing(false);
+    }
+  };
+
+  const hasSelection = selectedTxIds.size > 0;
 
   // Loading
   if (loading) {
@@ -486,23 +636,71 @@ export default function BankFeedPage() {
             </div>
 
             <div className="p-5 space-y-4">
-              {/* Status Tabs */}
+              {/* Status Tabs - QBO-style 3-tab triage */}
               <div className="flex items-center justify-between gap-4">
-                <div className="grid h-9 w-full max-w-md grid-cols-4 rounded-full bg-slate-100 p-1">
-                  {(["for_review", "categorized", "excluded", "all"] as FeedStatus[]).map((status) => (
-                    <button
-                      key={status}
-                      onClick={() => setStatusFilter(status)}
-                      className={cn(
-                        "rounded-full text-xs font-semibold tracking-wide transition-all",
-                        statusFilter === status
-                          ? "bg-white text-slate-900 shadow-sm"
-                          : "text-slate-500 hover:text-slate-700"
-                      )}
-                    >
-                      {statusLabel(status)}
-                    </button>
-                  ))}
+                <div className="flex h-10 rounded-xl bg-slate-100 p-1 gap-1">
+                  {/* For Review Tab */}
+                  <button
+                    onClick={() => setStatusFilter("for_review")}
+                    className={cn(
+                      "flex items-center gap-2 rounded-lg px-4 py-1.5 text-xs font-semibold transition-all",
+                      statusFilter === "for_review"
+                        ? "bg-white text-slate-900 shadow-sm"
+                        : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
+                    )}
+                  >
+                    <span>For Review</span>
+                    <span className={cn(
+                      "inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[10px] font-bold min-w-[20px]",
+                      statusFilter === "for_review"
+                        ? "bg-amber-100 text-amber-700"
+                        : "bg-slate-200 text-slate-600"
+                    )}>
+                      {transactions.filter(tx => tx.status === "for_review").length}
+                    </span>
+                  </button>
+
+                  {/* Categorized Tab */}
+                  <button
+                    onClick={() => setStatusFilter("categorized")}
+                    className={cn(
+                      "flex items-center gap-2 rounded-lg px-4 py-1.5 text-xs font-semibold transition-all",
+                      statusFilter === "categorized"
+                        ? "bg-white text-slate-900 shadow-sm"
+                        : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
+                    )}
+                  >
+                    <span>Categorized</span>
+                    <span className={cn(
+                      "inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[10px] font-bold min-w-[20px]",
+                      statusFilter === "categorized"
+                        ? "bg-emerald-100 text-emerald-700"
+                        : "bg-slate-200 text-slate-600"
+                    )}>
+                      {transactions.filter(tx => tx.status === "categorized").length}
+                    </span>
+                  </button>
+
+                  {/* Excluded Tab */}
+                  <button
+                    onClick={() => setStatusFilter("excluded")}
+                    className={cn(
+                      "flex items-center gap-2 rounded-lg px-4 py-1.5 text-xs font-semibold transition-all",
+                      statusFilter === "excluded"
+                        ? "bg-white text-slate-900 shadow-sm"
+                        : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
+                    )}
+                  >
+                    <span>Excluded</span>
+                    <span className={cn(
+                      "inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[10px] font-bold min-w-[20px]",
+                      statusFilter === "excluded"
+                        ? "bg-slate-300 text-slate-700"
+                        : "bg-slate-200 text-slate-600"
+                    )}>
+                      {transactions.filter(tx => tx.status === "excluded").length}
+                    </span>
+                  </button>
                 </div>
                 <div className="flex items-center gap-4 text-[11px] tracking-wide text-slate-500">
                   <div className="flex items-center gap-1.5">
@@ -519,9 +717,59 @@ export default function BankFeedPage() {
               {/* Separator */}
               <div className="h-px w-full bg-slate-100" />
 
+              {/* Batch Action Bar - shows when items selected */}
+              <AnimatePresence>
+                {hasSelection && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="flex items-center justify-between gap-4 rounded-xl bg-slate-900 px-4 py-2.5"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs font-semibold text-white">
+                        {selectedTxIds.size} selected
+                      </span>
+                      <button
+                        onClick={() => setSelectedTxIds(new Set())}
+                        className="text-xs text-slate-400 hover:text-white transition-colors"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleBatchCategorize("Bank Charges")}
+                        disabled={batchProcessing}
+                        className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        Categorize
+                      </button>
+                      <button
+                        onClick={handleBatchExclude}
+                        disabled={batchProcessing}
+                        className="flex items-center gap-1.5 rounded-lg bg-slate-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-600 transition-colors disabled:opacity-50"
+                      >
+                        <XCircle className="h-3.5 w-3.5" />
+                        Exclude
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               {/* Transaction Table */}
               <div className="rounded-2xl border border-slate-100 bg-slate-50/60 overflow-hidden">
-                <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,0.9fr)_minmax(0,0.6fr)_minmax(0,0.6fr)_80px] gap-4 px-4 pt-3 pb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">
+                <div className="grid grid-cols-[40px_minmax(0,1.4fr)_minmax(0,0.9fr)_minmax(0,0.6fr)_minmax(0,0.6fr)_80px] gap-4 px-4 pt-3 pb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">
+                  <div className="flex items-center justify-center">
+                    <input
+                      type="checkbox"
+                      checked={filteredTransactions.length > 0 && filteredTransactions.every(tx => selectedTxIds.has(tx.id))}
+                      onChange={toggleSelectAll}
+                      className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500"
+                    />
+                  </div>
                   <div>Date & description</div>
                   <div>Payee</div>
                   <div>Category</div>
@@ -532,17 +780,32 @@ export default function BankFeedPage() {
 
                 <div className="max-h-[400px] overflow-auto divide-y divide-slate-100 bg-white">
                   {filteredTransactions.map((tx) => (
-                    <button
+                    <div
                       key={tx.id}
-                      onClick={() => handleOpenDrawer(tx)}
                       className={cn(
-                        "grid w-full grid-cols-[minmax(0,1.4fr)_minmax(0,0.9fr)_minmax(0,0.6fr)_minmax(0,0.6fr)_80px] gap-4 px-4 py-3 text-left",
+                        "grid w-full grid-cols-[40px_minmax(0,1.4fr)_minmax(0,0.9fr)_minmax(0,0.6fr)_minmax(0,0.6fr)_80px] gap-4 px-4 py-3 text-left",
                         "hover:bg-slate-50/80 transition-colors",
-                        selectedTxId === tx.id && "bg-slate-50"
+                        selectedTxId === tx.id && "bg-slate-50",
+                        selectedTxIds.has(tx.id) && "bg-blue-50/50"
                       )}
                     >
-                      {/* Date & Description */}
-                      <div className="flex flex-col gap-0.5">
+                      {/* Checkbox */}
+                      <div
+                        className="flex items-center justify-center"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedTxIds.has(tx.id)}
+                          onChange={() => toggleTxSelection(tx.id)}
+                          className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500"
+                        />
+                      </div>
+                      {/* Date & Description - clickable */}
+                      <button
+                        onClick={() => handleOpenDrawer(tx)}
+                        className="flex flex-col gap-0.5 text-left"
+                      >
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-semibold tracking-tight text-slate-900">
                             {new Date(tx.date).toLocaleDateString("en-CA", { month: "short", day: "2-digit" })}
@@ -552,6 +815,9 @@ export default function BankFeedPage() {
                               Review
                             </span>
                           )}
+                          {tx.suggestionConfidence && (
+                            <ConfidenceBadge confidence={tx.suggestionConfidence} />
+                          )}
                         </div>
                         <div className="line-clamp-1 text-[13px] font-bold tracking-tight text-slate-900">
                           {tx.description}
@@ -559,7 +825,7 @@ export default function BankFeedPage() {
                         {tx.importRuleHint && (
                           <div className="text-[11px] text-slate-500">{tx.importRuleHint}</div>
                         )}
-                      </div>
+                      </button>
 
                       {/* Payee */}
                       <div className="flex flex-col justify-center gap-0.5">
@@ -603,7 +869,7 @@ export default function BankFeedPage() {
                         </span>
                         <ChevronRight className="h-4 w-4 text-slate-400" />
                       </div>
-                    </button>
+                    </div>
                   ))}
 
                   {filteredTransactions.length === 0 && (
@@ -834,6 +1100,35 @@ export default function BankFeedPage() {
                           No suggested matches. You can still categorize this transaction manually.
                         </div>
                       )}
+
+                      {/* Undeposited Funds explanation - QBO-style payment flow visualization */}
+                      {selectedTx.direction === "in" && (
+                        <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/60 p-3">
+                          <div className="flex items-start gap-2">
+                            <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-100">
+                              <AlertCircle className="h-3 w-3 text-blue-600" />
+                            </div>
+                            <div className="space-y-1.5">
+                              <div className="text-[11px] font-medium text-blue-800">
+                                How payments work
+                              </div>
+                              <div className="text-[10px] text-blue-700 leading-relaxed">
+                                When you receive payment: <span className="font-medium">Invoice → Record Payment → Undeposited Funds → Match Bank Deposit</span>
+                              </div>
+                              <div className="flex items-center gap-1 text-[10px] text-blue-600 mt-2">
+                                <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-blue-200 text-[9px] font-bold">1</span>
+                                <span>Invoice sent</span>
+                                <ChevronRight className="h-3 w-3" />
+                                <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-blue-200 text-[9px] font-bold">2</span>
+                                <span>Payment received</span>
+                                <ChevronRight className="h-3 w-3" />
+                                <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-blue-300 text-[9px] font-bold">3</span>
+                                <span className="font-medium">Match here</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -927,8 +1222,8 @@ export default function BankFeedPage() {
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
-    </div>
+      </div >
+    </div >
   );
 }
 

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { backendUrl } from "../utils/apiClient";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     ArrowRight,
@@ -696,12 +697,12 @@ function LoginCard({
     nextUrl,
     errors = [],
     googleEnabled = true,
-    googleLoginUrl = "/accounts/google/login/"
+    googleLoginUrl = backendUrl("/accounts/google/login/")
 }: LoginCardProps) {
     const [show, setShow] = useState(false);
 
     const googleLogin = () => {
-        window.location.href = googleLoginUrl + "?process=login";
+        window.location.href = `${googleLoginUrl}?process=login`;
     };
 
     return (
@@ -818,13 +819,13 @@ function SignupCard({
     action = "/signup/",
     errors = [],
     googleEnabled = true,
-    googleLoginUrl = "/accounts/google/login/"
+    googleLoginUrl = backendUrl("/accounts/google/login/")
 }: SignupCardProps) {
     const [show, setShow] = useState(false);
     const [tier, setTier] = useState<"owner" | "accountant">("owner");
 
     const googleSignup = () => {
-        window.location.href = googleLoginUrl + "?process=signup";
+        window.location.href = `${googleLoginUrl}?process=signup`;
     };
 
     return (
@@ -998,7 +999,7 @@ function AuthShell({
     nextUrl,
     errors = [],
     googleEnabled = true,
-    googleLoginUrl = "/accounts/google/login/",
+    googleLoginUrl = backendUrl("/accounts/google/login/"),
 }: AuthShellProps) {
     const wrapRef = useRef<HTMLDivElement | null>(null);
 

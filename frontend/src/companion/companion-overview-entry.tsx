@@ -1,7 +1,7 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate, useSearchParams } from "react-router-dom";
-import "../index.css";
+import "../setup";
 import { AuthProvider } from "../contexts/AuthContext";
 import CompanionControlTowerPage from "./CompanionControlTowerPage";
 import TaxGuardianPage from "./TaxGuardianPage";
@@ -21,51 +21,11 @@ const rootEl = document.getElementById("companion-overview-root");
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Wraps CompanionControlTowerPage with panel support via query params.
- * 
- * Supported params:
- * - ?panel=suggestions | issues | close
- * - ?surface=bank | invoices | expenses | tax (optional filter)
+ * The new CompanionControlTowerPage has its own built-in panel system.
+ * It reads query params internally (e.g., ?panel=suggestions).
  */
 const ControlTowerWithPanels: React.FC = () => {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const panelParam = searchParams.get("panel") as PanelType | null;
-  const surfaceParam = searchParams.get("surface");
-
-  // Validate panel param
-  const validPanels: PanelType[] = ["suggestions", "issues", "close"];
-  const activePanel = panelParam && validPanels.includes(panelParam) ? panelParam : null;
-
-  const closePanel = () => {
-    // Remove panel and surface from URL
-    const newParams = new URLSearchParams(searchParams);
-    newParams.delete("panel");
-    newParams.delete("surface");
-    setSearchParams(newParams, { replace: true });
-  };
-
-  // Render panel content
-  const renderPanelContent = () => {
-    switch (activePanel) {
-      case "suggestions":
-        return <SuggestionsPanel surface={surfaceParam} />;
-      case "issues":
-        return <IssuesPanel surface={surfaceParam} />;
-      case "close":
-        return <CloseAssistantDrawer />;
-      default:
-        return null;
-    }
-  };
-
-  return (
-    <>
-      <CompanionControlTowerPage />
-      <PanelShell panel={activePanel} onClose={closePanel} surface={surfaceParam}>
-        {renderPanelContent()}
-      </PanelShell>
-    </>
-  );
+  return <CompanionControlTowerPage />;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

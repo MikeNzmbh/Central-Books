@@ -27,7 +27,7 @@ export const InviteRedeemPage: React.FC = () => {
 
     useEffect(() => {
         if (!token) return;
-        fetch(`/api/internal-admin/invite/${token}/`)
+        fetch(`/api/admin/invite/${token}/`)
             .then((res) => res.json())
             .then((data) => {
                 setInvite(data);
@@ -57,7 +57,7 @@ export const InviteRedeemPage: React.FC = () => {
         setSubmitting(true);
 
         try {
-            const res = await fetch(`/api/internal-admin/invite/${token}/`, {
+            const res = await fetch(`/api/admin/invite/${token}/`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({

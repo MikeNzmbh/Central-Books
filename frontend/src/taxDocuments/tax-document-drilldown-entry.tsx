@@ -1,6 +1,6 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
-import "../index.css";
+import "../setup";
 import TaxDocumentDrilldownCard from "./TaxDocumentDrilldownCard";
 
 const rootEl = document.getElementById("tax-document-drilldown-root");

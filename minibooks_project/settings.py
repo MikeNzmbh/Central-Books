@@ -53,6 +53,7 @@ def _get_list_env(name: str) -> list[str]:
 DEBUG = _get_bool_env("DJANGO_DEBUG", _get_bool_env("DEBUG", True))
 SHOW_LOGIN_FALLBACK = os.getenv("SHOW_LOGIN_FALLBACK", "true").lower() == "true"
 ENABLE_DJANGO_ADMIN = _get_bool_env("ENABLE_DJANGO_ADMIN", DEBUG)
+API_ONLY_MODE = _get_bool_env("API_ONLY_MODE", True)
 
 # ALLOWED_HOSTS / CSRF_TRUSTED_ORIGINS (Render + env overrides)
 RENDER_EXTERNAL_HOSTNAME = os.environ.get("RENDER_EXTERNAL_HOSTNAME")
@@ -100,6 +101,39 @@ def _preferred_site_domain() -> str:
 
 SITE_DOMAIN = _preferred_site_domain()
 
+def _optional_env(name: str) -> str | None:
+    value = os.getenv(name)
+    return value if value else None
+
+def _normalized_origin(value: str) -> str:
+    return value.rstrip("/")
+
+LOCAL_FRONTEND_ORIGINS = [
+    "http://localhost:5173",
+    "http://localhost:5174",
+]
+
+frontend_root = os.getenv("FRONTEND_ROOT_DOMAIN") or SITE_DOMAIN
+default_customer_origin = ""
+default_admin_origin = ""
+if frontend_root and frontend_root not in {"localhost", "127.0.0.1"}:
+    default_customer_origin = f"https://app.{frontend_root}"
+    default_admin_origin = f"https://admin.{frontend_root}"
+
+customer_origin = _normalized_origin(os.getenv("CUSTOMER_APP_ORIGIN", default_customer_origin))
+admin_origin = _normalized_origin(os.getenv("ADMIN_APP_ORIGIN", default_admin_origin))
+extra_frontend_origins = [_normalized_origin(origin) for origin in _get_list_env("FRONTEND_ALLOWED_ORIGINS")]
+
+CORS_ALLOWED_ORIGINS = list(
+    dict.fromkeys([*LOCAL_FRONTEND_ORIGINS, customer_origin, admin_origin, *extra_frontend_origins])
+)
+CORS_ALLOWED_ORIGINS = [origin for origin in CORS_ALLOWED_ORIGINS if origin]
+CORS_ALLOW_CREDENTIALS = True
+
+for origin in CORS_ALLOWED_ORIGINS:
+    if origin not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(origin)
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -135,8 +169,10 @@ MIDDLEWARE = [
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "core.middleware.RequestIDMiddleware",
+    "core.middleware.CorsMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "core.middleware.AdminMutationAuditMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "allauth.account.middleware.AccountMiddleware",  # Required for django-allauth
@@ -224,6 +260,10 @@ SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_HTTPONLY = False  # Django needs JS-less forms to read it
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_SAMESITE = os.getenv("SESSION_COOKIE_SAMESITE", "Lax")
+CSRF_COOKIE_SAMESITE = os.getenv("CSRF_COOKIE_SAMESITE", "Lax")
+SESSION_COOKIE_DOMAIN = _optional_env("SESSION_COOKIE_DOMAIN")
+CSRF_COOKIE_DOMAIN = _optional_env("CSRF_COOKIE_DOMAIN") or SESSION_COOKIE_DOMAIN
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -305,8 +345,8 @@ if not DEBUG:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     CSRF_COOKIE_HTTPONLY = True
-    CSRF_COOKIE_SAMESITE = "Lax"
-    SESSION_COOKIE_SAMESITE = "Lax"
+    CSRF_COOKIE_SAMESITE = os.getenv("CSRF_COOKIE_SAMESITE", CSRF_COOKIE_SAMESITE)
+    SESSION_COOKIE_SAMESITE = os.getenv("SESSION_COOKIE_SAMESITE", SESSION_COOKIE_SAMESITE)
 
     # Browser safety
     SECURE_CONTENT_TYPE_NOSNIFF = True

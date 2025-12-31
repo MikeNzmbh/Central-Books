@@ -1,6 +1,7 @@
+import { backendUrl } from "../utils/apiClient";
 import { ensureCsrfToken } from "../utils/csrf";
 
-const BASE = "/api/internal-admin/";
+const BASE = "/api/admin/";
 
 export type Paginated<T> = {
   results: T[];
@@ -186,15 +187,17 @@ type ApiError = {
 };
 
 const buildUrl = (path: string, params?: RequestOptions["params"]) => {
-  const url = new URL(path, window.location.origin);
-  if (params) {
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== "") {
-        url.searchParams.append(key, String(value));
-      }
-    });
-  }
-  return url.pathname + url.search;
+  const base = backendUrl(path);
+  if (!params) return base;
+  const qs = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      qs.append(key, String(value));
+    }
+  });
+  const query = qs.toString();
+  if (!query) return base;
+  return `${base}${base.includes("?") ? "&" : "?"}${query}`;
 };
 
 const apiFetch = async <T>(path: string, options: RequestOptions = {}): Promise<T> => {
@@ -212,7 +215,7 @@ const apiFetch = async <T>(path: string, options: RequestOptions = {}): Promise<
   const res = await fetch(url, {
     method,
     headers,
-    credentials: "same-origin",
+    credentials: "include",
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
 

@@ -36,17 +36,25 @@ class MatchingConfig:
     Configuration for bank transaction matching engine.
     
     Adjust these values to tune matching behavior:
-    - DATE_TOLERANCE_DAYS: How many days before/after to search for matching journal entries
+    - DATE_LOOKBACK_DAYS: How many days BEFORE the bank transaction to search (stale payments)
+    - DATE_LOOKAHEAD_DAYS: How many days AFTER the bank transaction to search (date entry errors)
     - CONFIDENCE_TIER1: Confidence for deterministic ID matches (should be 1.00)
     - CONFIDENCE_TIER2: Confidence for invoice/expense reference parsing
     - CONFIDENCE_TIER3_SINGLE: Confidence for single amount+date match
     - CONFIDENCE_TIER3_AMBIGUOUS: Confidence when multiple candidates found (requires manual selection)
     - DEFAULT_MAX_CANDIDATES: Maximum number of match candidates to return
     - AMOUNT_TOLERANCE: Tolerance for amount matching (in currency units, e.g., 0.01 = 1 cent)
+    
+    QBO-style asymmetric window: Bank transactions often represent stale payments 
+    (e.g., invoice from 2 months ago paid today), so lookback is longer than lookahead.
     """
     
-    # Date matching window
-    DATE_TOLERANCE_DAYS: int = 3
+    # Date matching window (asymmetric, QBO-style)
+    DATE_LOOKBACK_DAYS: int = 90   # Look back 90 days for stale invoices/expenses
+    DATE_LOOKAHEAD_DAYS: int = 20  # Look ahead 20 days for date entry errors
+    
+    # Legacy compatibility (used by some tests)
+    DATE_TOLERANCE_DAYS: int = 90  # Default to lookback for backward compat
     
     # Confidence scores (0.00 to 1.00)
     CONFIDENCE_TIER1: Decimal = Decimal("1.00")  # Deterministic ID match
@@ -127,6 +135,10 @@ class BankMatchingEngine:
         tier2 = BankMatchingEngine._tier2_reference_match(bank_transaction, business)
         candidates.extend(tier2)
 
+        # Tier 2.5: Cross-account transfer detection
+        tier_transfer = BankMatchingEngine._tier_transfer_detection(bank_transaction, business)
+        candidates.extend(tier_transfer)
+
         # Tier 3: Amount + date heuristic
         tier3 = BankMatchingEngine._tier3_amount_date_match(bank_transaction, business)
         candidates.extend(tier3)
@@ -151,13 +163,45 @@ class BankMatchingEngine:
     def _tier0_rule_match(tx: BankTransaction, business) -> List[Dict[str, Any]]:
         """
         Tier 0: Match against BankRules.
+        
+        QBO-style matching priority:
+        1. bank_text_pattern against raw bank text (highest confidence)
+        2. description_pattern against cleansed description
+        3. Legacy pattern field (backward compatible)
+        4. Merchant name substring match (fallback)
         """
         from core.models import BankRule
         
         candidates = []
         rules = BankRule.objects.filter(business=business)
         
+        # Get raw bank text if available (some imports include it)
+        raw_bank_text = getattr(tx, 'raw_bank_text', tx.description) or tx.description
+        
         for rule in rules:
+            # Priority 1: bank_text_pattern match (raw bank data)
+            if rule.bank_text_pattern and re.search(rule.bank_text_pattern, raw_bank_text, re.IGNORECASE):
+                candidates.append({
+                    "rule": rule,
+                    "confidence": Decimal("1.00"),
+                    "match_type": "RULE",
+                    "reason": f"Rule: {rule.merchant_name} (Bank text match)",
+                    "auto_confirm": rule.auto_confirm,
+                })
+                continue  # Found best match, skip other checks
+            
+            # Priority 2: description_pattern match (user-friendly description)
+            if rule.description_pattern and re.search(rule.description_pattern, tx.description, re.IGNORECASE):
+                candidates.append({
+                    "rule": rule,
+                    "confidence": Decimal("0.98"),
+                    "match_type": "RULE",
+                    "reason": f"Rule: {rule.merchant_name} (Description match)",
+                    "auto_confirm": rule.auto_confirm,
+                })
+                continue
+            
+            # Priority 3: Legacy pattern field (backward compatible)
             if rule.pattern and re.search(rule.pattern, tx.description, re.IGNORECASE):
                 candidates.append({
                     "rule": rule,
@@ -166,8 +210,11 @@ class BankMatchingEngine:
                     "reason": f"Rule: {rule.merchant_name}",
                     "auto_confirm": rule.auto_confirm,
                 })
-            elif rule.merchant_name.lower() in tx.description.lower():
-                 candidates.append({
+                continue
+            
+            # Priority 4: Merchant name substring match (fallback)
+            if rule.merchant_name.lower() in tx.description.lower():
+                candidates.append({
                     "rule": rule,
                     "confidence": Decimal("0.90"),
                     "match_type": "RULE",
@@ -327,12 +374,16 @@ class BankMatchingEngine:
     def _tier3_amount_date_match(tx: BankTransaction, business) -> List[Dict[str, Any]]:
         """
         Tier 3: Match by amount + date proximity.
+        
+        Uses asymmetric date window (QBO-style):
+        - Lookback 90 days for stale invoices/expenses that were paid late
+        - Lookahead 20 days for minor date entry errors
         """
         amount_abs = abs(tx.amount)
 
-        # Find journal entries with matching amount within date window
-        date_start = tx.date - timedelta(days=MatchingConfig.DATE_TOLERANCE_DAYS)
-        date_end = tx.date + timedelta(days=MatchingConfig.DATE_TOLERANCE_DAYS)
+        # Find journal entries with matching amount within asymmetric date window
+        date_start = tx.date - timedelta(days=MatchingConfig.DATE_LOOKBACK_DAYS)
+        date_end = tx.date + timedelta(days=MatchingConfig.DATE_LOOKAHEAD_DAYS)
 
         # Get all journal entries in the date range
         journal_entries = JournalEntry.objects.filter(
@@ -359,7 +410,7 @@ class BankMatchingEngine:
                     "journal_entry": candidate_entries[0],
                     "confidence": MatchingConfig.CONFIDENCE_TIER3_SINGLE,
                     "match_type": "ONE_TO_ONE",
-                    "reason": f"Amount {amount_abs} matches within {MatchingConfig.DATE_TOLERANCE_DAYS} days",
+                    "reason": f"Amount {amount_abs} matches (lookback: {MatchingConfig.DATE_LOOKBACK_DAYS}d, lookahead: {MatchingConfig.DATE_LOOKAHEAD_DAYS}d)",
                 }
             )
         elif len(candidate_entries) > 1:
@@ -374,4 +425,62 @@ class BankMatchingEngine:
                     }
                 )
 
+        return candidates
+
+    @staticmethod
+    def _tier_transfer_detection(tx: BankTransaction, business) -> List[Dict[str, Any]]:
+        """
+        Tier 2.5: Cross-account transfer detection.
+        
+        Looks for matching opposite transactions in other bank accounts:
+        - If tx is a withdrawal (-$1000), look for deposits (+$1000) in other accounts
+        - If tx is a deposit (+$1000), look for withdrawals (-$1000) in other accounts
+        
+        This helps identify internal transfers between accounts owned by the same business.
+        """
+        candidates = []
+        
+        tx_amount = Decimal(str(tx.amount))
+        tx_date = tx.date
+        current_account_id = tx.bank_account_id
+        
+        # Only look for transfers within a tight date window (3 days)
+        date_tolerance = timedelta(days=3)
+        date_start = tx_date - date_tolerance
+        date_end = tx_date + date_tolerance
+        
+        # Look for opposite amount in OTHER bank accounts of the same business
+        opposite_amount = -tx_amount
+        
+        # Get all other bank accounts for this business
+        from core.models import BankAccount
+        other_accounts = BankAccount.objects.filter(
+            business=business
+        ).exclude(id=current_account_id)
+        
+        for other_account in other_accounts:
+            # Find transactions with opposite amount in this account
+            matching_txs = BankTransaction.objects.filter(
+                bank_account=other_account,
+                date__gte=date_start,
+                date__lte=date_end,
+            ).exclude(
+                status__in=['EXCLUDED', 'RECONCILED', 'MATCHED_SINGLE', 'MATCHED_MULTI']
+            )
+            
+            for other_tx in matching_txs:
+                other_amount = Decimal(str(other_tx.amount))
+                
+                # Check if amounts are opposite (with small tolerance for fees)
+                if abs(other_amount - opposite_amount) < MatchingConfig.AMOUNT_TOLERANCE:
+                    # This looks like a transfer! Create a special transfer suggestion
+                    candidates.append({
+                        "transfer_match": other_tx,
+                        "transfer_from_account": tx.bank_account.name if tx_amount < 0 else other_account.name,
+                        "transfer_to_account": other_account.name if tx_amount < 0 else tx.bank_account.name,
+                        "confidence": Decimal("0.85"),  # High but not definitive
+                        "match_type": "TRANSFER",
+                        "reason": f"Likely transfer between {tx.bank_account.name} and {other_account.name} (matching opposite amounts within {date_tolerance.days} days)",
+                    })
+        
         return candidates

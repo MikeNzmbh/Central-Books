@@ -1,9 +1,11 @@
+from django.conf import settings
 from django.contrib.auth import views as auth_views
 from django.urls import path, include
 from django.urls import reverse_lazy
 from django.views.generic import RedirectView
 
 from . import views
+from . import views_health
 from agentic.interfaces.api import urlpatterns as agentic_urlpatterns
 from taxes import views as tax_views
 from . import views_reconciliation
@@ -65,6 +67,8 @@ from .views_reconciliation import (
 urlpatterns = [
     path("", views.welcome_view, name="home"),
     path("welcome/", views.welcome_view, name="welcome"),
+    path("api/health", views_health.api_health, name="api_health"),
+    path("healthz", views_health.api_healthz, name="api_healthz"),
     path("companion/", RedirectView.as_view(pattern_name="companion_overview_page", permanent=False)),
     path("signup/", views.signup_view, name="signup"),
     path("login/", views.login_view, name="login"),
@@ -480,3 +484,36 @@ urlpatterns = [
 
 # Add agentic API endpoints
 urlpatterns += agentic_urlpatterns
+
+
+def _route_for(pattern) -> str:
+    route = getattr(pattern.pattern, "_route", "")
+    if route:
+        return route
+    regex = getattr(pattern.pattern, "regex", None)
+    if regex:
+        return regex.pattern
+    return ""
+
+
+def _is_api_or_service_route(route: str) -> bool:
+    if route.startswith("api/"):
+        return True
+    if route in {
+        "healthz",
+        "slack/monitoring/report/",
+        "agentic/status/",
+        "agentic/workflows/",
+        "agentic/agents/",
+        "agentic/demo/receipts-run/",
+        "invoices/<int:pk>/pdf/",
+        "expenses/<int:pk>/pdf/",
+        "invoices/email/open/<uuid:token>.gif",
+        "reports/pl-export/",
+    }:
+        return True
+    return False
+
+
+if getattr(settings, "API_ONLY_MODE", False):
+    urlpatterns = [pattern for pattern in urlpatterns if _is_api_or_service_route(_route_for(pattern))]

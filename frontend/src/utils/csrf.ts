@@ -4,6 +4,7 @@
  * Extracts CSRF token from cookies for use in POST/PATCH/DELETE requests.
  */
 
+import { backendUrl } from "./apiClient";
 import { parseCookies } from "./cookies";
 
 let cachedToken: string | null = null;
@@ -56,7 +57,7 @@ export async function ensureCsrfToken(): Promise<string> {
         return inflight;
     }
 
-    inflight = fetch("/api/auth/config", { credentials: "same-origin" })
+    inflight = fetch(backendUrl("/api/auth/config"), { credentials: "include" })
         .then(async (res) => {
             if (!res.ok) return "";
             const data = await res.json().catch(() => ({}));

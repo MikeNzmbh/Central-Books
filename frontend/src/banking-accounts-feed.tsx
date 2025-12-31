@@ -1,6 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import "./index.css";
+import "./setup";
 import BankingAccountsAndFeedPage from "./BankingAccountsAndFeedPage";
 import { AuthProvider } from "./contexts/AuthContext";
 

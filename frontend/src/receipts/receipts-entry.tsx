@@ -1,6 +1,6 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
-import "../index.css";
+import "../setup";
 import ReceiptsPage from "./ReceiptsPage";
 
 const rootEl = document.getElementById("receipts-root");

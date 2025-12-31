@@ -1890,6 +1890,11 @@ class ReconciliationSession(models.Model):
 class BankRule(models.Model):
     """
     Rule for recurring merchant categorizations during reconciliation.
+    
+    QBO-style distinction:
+    - bank_text_pattern: Match against raw bank feed text (often cryptic, e.g., "AMAZON.COM*ABC123")
+    - description_pattern: Match against cleansed/user description (e.g., "Amazon Prime")
+    - pattern: Legacy field, kept for compatibility (matches description by default)
     """
 
     business = models.ForeignKey(
@@ -1898,7 +1903,21 @@ class BankRule(models.Model):
         related_name="bank_rules",
     )
     merchant_name = models.CharField(max_length=255, help_text="Name to display/match")
-    pattern = models.CharField(max_length=255, default="", help_text="Regex or substring to match description")
+    
+    # Pattern matching fields (QBO-style separation)
+    pattern = models.CharField(max_length=255, default="", help_text="Legacy: Regex or substring to match description")
+    bank_text_pattern = models.CharField(
+        max_length=255, 
+        default="", 
+        blank=True,
+        help_text="Pattern to match raw bank feed text (often cryptic bank codes)"
+    )
+    description_pattern = models.CharField(
+        max_length=255, 
+        default="", 
+        blank=True,
+        help_text="Pattern to match cleansed/user-friendly description"
+    )
     
     # Actions
     category = models.ForeignKey(

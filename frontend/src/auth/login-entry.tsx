@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import CloverBooksLoginPage from "./LoginPage";
-import "../index.css";
+import "../setup";
 
 /**
  * Option B Login Entry

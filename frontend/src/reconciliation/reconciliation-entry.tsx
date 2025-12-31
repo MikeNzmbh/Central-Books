@@ -1,8 +1,9 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import ReconciliationPage from "./ReconciliationPage";
-import "../index.css";
+import "../setup";
 import { AuthProvider } from "../contexts/AuthContext";
+import { ToastProvider } from "../contexts/ToastContext";
 
 const rootEl = document.getElementById("reconciliation-root");
 
@@ -15,7 +16,9 @@ if (!rootEl) {
   root.render(
     <React.StrictMode>
       <AuthProvider>
-        <ReconciliationPage bankAccountId={bankAccountId} />
+        <ToastProvider>
+          <ReconciliationPage bankAccountId={bankAccountId} />
+        </ToastProvider>
       </AuthProvider>
     </React.StrictMode>
   );

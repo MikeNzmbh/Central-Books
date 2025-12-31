@@ -72,7 +72,7 @@ function useInternalAdminOperations() {
             setLoading(true);
             setError(null);
             const params = new URLSearchParams({ env, window_hours: String(windowHours) });
-            const res = await fetch(`/api/internal-admin/operations-overview/?${params.toString()}`, {
+            const res = await fetch(`/api/admin/operations-overview/?${params.toString()}`, {
                 credentials: "include",
             });
             if (!res.ok) {

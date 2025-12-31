@@ -1,7 +1,7 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import CloverBooksCreateAccount from "./CloverBooksCreateAccount";
-import "../index.css";
+import "../setup";
 
 type SignupPayload = {
   action?: string;

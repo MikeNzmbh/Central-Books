@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { backendUrl } from "../utils/apiClient";
 import {
   fetchUsers,
   updateUser,
@@ -525,7 +526,9 @@ const UserDetailsPanel: React.FC<UserDetailsPanelProps> = ({ user, onUpdate, rol
     try {
       const data = await startImpersonation(user.id, reason);
       if (data.redirect_url) {
-        window.location.href = data.redirect_url;
+        window.location.href = data.redirect_url.startsWith("http")
+          ? data.redirect_url
+          : backendUrl(data.redirect_url);
       }
     } catch (err: any) {
       setError(err?.message || "Failed to start impersonation");

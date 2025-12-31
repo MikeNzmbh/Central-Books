@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { backendUrl } from "../utils/apiClient";
 import {
   deleteEmployee,
   fetchEmployees,
@@ -97,7 +98,7 @@ const statusChip = (employee: Employee) => {
   return { label: "No admin access", tone: "bg-slate-50 text-slate-600 border border-slate-200" };
 };
 
-const inviteLink = (url: string) => (url.startsWith("http") ? url : `${window.location.origin}${url}`);
+const inviteLink = (url: string) => (url.startsWith("http") ? url : backendUrl(url));
 
 const NotAuthorized: React.FC = () => (
   <Card className="border-none bg-white/90 shadow-sm">

@@ -2,18 +2,13 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.test.signals import setting_changed
-from django.urls import include, path, re_path
-from core import views
-from internal_admin import views_impersonation, views_auth
+from django.urls import include, path
+from internal_admin import views_impersonation
 
 
 def _build_urlpatterns():
     patterns = [
         path("", include("core.urls")),
-        path("internal-admin/login/", views_auth.internal_admin_login, name="internal_admin_login"),
-        path("internal-admin/", views.admin_spa, name="admin_spa"),
-        re_path(r"^internal-admin/.*$", views.admin_spa),  # Catch all admin sub-routes for React Router
-        re_path(r"^inventory/.*$", views.inventory_spa),  # Catch all inventory sub-routes for React Router
         path(
             "internal/impersonate/<uuid:token>/",
             views_impersonation.accept_impersonation,
@@ -25,6 +20,7 @@ def _build_urlpatterns():
             name="internal-impersonate-stop",
         ),
         path("api/companion/", include("companion.urls")),
+        path("api/admin/", include("internal_admin.urls")),
         path("api/internal-admin/", include("internal_admin.urls")),
         path("accounts/", include("allauth.urls")),  # Google OAuth login
     ]

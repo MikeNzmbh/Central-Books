@@ -1,4 +1,4 @@
-import "../index.css";
+import "../setup";
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import CloverBooksDashboard, { type CloverBooksDashboardProps } from "./CloverBooksDashboard";

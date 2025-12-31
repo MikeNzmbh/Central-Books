@@ -2,7 +2,7 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import AccountSettingsPage, { AccountSettingsProps } from "./AccountSettingsPage";
 import { AuthProvider } from "../contexts/AuthContext";
-import "../index.css";
+import "../setup";
 
 const rootEl = document.getElementById("account-settings-root");
 const dataEl = document.getElementById("account-settings-data");

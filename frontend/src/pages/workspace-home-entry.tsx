@@ -1,7 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import BusinessSkipLandingPage from "./BusinessSkipLandingPage";
-import "../index.css";
+import "../setup";
 
 const rootEl = document.getElementById("workspace-home-root");
 

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import "./index.css";
+import "./setup";
 
 type IconProps = React.SVGProps<SVGSVGElement>;
 const stroke = {

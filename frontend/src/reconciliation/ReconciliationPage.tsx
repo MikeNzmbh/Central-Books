@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import {
   AlertTriangle,
   Check,
@@ -54,6 +54,7 @@ import "../index.css";
 import { ReportExportButton } from "../reports/ReportExportButton";
 import { ensureCsrfToken, getCsrfToken as getCsrfTokenSync } from "../utils/csrf";
 import { usePermissions } from "../hooks/usePermissions";
+import { ToastProvider, useToast } from "../contexts/ToastContext";
 
 // --- Types ---
 
@@ -211,6 +212,7 @@ function EmptyState({ canReconcile, reason }: { canReconcile: boolean; reason: s
 
 export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: string }) {
   const { can } = usePermissions();
+  const { showToast } = useToast();
   React.useEffect(() => {
     ensureCsrfToken().catch(() => undefined);
   }, []);
@@ -569,11 +571,22 @@ export default function ReconciliationPage({ bankAccountId }: { bankAccountId?: 
         }),
       });
 
+      // Show toast with undo option
+      showToast({
+        message: "Transaction matched",
+        type: "success",
+        onUndo: () => onUnmatch(txId),
+      });
+
       // Refresh session and feed after match
       await loadSession(state.activeBankId, state.activePeriodId);
     } catch (e: any) {
       console.error(e);
       setActionError(e?.message || "Could not match transaction.");
+      showToast({
+        message: e?.message || "Could not match transaction",
+        type: "error",
+      });
     }
   };
 
@@ -1502,7 +1515,7 @@ function TransactionRow({ tx, onToggleInclude, onMatch, onAddAsNew, onUnmatch, i
               size="sm"
               onClick={() => onMatch(tx.id)}
               disabled={actionsDisabled}
-              title="Link this transaction to an existing journal entry"
+              title="Link this transaction to an existing record"
               className="h-7 rounded-full bg-slate-900 px-3 text-[11px] font-medium text-white hover:bg-slate-800"
             >
               Match
@@ -1513,7 +1526,7 @@ function TransactionRow({ tx, onToggleInclude, onMatch, onAddAsNew, onUnmatch, i
               size="sm"
               onClick={() => onAddAsNew(tx.id)}
               disabled={actionsDisabled}
-              title="Create a new journal entry and mark as reconciled"
+              title="Create a new record and mark as reconciled"
               className="h-7 rounded-full border-slate-200 px-3 text-[11px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
             >
               Reconcile
@@ -1526,7 +1539,7 @@ function TransactionRow({ tx, onToggleInclude, onMatch, onAddAsNew, onUnmatch, i
             size="sm"
             onClick={() => onUnmatch(tx.id)}
             disabled={actionsDisabled}
-            title="Remove the link to journal entry and mark as unreconciled"
+            title="Remove the link and mark as unreconciled"
             className="h-7 rounded-full border-slate-200 px-3 text-[11px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
           >
             Unmatch

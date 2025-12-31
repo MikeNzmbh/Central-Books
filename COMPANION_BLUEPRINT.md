@@ -3,7 +3,7 @@
 ## 1. Purpose & Scope
 
 ### What Companion Is
-- Companion is a **junior accountant / assistant** inside Central Books.
+- Companion is a **junior accountant / assistant** inside Clover Books.
 - It performs **bounded analysis** (classification, matching, draft preparation) and produces **auditable proposals**.
 - It is an **agent with strict permissions**, not a privileged subsystem.
 
