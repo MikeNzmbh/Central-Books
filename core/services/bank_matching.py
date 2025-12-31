@@ -105,6 +105,84 @@ class BankMatchingEngine:
                 pass
 
     @staticmethod
+    def apply_rules_on_import(transactions: List[BankTransaction]) -> Dict[str, Any]:
+        """
+        Apply auto-categorize rules to newly imported transactions.
+        
+        This runs during/after bank statement import to automatically categorize
+        transactions that match rules with auto_categorize_on_import=True.
+        
+        Returns:
+            dict with 'applied_count', 'rules_used', and 'transactions_matched'
+        """
+        from core.models import BankRule
+        from core.services.bank_reconciliation import BankReconciliationService
+        
+        result = {
+            "applied_count": 0,
+            "rules_used": [],
+            "transactions_matched": [],
+        }
+        
+        if not transactions:
+            return result
+            
+        # Get business from first transaction
+        business = transactions[0].bank_account.business
+        
+        # Get all auto-apply rules for this business
+        auto_rules = BankRule.objects.filter(
+            business=business,
+            auto_categorize_on_import=True
+        )
+        
+        if not auto_rules.exists():
+            return result
+            
+        for tx in transactions:
+            # Skip already processed transactions
+            if tx.status not in [BankTransaction.TransactionStatus.NEW]:
+                continue
+                
+            # Try to match against auto-apply rules
+            for rule in auto_rules:
+                matched = False
+                
+                # Check patterns in priority order
+                raw_text = getattr(tx, 'raw_bank_text', tx.description) or tx.description
+                
+                if rule.bank_text_pattern and re.search(rule.bank_text_pattern, raw_text, re.IGNORECASE):
+                    matched = True
+                elif rule.description_pattern and re.search(rule.description_pattern, tx.description, re.IGNORECASE):
+                    matched = True
+                elif rule.pattern and re.search(rule.pattern, tx.description, re.IGNORECASE):
+                    matched = True
+                elif rule.merchant_name.lower() in tx.description.lower():
+                    matched = True
+                    
+                if matched:
+                    # Apply the rule - categorize the transaction
+                    tx.category_name = rule.category.name if rule.category else None
+                    tx.match_suggestion = f"Auto-applied: {rule.merchant_name}"
+                    tx.suggestion_reason = f"Rule '{rule.merchant_name}' auto-applied on import"
+                    tx.suggestion_confidence = 100
+                    tx.status = BankTransaction.TransactionStatus.MATCHED_SINGLE if rule.auto_confirm else BankTransaction.TransactionStatus.SUGGESTED
+                    tx.save()
+                    
+                    # Update rule stats
+                    rule.last_applied_count += 1
+                    rule.save(update_fields=["last_applied_count", "updated_at"])
+                    
+                    result["applied_count"] += 1
+                    if rule.merchant_name not in result["rules_used"]:
+                        result["rules_used"].append(rule.merchant_name)
+                    result["transactions_matched"].append(tx.id)
+                    
+                    break  # Only apply first matching rule
+                    
+        return result
+
+    @staticmethod
     def find_matches(
         bank_transaction: BankTransaction,
         limit: Optional[int] = None

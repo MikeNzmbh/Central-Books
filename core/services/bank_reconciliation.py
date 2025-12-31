@@ -485,3 +485,120 @@ class BankReconciliationService:
             "total_unreconciled_amount": Decimal(str(unreconciled_amount)),
             "progress_percent": round((reconciled / total * 100) if total > 0 else 0, 1),
         }
+
+    @staticmethod
+    def get_session_summary_report(session: ReconciliationSession) -> dict:
+        """
+        Generate a comprehensive summary report for a completed reconciliation session.
+        
+        Returns:
+            Dict with session details, matched transactions, adjustments, and discrepancies.
+        """
+        from core.models import BankReconciliationMatch
+        
+        # Get all matches in this session
+        matches = BankReconciliationMatch.objects.filter(
+            bank_transaction__reconciliation_session=session
+        ).select_related('bank_transaction', 'journal_entry')
+        
+        # Get all transactions in this session
+        transactions = BankTransaction.objects.filter(reconciliation_session=session)
+        
+        # Calculate totals
+        total_matched = transactions.filter(status__in=RECONCILED_STATUSES).count()
+        total_excluded = transactions.filter(status=BankTransaction.TransactionStatus.EXCLUDED).count()
+        
+        deposits = transactions.filter(amount__gt=0)
+        withdrawals = transactions.filter(amount__lt=0)
+        
+        return {
+            "session_id": session.id,
+            "account_name": session.bank_account.name,
+            "period_start": session.period_start,
+            "period_end": session.period_end,
+            "status": session.status,
+            "created_at": session.created_at,
+            "completed_at": getattr(session, 'completed_at', None),
+            "summary": {
+                "total_transactions": transactions.count(),
+                "matched": total_matched,
+                "excluded": total_excluded,
+                "deposit_count": deposits.count(),
+                "withdrawal_count": withdrawals.count(),
+                "total_deposits": sum(tx.amount for tx in deposits),
+                "total_withdrawals": sum(tx.amount for tx in withdrawals),
+            },
+            "opening_balance": session.opening_balance,
+            "ending_balance": session.ending_balance,
+            "matches_summary": [
+                {
+                    "transaction_date": m.bank_transaction.date,
+                    "description": m.bank_transaction.description,
+                    "amount": m.bank_transaction.amount,
+                    "matched_to": str(m.journal_entry) if m.journal_entry else "Manual categorization",
+                    "match_type": m.match_type,
+                }
+                for m in matches[:50]  # Limit to prevent huge reports
+            ],
+        }
+
+    @staticmethod
+    def get_audit_trail(bank_transaction: BankTransaction) -> list:
+        """
+        Get audit trail/change history for a bank transaction.
+        
+        Returns a list of audit events showing status changes, matches, and unmatches.
+        This uses the transaction's metadata and related objects to reconstruct history.
+        """
+        trail = []
+        
+        # Transaction creation
+        trail.append({
+            "event": "IMPORTED",
+            "timestamp": bank_transaction.created_at,
+            "description": f"Transaction imported from bank feed",
+            "user": None,
+        })
+        
+        # Check for suggestions
+        if bank_transaction.suggestion_confidence:
+            trail.append({
+                "event": "SUGGESTION_GENERATED",
+                "timestamp": bank_transaction.updated_at,
+                "description": f"Match suggested at {bank_transaction.suggestion_confidence}% confidence: {bank_transaction.suggestion_reason or 'Unknown reason'}",
+                "user": None,
+            })
+        
+        # Check for reconciliation
+        if bank_transaction.is_reconciled:
+            trail.append({
+                "event": "RECONCILED",
+                "timestamp": bank_transaction.reconciled_at,
+                "description": f"Marked as reconciled (status: {bank_transaction.status})",
+                "user": None,
+            })
+        
+        # Check for exclusion
+        if bank_transaction.status == BankTransaction.TransactionStatus.EXCLUDED:
+            trail.append({
+                "event": "EXCLUDED",
+                "timestamp": bank_transaction.updated_at,
+                "description": "Transaction excluded from reconciliation",
+                "user": None,
+            })
+        
+        # Check for matches
+        from core.models import BankReconciliationMatch
+        matches = BankReconciliationMatch.objects.filter(bank_transaction=bank_transaction)
+        for match in matches:
+            trail.append({
+                "event": "MATCHED",
+                "timestamp": match.created_at,
+                "description": f"Matched to {match.journal_entry or 'unknown entry'} ({match.match_type})",
+                "user": str(match.created_by) if match.created_by else None,
+            })
+        
+        # Sort by timestamp
+        trail.sort(key=lambda x: x["timestamp"] or timezone.now(), reverse=True)
+        
+        return trail

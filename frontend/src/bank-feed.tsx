@@ -245,6 +245,7 @@ export default function BankFeedPage() {
   // Batch selection state
   const [selectedTxIds, setSelectedTxIds] = useState<Set<number>>(new Set());
   const [batchProcessing, setBatchProcessing] = useState(false);
+  const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
 
   // Fetch accounts
   const fetchAccounts = useCallback(async () => {
@@ -380,6 +381,65 @@ export default function BankFeedPage() {
     const categorized = transactions.filter((tx) => tx.status === "categorized").length;
     return { moneyIn, moneyOut, toReview, categorized };
   }, [transactions]);
+
+  // Keyboard shortcuts for power users (press ? for help)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger if typing in input/textarea
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      switch (e.key) {
+        case "?":
+          setShowShortcutsHelp(prev => !prev);
+          break;
+        case "Escape":
+          if (selectedTxId) {
+            setSelectedTxId(null);
+          } else if (selectedTxIds.size > 0) {
+            setSelectedTxIds(new Set());
+          }
+          break;
+        case "j":
+        case "ArrowDown":
+          if (filteredTransactions.length > 0) {
+            const currentIndex = filteredTransactions.findIndex(tx => tx.id === selectedTxId);
+            const nextIndex = currentIndex < filteredTransactions.length - 1 ? currentIndex + 1 : 0;
+            setSelectedTxId(filteredTransactions[nextIndex].id);
+          }
+          e.preventDefault();
+          break;
+        case "k":
+        case "ArrowUp":
+          if (filteredTransactions.length > 0) {
+            const currentIndex = filteredTransactions.findIndex(tx => tx.id === selectedTxId);
+            const prevIndex = currentIndex > 0 ? currentIndex - 1 : filteredTransactions.length - 1;
+            setSelectedTxId(filteredTransactions[prevIndex].id);
+          }
+          e.preventDefault();
+          break;
+        case "c":
+          if (selectedTxId) setDrawerForm(prev => ({ ...prev, mode: "categorize" }));
+          break;
+        case "m":
+          if (selectedTxId) setDrawerForm(prev => ({ ...prev, mode: "match" }));
+          break;
+        case "1":
+          setStatusFilter("for_review");
+          break;
+        case "2":
+          setStatusFilter("categorized");
+          break;
+        case "3":
+          setStatusFilter("excluded");
+          break;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedTxId, selectedTxIds, filteredTransactions]);
 
   const handleOpenDrawer = (tx: BankFeedTransaction) => {
     setSelectedTxId(tx.id);

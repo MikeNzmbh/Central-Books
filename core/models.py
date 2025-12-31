@@ -1935,6 +1935,11 @@ class BankRule(models.Model):
         related_name="bank_rules",
     )
     auto_confirm = models.BooleanField(default=False)
+    auto_categorize_on_import = models.BooleanField(
+        default=False,
+        help_text="Apply this rule automatically when transactions are imported (no user confirmation needed)"
+    )
+    last_applied_count = models.IntegerField(default=0, help_text="Number of times this rule has been auto-applied")
     
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
