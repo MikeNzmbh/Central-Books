@@ -1,0 +1,539 @@
+{% load static mb_extras %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <title>Clover Books{% block title %}{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=MuseoModerno:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/png" href="{% static 'favicon-32x32.png' %}" sizes="32x32" />
+  <link rel="icon" type="image/png" href="{% static 'favicon-16x16.png' %}" sizes="16x16" />
+  <link rel="shortcut icon" href="{% static 'favicon.ico' %}" />
+  <link rel="apple-touch-icon" href="{% static 'apple-touch-icon.png' %}" />
+  <meta name="theme-color" content="#0B1015" />
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  {% vite_asset 'index' 'css' as css_path %}
+  {% if css_path %}
+  <link rel="stylesheet" href="{% static css_path %}">
+  {% endif %}
+  <style>
+    .mb-page-shell {
+      min-height: 100vh;
+      background: #f8fafc;
+      color: #0f172a;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+      padding: 40px 48px;
+    }
+
+    .mb-page-header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 32px;
+    }
+
+    .mb-kicker {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #94a3b8;
+      margin-bottom: 6px;
+    }
+
+    .mb-page-title {
+      margin: 0;
+      font-size: 28px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+
+    .mb-page-subtitle {
+      font-size: 13px;
+      color: #64748b;
+      max-width: 460px;
+      margin-top: 4px;
+    }
+
+    .mb-page-actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .mb-btn {
+      border-radius: 999px;
+      border: 1px solid transparent;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 6px 18px;
+      cursor: pointer;
+      transition: .15s;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .mb-btn-primary {
+      background: var(--accent-warm-strong);
+      border-color: var(--accent-warm-strong);
+      color: #fff;
+    }
+
+    .mb-btn-primary:hover {
+      background: var(--accent-warm);
+      border-color: var(--accent-warm);
+    }
+
+    .mb-btn-secondary {
+      background: #fff;
+      border-color: #e2e8f0;
+      color: #0f172a;
+    }
+
+    .mb-page-grid {
+      display: grid;
+      gap: 24px;
+      grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    }
+
+    .mb-card {
+      border-radius: 24px;
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 18px 45px rgba(15, 23, 42, .06);
+    }
+
+    .mb-card-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 18px 24px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    .mb-card-title {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .mb-card-subtitle {
+      margin: 0;
+      font-size: 12px;
+      color: #64748b;
+    }
+
+    .mb-card-meta {
+      font-size: 11px;
+      color: #94a3b8;
+      white-space: nowrap;
+    }
+
+    .mb-card-body {
+      padding: 18px 24px;
+    }
+
+    .mb-field {
+      margin-bottom: 18px;
+    }
+
+    .mb-label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: #475569;
+      margin-bottom: 4px;
+    }
+
+    .mb-text-required {
+      color: #fb7185;
+    }
+
+    .mb-input {
+      width: 100%;
+      height: 40px;
+      border-radius: 20px;
+      border: 1px solid #e2e8f0;
+      background: #f8fafc;
+      padding: 0 14px;
+      font-size: 13px;
+      color: #0f172a;
+      outline: none;
+      transition: .15s;
+    }
+
+    .mb-input:focus {
+      background: #fff;
+      border-color: #0ea5e9;
+      box-shadow: 0 0 0 2px rgba(14, 165, 233, .12);
+    }
+
+    .mb-input[type="file"] {
+      padding: 6px 14px;
+      height: auto;
+      background: #fff;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .mb-input[type="file"]::file-selector-button {
+      margin-right: 12px;
+      border: 1px solid #bae6fd;
+      background: #e0f2fe;
+      color: #0f172a;
+      border-radius: 999px;
+      padding: 6px 14px;
+      font-weight: 600;
+      font-size: 12px;
+      cursor: pointer;
+      transition: .15s;
+    }
+
+    .mb-input[type="file"]::file-selector-button:hover {
+      background: #bae6fd;
+      border-color: #7dd3fc;
+    }
+
+    .mb-input[type="file"]::-webkit-file-upload-button {
+      margin-right: 12px;
+      border: 1px solid #bae6fd;
+      background: #e0f2fe;
+      color: #0f172a;
+      border-radius: 999px;
+      padding: 6px 14px;
+      font-weight: 600;
+      font-size: 12px;
+      cursor: pointer;
+      transition: .15s;
+    }
+
+    .mb-input[type="file"]::-webkit-file-upload-button:hover {
+      background: #bae6fd;
+      border-color: #7dd3fc;
+    }
+
+    .mb-textarea {
+      width: 100%;
+      border-radius: 20px;
+      border: 1px solid #e2e8f0;
+      background: #f8fafc;
+      padding: 10px 14px;
+      font-size: 13px;
+      color: #0f172a;
+      outline: none;
+      transition: .15s;
+      min-height: 96px;
+    }
+
+    .mb-textarea:focus {
+      background: #fff;
+      border-color: #0ea5e9;
+      box-shadow: 0 0 0 2px rgba(14, 165, 233, .12);
+    }
+
+    .mb-hint {
+      font-size: 11px;
+      color: #94a3b8;
+      margin-top: 4px;
+    }
+
+    .mb-error {
+      font-size: 11px;
+      color: #b91c1c;
+      margin-top: 4px;
+    }
+
+    .mb-overview-label {
+      font-size: 11px;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    .mb-overview-value {
+      font-size: 13px;
+      font-weight: 600;
+      color: #0f172a;
+    }
+
+    .mb-pill-toggle {
+      display: inline-flex;
+      gap: 6px;
+      padding: 4px;
+      border-radius: 999px;
+      background: #f1f5f9;
+    }
+
+    .mb-pill-toggle input {
+      display: none;
+    }
+
+    .mb-pill-option {
+      display: inline-flex;
+    }
+
+    .mb-pill-option span {
+      padding: 6px 18px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #475569;
+    }
+
+    .mb-pill-option input:checked+span {
+      background: #fff;
+      box-shadow: 0 6px 16px rgba(15, 23, 42, .15);
+      color: #0f172a;
+    }
+
+    @media (max-width:960px) {
+      .mb-page-shell {
+        padding: 32px 20px;
+      }
+
+      .mb-page-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .mb-status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 14px;
+      border-radius: 999px;
+      background: #ecfdf5;
+      border: 1px solid #bbf7d0;
+      font-size: 11px;
+      font-weight: 600;
+      color: #047857;
+    }
+
+    .mb-status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: #22c55e;
+      box-shadow: 0 0 0 4px rgba(34, 197, 94, .18);
+    }
+
+    .mb-status-dot--tiny {
+      width: 6px;
+      height: 6px;
+      box-shadow: none;
+      margin-right: 2px;
+    }
+
+    .mb-status-text {
+      letter-spacing: .02em;
+    }
+
+    .mb-page-side {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .mb-card-side {
+      box-shadow: 0 16px 36px rgba(15, 23, 42, .05);
+    }
+
+    .mb-card-body-muted {
+      font-size: 11px;
+      color: #61708d;
+      line-height: 1.6;
+    }
+
+    .mb-card-tip {
+      background: linear-gradient(135deg, #f8fafc, #eef2ff);
+      border-bottom-left-radius: 24px;
+      border-bottom-right-radius: 24px;
+    }
+
+    .mb-overview-row {
+      margin-bottom: 12px;
+    }
+
+    .mb-overview-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .mb-overview-value-active {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: #047857;
+      font-weight: 600;
+    }
+
+    .impersonation-banner {
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 12px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+      font-size: 13px;
+      border-bottom: 1px solid #1e293b;
+    }
+
+    .impersonation-banner a {
+      color: #fde68a;
+      font-weight: 700;
+      text-decoration: underline;
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+  <div class="app-shell">
+    <aside id="sidebar-root" data-business-name="{% if business %}{{ business.name }}{% else %}Your business{% endif %}"
+      data-business-initials="{% if business_initials %}{{ business_initials }}{% else %}CB{% endif %}"
+      data-user-name="{% if user.is_authenticated %}{{ user.get_full_name|default:user.email|default:user.username }}{% else %}Guest{% endif %}"
+      data-user-email="{% if user.is_authenticated and user.email %}{{ user.email }}{% else %}{% endif %}"
+      data-active-route="{{ request.resolver_match.url_name }}"></aside>
+
+    {% vite_asset 'sidebar' as sidebar_js %}
+    {% if sidebar_js %}
+    <script type="module" src="{% static sidebar_js %}"></script>
+    {% endif %}
+
+        <nav>
+          <div class="sidebar-nav-section-label">Main</div>
+          <a href="{% url 'dashboard' %}"
+            class="sidebar-link{% if request.resolver_match.url_name == 'dashboard' %} active{% endif %}">
+            <span class="sidebar-link-dot"></span> Dashboard
+          </a>
+
+          <div class="sidebar-nav-section-label">Sales</div>
+          <a href="{% url 'customer_list' %}"
+            class="sidebar-link{% if request.resolver_match.url_name == 'customer_list' %} active{% endif %}">
+            <span class="sidebar-link-dot"></span> Customers
+          </a>
+          <a href="{% url 'product_list' %}"
+            class="sidebar-link{% if request.resolver_match.url_name == 'product_list' or request.resolver_match.url_name == 'item_create' or request.resolver_match.url_name == 'item_update' %} active{% endif %}">
+            <span class="sidebar-link-dot"></span> Products &amp; Services
+          </a>
+          <a href="{% url 'invoice_list' %}"
+            class="sidebar-link{% if request.resolver_match.url_name == 'invoice_list' %} active{% endif %}">
+            <span class="sidebar-link-dot"></span> Invoices
+          </a>
+
+          <div class="sidebar-nav-section-label">Expenses</div>
+          <a href="{% url 'suppliers' %}"
+            class="sidebar-link{% if request.resolver_match.url_name == 'suppliers' %} active{% endif %}">
+            <span class="sidebar-link-dot"></span> Suppliers
+          </a>
+          <a href="{% url 'expense_list' %}"
+            class="sidebar-link{% if request.resolver_match.url_name == 'expense_list' %} active{% endif %}">
+            <span class="sidebar-link-dot"></span> Expenses
+          </a>
+          <a href="{% url 'receipts_page' %}"
+            class="sidebar-link{% if request.resolver_match.url_name == 'receipts_page' %} active{% endif %}">
+            <span class="sidebar-link-dot"></span> Receipts
+          </a>
+          <a href="{% url 'companion_overview_page' %}"
+            class="sidebar-link{% if request.resolver_match.url_name == 'companion_overview_page' or request.resolver_match.url_name == 'invoices_ai_page' or request.resolver_match.url_name == 'books_review_page' or request.resolver_match.url_name == 'bank_review_page' %} active{% endif %}">
+            <span class="sidebar-link-dot"></span> AI Companion
+          </a>
+          <a href="{% url 'category_list' %}"
+            class="sidebar-link{% if request.resolver_match.url_name == 'category_list' %} active{% endif %}">
+            <span class="sidebar-link-dot"></span> Categories
+          </a>
+
+          <div class="sidebar-nav-section-label">Banking</div>
+          {% with current=request.resolver_match.url_name %}
+          <a href="{% url 'banking_accounts_feed' %}"
+            class="sidebar-link{% if current == 'banking_accounts_feed' or current == 'bank_account_list' or current == 'bank_feeds_overview' or current == 'bank_feed_review' or current == 'bank_account_create' or current == 'bank_account_edit' or current == 'bank_import' or current == 'bank_feed_spa' %} active{% endif %}">
+            <span class="sidebar-link-dot"></span> Banking
+          </a>
+          <a href="{% url 'reconciliation_entry' %}"
+            class="sidebar-link{% if current == 'reconciliation_entry' %} active{% endif %}">
+            <span class="sidebar-link-dot"></span> Reconciliation
+          </a>
+          {% endwith %}
+
+          <div class="sidebar-nav-section-label">Reports</div>
+          <a href="{% url 'report_pnl' %}"
+            class="sidebar-link{% if request.resolver_match.url_name == 'report_pnl' %} active{% endif %}">
+            <span class="sidebar-link-dot"></span> Profit &amp; Loss
+          </a>
+          <a href="{% url 'cashflow_report' %}"
+            class="sidebar-link{% if request.resolver_match.url_name == 'cashflow_report' %} active{% endif %}">
+            <span class="sidebar-link-dot"></span> Cashflow
+          </a>
+          <a href="{% url 'account_list' %}"
+            class="sidebar-link{% if request.resolver_match.url_name == 'account_list' %} active{% endif %}">
+            <span class="sidebar-link-dot"></span> Chart of Accounts
+          </a>
+
+          <div class="sidebar-nav-section-label">Account</div>
+          {% if request.user.is_authenticated %}
+          <a href="{% url 'account_settings' %}"
+            class="sidebar-link{% if request.resolver_match.url_name == 'account_settings' %} active{% endif %}">
+            <span class="sidebar-link-dot"></span> Account settings
+          </a>
+          {% endif %}
+        </nav>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="sidebar-user-row">
+          <div class="sidebar-user-avatar">
+            {% if user.is_authenticated %}
+            {{ user.username|slice:":1"|upper }}
+            {% else %}
+            ?
+            {% endif %}
+          </div>
+          <div>
+            <div class="sidebar-user-name">
+              {% if user.is_authenticated %}
+              {{ user.get_full_name|default:user.email|default:user.username }}
+              {% else %}
+              Guest
+              {% endif %}
+            </div>
+            <div class="sidebar-user-caption">
+              {% if user.is_authenticated and user.email %}
+              {{ user.email }}
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        {% if request.user.is_authenticated %}
+        <form method="post" action="{% url 'logout' %}">
+          {% csrf_token %}
+          <button class="sidebar-logout-btn" type="submit">Logout</button>
+        </form>
+        {% endif %}
+      </div>
+    </aside>
+
+    <main class="app-main">
+      {% if is_impersonating %}
+      <div class="impersonation-banner">
+        <div>You are impersonating {{ user.email }}.</div>
+        <a href="{% url 'internal-impersonate-stop' %}">Stop impersonating</a>
+      </div>
+      {% endif %}
+      <div class="app-main-inner">
+        {% block content %}{% endblock %}
+      </div>
+    </main>
+  </div>
+
+</body>
+
+</html>

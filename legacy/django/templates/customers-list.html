@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% load static mb_extras %}
+
+{% block title %}Customers | Clover Books{% endblock %}
+
+{% block content %}
+<div id="customers-root"></div>
+
+{% vite_asset 'customers-list' 'css' as customers_css %}
+{% if customers_css %}
+<link rel="stylesheet" href="{% static customers_css %}">
+{% endif %}
+{% vite_asset 'customers-list' as customers_js %}
+{% if customers_js %}
+<script type="module" src="{% static customers_js %}"></script>
+{% endif %}
+{% endblock %}

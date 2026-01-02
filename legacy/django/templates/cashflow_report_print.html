@@ -1,0 +1,23 @@
+{% extends "base_print.html" %}
+{% load static mb_extras %}
+
+{% block title %}Cashflow Report · Clover Books{% endblock %}
+
+{% block content %}
+<div id="cashflow-report-print-root"></div>
+<script id="cashflow-report-print-data" type="application/json">
+  {{ cashflow_json|safe }}
+</script>
+{% endblock %}
+
+{% block extra_js %}
+{% vite_asset 'cashflow-report-print' 'css' as css_path %}
+{% if css_path %}
+<link rel="stylesheet" href="{% static css_path %}">
+{% endif %}
+
+{% vite_asset 'cashflow-report-print' as js_path %}
+{% if js_path %}
+<script type="module" src="{% static js_path %}"></script>
+{% endif %}
+{% endblock %}

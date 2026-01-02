@@ -1,0 +1,98 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Internal Admin Login · Clover Books</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  <style>
+    body {
+      background: #f8fafc;
+      color: #0f172a;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    .ia-card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 20px;
+      padding: 32px;
+      width: min(420px, 100%);
+      box-shadow: 0 18px 40px rgba(15, 23, 42, .08);
+    }
+
+    .ia-title {
+      margin: 0 0 8px;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      font-family: var(--title-font);
+    }
+
+    .ia-subtitle {
+      margin: 0 0 20px;
+      color: #475569;
+      font-size: 14px;
+    }
+
+    .ia-input {
+      width: 100%;
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+      padding: 10px 12px;
+      font-size: 14px;
+      color: #0f172a;
+      margin-bottom: 12px;
+    }
+
+    .ia-button {
+      width: 100%;
+      border: none;
+      border-radius: 999px;
+      background: var(--accent-warm-strong);
+      color: #fff;
+      padding: 12px 16px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background .15s ease;
+    }
+
+    .ia-button:hover {
+      background: var(--accent-warm);
+    }
+
+    .ia-error {
+      color: #b91c1c;
+      font-size: 13px;
+      margin: 8px 0;
+    }
+  </style>
+</head>
+
+<body>
+  <form class="ia-card" method="post" action="">
+    {% csrf_token %}
+    <h1 class="ia-title">Internal admin</h1>
+    <p class="ia-subtitle">Sign in with your staff credentials to access the control center.</p>
+    {% if error %}
+    <div class="ia-error">{{ error }}</div>
+    {% endif %}
+    <input class="ia-input" type="text" name="username" placeholder="Username or email" required
+      autocomplete="username">
+    <input class="ia-input" type="password" name="password" placeholder="Password" required>
+    <button class="ia-button" type="submit">Sign in</button>
+  </form>
+</body>
+
+</html>

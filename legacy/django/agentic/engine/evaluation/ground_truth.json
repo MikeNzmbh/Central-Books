@@ -1,0 +1,20 @@
+[
+    {
+        "filename": "receipt-office.pdf",
+        "content": "Office Depot $89.99",
+        "ground_truth": {
+            "vendor_name": "Office Depot",
+            "total_amount": 89.99,
+            "currency": "USD"
+        }
+    },
+    {
+        "filename": "starbucks-31dec.jpg",
+        "content": "Starbucks Coffee $15.50",
+        "ground_truth": {
+            "vendor_name": "Starbucks",
+            "total_amount": 15.50,
+            "currency": "USD"
+        }
+    }
+]

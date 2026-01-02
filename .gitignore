@@ -8,7 +8,6 @@ node_modules/
 staticfiles/
 media/
 
-# Vite / frontend build outputs
-frontend/dist/
-frontend/static/frontend/assets/
-frontend/static/frontend/.vite/
+# Vite build outputs
+apps/customer/dist/
+apps/admin/dist/

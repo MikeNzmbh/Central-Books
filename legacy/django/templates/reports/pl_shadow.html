@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+
+{% block title %}Profit &amp; Loss (Shadow – Ledger vs Legacy) – Clover Books{% endblock %}
+
+{% block content %}
+<div class="mb-page-shell">
+  <div class="mb-page-header">
+    <div>
+      <div class="mb-kicker">REPORTS</div>
+      <h1 class="mb-page-title">Profit &amp; Loss – Shadow (Ledger)</h1>
+      <p class="mb-page-subtitle">
+        Comparing the new ledger-based totals with the existing Invoice/Expense-based report
+        for {{ period_label }}.
+      </p>
+    </div>
+    <form method="get" class="mb-page-actions" style="gap:8px;">
+      <label class="mb-label" style="margin:0;">
+        Period
+        <select name="period" class="mb-input" style="width:160px;height:36px;font-size:13px;" onchange="this.form.submit()">
+          <option value="this_month" {% if current_period == 'this_month' %}selected{% endif %}>This month</option>
+          <option value="last_month" {% if current_period == 'last_month' %}selected{% endif %}>Last month</option>
+          <option value="this_year" {% if current_period == 'this_year' %}selected{% endif %}>This year</option>
+        </select>
+      </label>
+    </form>
+  </div>
+
+  <div class="grid gap-6 md:grid-cols-2">
+    <!-- Ledger totals -->
+    <div class="mb-card">
+      <div class="mb-card-header">
+        <h2 class="mb-card-title">Ledger totals</h2>
+      </div>
+      <div class="mb-card-body text-sm">
+        <div class="flex justify-between py-1">
+          <span class="text-slate-500">Total income</span>
+          <span class="font-semibold text-emerald-600">
+            {{ total_income|default:0|floatformat:2 }}
+          </span>
+        </div>
+        <div class="flex justify-between py-1">
+          <span class="text-slate-500">Total expenses</span>
+          <span class="font-semibold text-rose-500">
+            {{ total_expenses|default:0|floatformat:2 }}
+          </span>
+        </div>
+        <div class="mt-3 flex justify-between border-t border-slate-100 pt-3">
+          <span class="text-slate-500">Net profit</span>
+          <span class="font-semibold {% if net_profit >= 0 %}text-emerald-600{% else %}text-rose-500{% endif %}">
+            {{ net_profit|default:0|floatformat:2 }}
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Legacy totals -->
+    <div class="mb-card">
+      <div class="mb-card-header">
+        <h2 class="mb-card-title">Legacy totals (Invoices &amp; Expenses)</h2>
+      </div>
+      <div class="mb-card-body text-sm">
+        <div class="flex justify-between py-1">
+          <span class="text-slate-500">Total income</span>
+          <span class="font-semibold text-emerald-600">
+            {{ legacy_income|default:0|floatformat:2 }}
+          </span>
+        </div>
+        <div class="flex justify-between py-1">
+          <span class="text-slate-500">Total expenses</span>
+          <span class="font-semibold text-rose-500">
+            {{ legacy_expenses|default:0|floatformat:2 }}
+          </span>
+        </div>
+        <div class="mt-3 flex justify-between border-t border-slate-100 pt-3">
+          <span class="text-slate-500">Net profit</span>
+          <span class="font-semibold {% if legacy_net >= 0 %}text-emerald-600{% else %}text-rose-500{% endif %}">
+            {{ legacy_net|default:0|floatformat:2 }}
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Breakdown by account (ledger) -->
+  <div class="mt-8 grid gap-6 md:grid-cols-2">
+    <div class="mb-card">
+      <div class="mb-card-header">
+        <h2 class="mb-card-title">Income accounts</h2>
+      </div>
+      <div class="mb-card-body text-xs">
+        {% if income_accounts %}
+          <table class="w-full border-separate border-spacing-y-1">
+            <thead class="text-[11px] uppercase tracking-wide text-slate-400">
+              <tr>
+                <th class="text-left">Account</th>
+                <th class="text-right">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in income_accounts %}
+              <tr>
+                <td class="py-1.5 text-slate-700">
+                  {{ row.account__code }} – {{ row.account__name }}
+                </td>
+                <td class="py-1.5 text-right font-medium">
+                  {{ row.total|floatformat:2 }}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <p class="text-slate-400">No income entries in the ledger for this period yet.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="mb-card">
+      <div class="mb-card-header">
+        <h2 class="mb-card-title">Expense accounts</h2>
+      </div>
+      <div class="mb-card-body text-xs">
+        {% if expense_accounts %}
+          <table class="w-full border-separate border-spacing-y-1">
+            <thead class="text-[11px] uppercase tracking-wide text-slate-400">
+              <tr>
+                <th class="text-left">Account</th>
+                <th class="text-right">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in expense_accounts %}
+              <tr>
+                <td class="py-1.5 text-slate-700">
+                  {{ row.account__code }} – {{ row.account__name }}
+                </td>
+                <td class="py-1.5 text-right font-medium">
+                  {{ row.total|floatformat:2 }}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <p class="text-slate-400">No expense entries in the ledger for this period yet.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

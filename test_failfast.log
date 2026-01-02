@@ -1,0 +1,458 @@
+Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+Found 443 test(s).
+Operations to perform:
+  Synchronize unmigrated apps: allauth, google, messages, rest_framework, staticfiles
+  Apply all migrations: account, admin, auth, companion, contenttypes, core, internal_admin, reversals, sessions, sites, socialaccount, taxes
+Synchronizing apps without migrations:
+  Creating tables...
+    Running deferred SQL...
+Running migrations:
+  Applying contenttypes.0001_initial... OK
+  Applying auth.0001_initial... OK
+  Applying account.0001_initial... OK
+  Applying account.0002_email_max_length... OK
+  Applying account.0003_alter_emailaddress_create_unique_verified_email... OK
+  Applying account.0004_alter_emailaddress_drop_unique_email... OK
+  Applying account.0005_emailaddress_idx_upper_email... OK
+  Applying account.0006_emailaddress_lower... OK
+  Applying account.0007_emailaddress_idx_email... OK
+  Applying account.0008_emailaddress_unique_primary_email_fixup... OK
+  Applying account.0009_emailaddress_unique_primary_email... OK
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying contenttypes.0002_remove_content_type_name... OK
+  Applying auth.0002_alter_permission_name_max_length... OK
+  Applying auth.0003_alter_user_email_max_length... OK
+  Applying auth.0004_alter_user_username_opts... OK
+  Applying auth.0005_alter_user_last_login_null... OK
+  Applying auth.0006_require_contenttypes_0002... OK
+  Applying auth.0007_alter_validators_add_error_messages... OK
+  Applying auth.0008_alter_user_username_max_length... OK
+  Applying auth.0009_alter_user_last_name_max_length... OK
+  Applying auth.0010_alter_group_name_max_length... OK
+  Applying auth.0011_update_proxy_permissions... OK
+  Applying auth.0012_alter_user_first_name_max_length... OK
+  Applying core.0001_initial... OK
+  Applying core.0002_alter_business_currency_alter_business_name_and_more... OK
+  Applying core.0003_alter_business_currency_customer_invoice_and_more... OK
+  Applying core.0004_category_expense_supplier_and_more... OK
+  Applying core.0005_category_is_archived... OK
+  Applying core.0006_item... OK
+  Applying core.0007_invoice_item... OK
+  Applying core.0008_expense_subtotal_expense_tax_amount_invoice_subtotal_and_more... OK
+  Applying core.0009_expense_paid_date_expense_status_and_more... OK
+  Applying core.0010_category_code_category_description... OK
+  Applying core.0011_account_category_account_item_expense_account_and_more... OK
+  Applying core.0012_journalentry_journalline... OK
+  Applying core.0013_bankaccount_bankstatementimport_banktransaction... OK
+  Applying core.0014_bankstatementimport_file_format... OK
+  Applying core.0015_bankaccount_roles... OK
+  Applying core.0016_alter_bankaccount_account_number_mask_and_more... OK
+  Applying core.0017_alter_bankstatementimport_options_and_more... OK
+  Applying core.0018_account_is_favorite... OK
+  Applying core.0019_banktransaction_allocated_amount_expense_amount_paid_and_more... OK
+  Applying core.0020_journalentry_allocation_operation_id_and_more... OK
+  Applying core.0021_expense_grand_total_expense_net_total_and_more... OK
+  Applying core.0022_business_fiscal_year_start... OK
+  Applying taxes.0001_initial... OK
+  Applying taxes.0002_seed_canadian_tax_groups... OK
+  Applying taxes.0003_taxrate... OK
+  Applying taxes.0004_backfill_taxrate_from_components... OK
+  Applying taxes.0005_transactionlinetaxdetail_transaction_date... OK
+  Applying core.0023_expense_tax_group_invoice_tax_group... OK
+  Applying core.0024_enhance_bank_reconciliation_match... OK
+  Applying core.0025_banktransaction_is_reconciled_and_more... OK
+  Applying core.0026_bankrule... OK
+  Applying core.0027_remove_bankrule_category_label_bankrule_auto_confirm_and_more... OK
+  Applying core.0028_business_bank_setup_completed... OK
+  Applying core.0029_banktransaction_reconciliation_status_and_more... OK
+  Applying core.0030_business_internal_admin_fields... OK
+  Applying core.0031_invoice_email_fields... OK
+  Applying core.0031a_fix_duplicate_email_tokens... OK
+  Applying core.0031b_make_email_token_unique... OK
+  Applying core.0032_alter_invoice_email_last_error_invoiceemaillog_and_more... OK
+  Applying core.0033_business_email_fields... OK
+  Applying core.0034_taxrate_extended_fields... OK
+  Applying core.0035_set_tax_defaults... OK
+  Applying companion.0001_initial... OK
+  Applying companion.0002_companioninsight_dismissed_at... OK
+  Applying companion.0003_companionsuggestedaction... OK
+  Applying companion.0004_companioninsight_context_and_more... OK
+  Applying companion.0005_companion_depends_on_core_0035... OK
+  Applying companion.0006_companionprofile_last_seen_contexts... OK
+  Applying companion.0007_companionsuggestedaction_severity_and_more... OK
+  Applying companion.0008_workspacecompanionprofile_last_seen_reports_tax_fx... OK
+  Applying core.0036_receipts_models... OK
+  Applying core.0037_business_ai_companion... OK
+  Applying core.0038_receipt_audit_and_metrics... OK
+  Applying core.0039_invoice_companion_models... OK
+  Applying core.0040_books_review_run... OK
+  Applying core.0041_bank_review_models... OK
+  Applying core.0042_books_bank_llm_fields... OK
+  Applying core.0043_alter_bankreviewrun_id_and_more... OK
+  Applying core.0044_receipts_invoices_llm_fields... OK
+  Applying core.0045_companion_issues... OK
+  Applying core.0046_account_is_suspense... OK
+  Applying core.0047_companion_story... OK
+  Applying core.0048_highriskaudit... OK
+  Applying core.0049_business_tax_filing_fields... OK
+  Applying core.0050_business_tax_registrations... OK
+  Applying core.0051_invoice_place_of_supply_fields... OK
+  Applying core.0052_business_tax_regime_ca... OK
+  Applying internal_admin.0001_initial... OK
+  Applying internal_admin.0002_impersonationtoken_overviewmetricssnapshot... OK
+  Applying internal_admin.0003_adminauditlog_level_category_featureflag_supportticket... OK
+  Applying internal_admin.0004_rename_internal_ad_object_0ca4ef_idx_internal_ad_object__57367f_idx_and_more... OK
+  Applying taxes.0006_tax_engine_v1... OK
+  Applying taxes.0007_taxcomponent_jurisdiction_and_more... OK
+  Applying taxes.0008_seed_core_jurisdictions... OK
+  Applying taxes.0009_taxperiodsnapshot_filed_at... OK
+  Applying taxes.0010_taxgroup_tax_treatment... OK
+  Applying taxes.0011_seed_more_us_jurisdictions... OK
+  Applying taxes.0012_seed_all_us_states... OK
+  Applying taxes.0013_seed_sample_us_locals... OK
+  Applying taxes.0014_taxrate_is_compound_taxrate_meta_data... OK
+  Applying taxes.0015_taxproductrule_ssuta_code... OK
+  Applying taxes.0016_tax_payments_and_snapshot_audit... OK
+  Applying taxes.0017_taxpayment_bank_account... OK
+  Applying taxes.0018_taxpayment_kind_and_bank_label... OK
+  Applying taxes.0018_taxgroup_reporting_category... OK
+  Applying taxes.0019_merge_20251214_1134... OK
+  Applying reversals.0001_initial... OK
+  Applying sessions.0001_initial... OK
+  Applying sites.0001_initial... OK
+  Applying sites.0002_alter_domain_unique... OK
+  Applying socialaccount.0001_initial... OK
+  Applying socialaccount.0002_token_max_lengths... OK
+  Applying socialaccount.0003_extra_data_default_dict... OK
+  Applying socialaccount.0004_app_provider_id_settings... OK
+  Applying socialaccount.0005_socialtoken_nullable_app... OK
+  Applying socialaccount.0006_alter_socialaccount_extra_data... OK
+  Applying taxes.0020_transactionlinetaxdetail_document_side...test_receipts_demo_get_returns_usage_info (agentic.interfaces.api.tests.test_receipts_demo_api.ReceiptsDemoAPITests.test_receipts_demo_get_returns_usage_info)
+GET request should return usage information. ... ok
+test_receipts_demo_includes_compliance_and_audit (agentic.interfaces.api.tests.test_receipts_demo_api.ReceiptsDemoAPITests.test_receipts_demo_includes_compliance_and_audit)
+Response should include compliance and audit fields. ... ok
+test_receipts_demo_includes_steps (agentic.interfaces.api.tests.test_receipts_demo_api.ReceiptsDemoAPITests.test_receipts_demo_includes_steps)
+Response should include workflow steps with status. ... ok
+test_receipts_demo_includes_summary (agentic.interfaces.api.tests.test_receipts_demo_api.ReceiptsDemoAPITests.test_receipts_demo_includes_summary)
+Response should include summary string. ... ok
+test_receipts_demo_invalid_json (agentic.interfaces.api.tests.test_receipts_demo_api.ReceiptsDemoAPITests.test_receipts_demo_invalid_json)
+Should return 400 for invalid JSON. ... ok
+test_receipts_demo_requires_documents (agentic.interfaces.api.tests.test_receipts_demo_api.ReceiptsDemoAPITests.test_receipts_demo_requires_documents)
+Should return 400 when documents array is missing. ... ok
+test_receipts_demo_requires_non_empty_documents (agentic.interfaces.api.tests.test_receipts_demo_api.ReceiptsDemoAPITests.test_receipts_demo_requires_non_empty_documents)
+Should return 400 when documents array is empty. ... ok
+test_receipts_demo_run_basic (agentic.interfaces.api.tests.test_receipts_demo_api.ReceiptsDemoAPITests.test_receipts_demo_run_basic)
+Basic happy path test - processes documents and returns results. ... ok
+test_vendor_extraction_based_on_filename (agentic.interfaces.api.tests.test_receipts_demo_api.ReceiptsDemoAPITests.test_vendor_extraction_based_on_filename)
+Should extract vendor based on filename keywords. ... ok
+test_receipts_demo_page_renders (agentic.interfaces.api.tests.test_receipts_demo_api.ReceiptsDemoPageTests.test_receipts_demo_page_renders)
+Demo page should render successfully. ... ok
+test_actions_in_overview (companion.tests.CompanionActionsTests.test_actions_in_overview) ... [PROVIDER: DeepSeek] Call failed: HTTPSConnectionPool(host='api.deepseek.com', port=443): Max retries exceeded with url: /v1/chat/completions (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x10ba8b380>: Failed to resolve 'api.deepseek.com' ([Errno 8] nodename nor servname provided, or not known)"))
+ok
+test_apply_endpoint_handles_soft_actions (companion.tests.CompanionActionsTests.test_apply_endpoint_handles_soft_actions) ... ok
+test_apply_endpoint_marks_applied (companion.tests.CompanionActionsTests.test_apply_endpoint_marks_applied) ... ok
+test_dismiss_endpoint_marks_dismissed (companion.tests.CompanionActionsTests.test_dismiss_endpoint_marks_dismissed) ... ok
+test_generate_suggestion_creates_action (companion.tests.CompanionActionsTests.test_generate_suggestion_creates_action) ... ok
+test_suggestion_dedup_and_cap (companion.tests.CompanionActionsTests.test_suggestion_dedup_and_cap) ... ok
+test_actions_sorted_by_severity (companion.tests.CompanionApiTests.test_actions_sorted_by_severity) ... [PROVIDER: DeepSeek] Call failed: HTTPSConnectionPool(host='api.deepseek.com', port=443): Max retries exceeded with url: /v1/chat/completions (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x10b154e10>: Failed to resolve 'api.deepseek.com' ([Errno 8] nodename nor servname provided, or not known)"))
+ok
+test_context_reasons_all_clear_invoices (companion.tests.CompanionApiTests.test_context_reasons_all_clear_invoices) ... [PROVIDER: DeepSeek] Call failed: HTTPSConnectionPool(host='api.deepseek.com', port=443): Max retries exceeded with url: /v1/chat/completions (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x10ae2bed0>: Failed to resolve 'api.deepseek.com' ([Errno 8] nodename nor servname provided, or not known)"))
+ok
+test_context_reasons_flagged_for_overdue (companion.tests.CompanionApiTests.test_context_reasons_flagged_for_overdue) ... [PROVIDER: DeepSeek] Call failed: HTTPSConnectionPool(host='api.deepseek.com', port=443): Max retries exceeded with url: /v1/chat/completions (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x10b154550>: Failed to resolve 'api.deepseek.com' ([Errno 8] nodename nor servname provided, or not known)"))
+ok
+test_context_seen_invalid_context_rejected (companion.tests.CompanionApiTests.test_context_seen_invalid_context_rejected) ... ok
+test_expense_save_records_memory (companion.tests.CompanionApiTests.test_expense_save_records_memory) ... ok
+test_llm_disabled_returns_null_summary (companion.tests.CompanionApiTests.test_llm_disabled_returns_null_summary) ... ok
+test_llm_enabled_but_missing_config_returns_calm_payload (companion.tests.CompanionApiTests.test_llm_enabled_but_missing_config_returns_calm_payload) ... ok
+test_llm_exception_is_swallowed (companion.tests.CompanionApiTests.test_llm_exception_is_swallowed) ... Companion LLM call raised: boom
+ok
+test_llm_narrative_parsed_into_response (companion.tests.CompanionApiTests.test_llm_narrative_parsed_into_response) ... ok
+test_mark_context_seen_resets_new_actions (companion.tests.CompanionApiTests.test_mark_context_seen_resets_new_actions) ... [PROVIDER: DeepSeek] Call failed: HTTPSConnectionPool(host='api.deepseek.com', port=443): Max retries exceeded with url: /v1/chat/completions (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x10b156210>: Failed to resolve 'api.deepseek.com' ([Errno 8] nodename nor servname provided, or not known)"))
+[PROVIDER: DeepSeek] Call failed: HTTPSConnectionPool(host='api.deepseek.com', port=443): Max retries exceeded with url: /v1/chat/completions (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x10b154410>: Failed to resolve 'api.deepseek.com' ([Errno 8] nodename nor servname provided, or not known)"))
+ok
+test_mark_context_seen_tax_fx (companion.tests.CompanionApiTests.test_mark_context_seen_tax_fx) ... ok
+test_overdue_invoice_severity_set (companion.tests.CompanionApiTests.test_overdue_invoice_severity_set) ... ok
+test_overview_blocks_unauthenticated_users (companion.tests.CompanionApiTests.test_overview_blocks_unauthenticated_users) ... ok
+test_overview_context_tax_fx_returns_context_insights (companion.tests.CompanionApiTests.test_overview_context_tax_fx_returns_context_insights) ... [PROVIDER: DeepSeek] Call failed: HTTPSConnectionPool(host='api.deepseek.com', port=443): Max retries exceeded with url: /v1/chat/completions (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x10b8a2490>: Failed to resolve 'api.deepseek.com' ([Errno 8] nodename nor servname provided, or not known)"))
+ok
+test_overview_endpoint_returns_valid_payload (companion.tests.CompanionApiTests.test_overview_endpoint_returns_valid_payload) ... ok
+test_overview_includes_insights (companion.tests.CompanionApiTests.test_overview_includes_insights) ... ok
+test_overview_includes_new_actions_flags (companion.tests.CompanionApiTests.test_overview_includes_new_actions_flags) ... [PROVIDER: DeepSeek] Call failed: HTTPSConnectionPool(host='api.deepseek.com', port=443): Max retries exceeded with url: /v1/chat/completions (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x10b156fd0>: Failed to resolve 'api.deepseek.com' ([Errno 8] nodename nor servname provided, or not known)"))
+ok
+test_overview_uses_latest_snapshot (companion.tests.CompanionApiTests.test_overview_uses_latest_snapshot) ... [PROVIDER: DeepSeek] Call failed: HTTPSConnectionPool(host='api.deepseek.com', port=443): Max retries exceeded with url: /v1/chat/completions (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x10b8a3390>: Failed to resolve 'api.deepseek.com' ([Errno 8] nodename nor servname provided, or not known)"))
+ok
+test_command_generate_sample_insights (companion.tests.CompanionCommandsTests.test_command_generate_sample_insights) ... ok
+test_memory_seed_creates_entries (companion.tests.CompanionCommandsTests.test_memory_seed_creates_entries) ... ok
+test_overview_uses_latest_snapshot (companion.tests.CompanionCommandsTests.test_overview_uses_latest_snapshot) ... [PROVIDER: DeepSeek] Call failed: HTTPSConnectionPool(host='api.deepseek.com', port=443): Max retries exceeded with url: /v1/chat/completions (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x10b155f90>: Failed to resolve 'api.deepseek.com' ([Errno 8] nodename nor servname provided, or not known)"))
+ok
+test_expense_spike_category_action (companion.tests.CompanionDeterministicSuggestionTests.test_expense_spike_category_action) ... ok
+test_inactive_customers_followup_action (companion.tests.CompanionDeterministicSuggestionTests.test_inactive_customers_followup_action) ... ok
+test_overdue_invoice_actions_created_with_context_and_payload (companion.tests.CompanionDeterministicSuggestionTests.test_overdue_invoice_actions_created_with_context_and_payload) ... ok
+test_reconciliation_period_close_action_created (companion.tests.CompanionDeterministicSuggestionTests.test_reconciliation_period_close_action_created) ... ok
+test_uncategorized_expense_batch_created_and_capped (companion.tests.CompanionDeterministicSuggestionTests.test_uncategorized_expense_batch_created_and_capped) ... ok
+test_uncategorized_transactions_cleanup_action_created (companion.tests.CompanionDeterministicSuggestionTests.test_uncategorized_transactions_cleanup_action_created) ... ok
+test_dismiss_only_affects_target (companion.tests.CompanionInsightLifecycleTests.test_dismiss_only_affects_target) ... ok
+test_dismiss_requires_auth (companion.tests.CompanionInsightLifecycleTests.test_dismiss_requires_auth) ... ok
+test_insight_dismiss (companion.tests.CompanionInsightLifecycleTests.test_insight_dismiss) ... ok
+test_insight_saved_correctly (companion.tests.CompanionLLMGenerationTests.test_insight_saved_correctly) ... ok
+test_insight_visible_in_overview_api (companion.tests.CompanionLLMGenerationTests.test_insight_visible_in_overview_api) ... ok
+test_sample_insight_generation (companion.tests.CompanionLLMGenerationTests.test_sample_insight_generation) ... ok
+test_companion_run_maintenance_refreshes_stale_workspaces (companion.tests.CompanionMaintenanceCommandTests.test_companion_run_maintenance_refreshes_stale_workspaces) ... ok
+test_maintenance_runs_with_no_workspaces (companion.tests.CompanionMaintenanceCommandTests.test_maintenance_runs_with_no_workspaces) ... ok
+test_cash_account_balance_included_with_journal_lines (core.tests.test_account_balances.AccountBalanceVisibilityTests.test_cash_account_balance_included_with_journal_lines) ... ok
+test_cash_account_shows_without_activity (core.tests.test_account_balances.AccountBalanceVisibilityTests.test_cash_account_shows_without_activity) ... ok
+test_admin_allows_superuser (core.tests.test_admin_access.AdminAccessTests.test_admin_allows_superuser) ... ok
+test_admin_blocks_non_superuser (core.tests.test_admin_access.AdminAccessTests.test_admin_blocks_non_superuser) ... ok
+test_admin_disabled_returns_404 (core.tests.test_admin_access.AdminAccessTests.test_admin_disabled_returns_404) ... ok
+test_generates_bank_unreconciled_anomaly (core.tests.test_anomaly_detection.AnomalyDetectionTests.test_generates_bank_unreconciled_anomaly) ... ok
+test_llm_overlay_graceful_on_invalid (core.tests.test_anomaly_detection.AnomalyDetectionTests.test_llm_overlay_graceful_on_invalid) ... ok
+test_direct_expense_allocation_falls_back_to_expense_account (core.tests.test_bank_feed_pnl_integration.BankFeedPnlIntegrationTests.test_direct_expense_allocation_falls_back_to_expense_account) ... ok
+test_direct_income_allocation_falls_back_to_income_account (core.tests.test_bank_feed_pnl_integration.BankFeedPnlIntegrationTests.test_direct_income_allocation_falls_back_to_income_account) ... ok
+test_expense_posts_to_expense_account_even_if_category_is_misconfigured (core.tests.test_bank_feed_pnl_integration.BankFeedPnlIntegrationTests.test_expense_posts_to_expense_account_even_if_category_is_misconfigured) ... ok
+test_income_posts_to_income_account_even_if_category_is_misconfigured (core.tests.test_bank_feed_pnl_integration.BankFeedPnlIntegrationTests.test_income_posts_to_income_account_even_if_category_is_misconfigured) ... ok
+test_invoice_allocation_does_not_create_income_line (core.tests.test_bank_feed_pnl_integration.BankFeedPnlIntegrationTests.test_invoice_allocation_does_not_create_income_line) ... ok
+test_full_bank_only_workflow_produces_correct_pl (core.tests.test_bank_feed_pnl_integration.BankOnlyPLFlowTests.test_full_bank_only_workflow_produces_correct_pl)
+Scenario: ... ok
+test_command_realigns_category_accounts (core.tests.test_bank_feed_pnl_integration.FixCategoryAccountAlignmentCommandTests.test_command_realigns_category_accounts) ... ok
+test_add_entry_no_tax (core.tests.test_bank_feed_tax.BankFeedTaxTests.test_add_entry_no_tax) ... ok
+test_add_entry_tax_included (core.tests.test_bank_feed_tax.BankFeedTaxTests.test_add_entry_tax_included) ... ok
+test_add_entry_tax_on_top_withdrawal (core.tests.test_bank_feed_tax.BankFeedTaxTests.test_add_entry_tax_on_top_withdrawal) ... ok
+test_allocate_direct_with_tax (core.tests.test_bank_feed_tax.BankFeedTaxTests.test_allocate_direct_with_tax) ... ok
+test_create_entry_with_tax (core.tests.test_bank_feed_tax.BankFeedTaxTests.test_create_entry_with_tax) ... ok
+test_match_limit (core.tests.test_bank_matching.BankMatchingEngineTest.test_match_limit)
+Test that find_matches respects the limit parameter ... ok
+test_no_match (core.tests.test_bank_matching.BankMatchingEngineTest.test_no_match)
+Test case with no matching entries ... ok
+test_tier1_invoice_match_by_external_id (core.tests.test_bank_matching.BankMatchingEngineTest.test_tier1_invoice_match_by_external_id)
+Test Tier 1: Match invoice by external_id ... ok
+test_tier2_invoice_reference_in_description (core.tests.test_bank_matching.BankMatchingEngineTest.test_tier2_invoice_reference_in_description)
+Test Tier 2: Parse invoice reference from description ... ok
+test_tier3_amount_date_match_multiple_ambiguous (core.tests.test_bank_matching.BankMatchingEngineTest.test_tier3_amount_date_match_multiple_ambiguous)
+Test Tier 3: Multiple matches result in lower confidence ... ok
+test_tier3_amount_date_match_single (core.tests.test_bank_matching.BankMatchingEngineTest.test_tier3_amount_date_match_single)
+Test Tier 3: Match by amount + date (single clear match) ... ok
+test_confirm_match (core.tests.test_bank_reconciliation.BankReconciliationServiceTest.test_confirm_match)
+Test confirming a match ... ok
+test_create_split_entry_balanced (core.tests.test_bank_reconciliation.BankReconciliationServiceTest.test_create_split_entry_balanced)
+Test creating a balanced split entry ... ok
+test_create_split_entry_unbalanced (core.tests.test_bank_reconciliation.BankReconciliationServiceTest.test_create_split_entry_unbalanced)
+Test that unbalanced splits raise ValueError ... ok
+test_get_reconciliation_progress (core.tests.test_bank_reconciliation.BankReconciliationServiceTest.test_get_reconciliation_progress)
+Test progress statistics ... ok
+test_set_reconciled_state_cross_session_blocked (core.tests.test_bank_reconciliation.BankReconciliationServiceTest.test_set_reconciled_state_cross_session_blocked) ... ok
+test_unmatch (core.tests.test_bank_reconciliation.BankReconciliationServiceTest.test_unmatch)
+Test unmatching a transaction ... ok
+test_llm_not_called_when_disabled (core.tests.test_bank_review_api.BankReviewApiTests.test_llm_not_called_when_disabled) ... ok
+test_llm_results_persist_when_companion_enabled (core.tests.test_bank_review_api.BankReviewApiTests.test_llm_results_persist_when_companion_enabled) ... [PROVIDER: DeepSeek] Call failed: HTTPSConnectionPool(host='api.deepseek.com', port=443): Max retries exceeded with url: /v1/chat/completions (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x10b1579d0>: Failed to resolve 'api.deepseek.com' ([Errno 8] nodename nor servname provided, or not known)"))
+ok
+test_run_review_invalid_period_returns_json_400 (core.tests.test_bank_review_api.BankReviewApiTests.test_run_review_invalid_period_returns_json_400) ... ok
+test_run_review_persists_metrics_and_transactions (core.tests.test_bank_review_api.BankReviewApiTests.test_run_review_persists_metrics_and_transactions) ... ok
+test_run_review_returns_json_on_success (core.tests.test_bank_review_api.BankReviewApiTests.test_run_review_returns_json_on_success) ... ok
+test_runs_listing_and_detail (core.tests.test_bank_review_api.BankReviewApiTests.test_runs_listing_and_detail) ... ok
+test_tenant_isolation (core.tests.test_bank_review_api.BankReviewApiTests.test_tenant_isolation) ... ok
+test_registered_no_rates_no_tax_ok (core.tests.test_banking_feed_tax.BankFeedTaxValidationTest.test_registered_no_rates_no_tax_ok)
+Registered business with no rates can use NO_TAX. ... ok
+test_registered_no_rates_with_tax_rejected (core.tests.test_banking_feed_tax.BankFeedTaxValidationTest.test_registered_no_rates_with_tax_rejected)
+Registered business with no rates cannot use ON_TOP/INCLUDED. ... ok
+test_registered_with_inactive_rate_rejected (core.tests.test_banking_feed_tax.BankFeedTaxValidationTest.test_registered_with_inactive_rate_rejected)
+Cannot use an inactive tax rate. ... ok
+test_registered_with_rate_included_ok (core.tests.test_banking_feed_tax.BankFeedTaxValidationTest.test_registered_with_rate_included_ok)
+Registered business with active rate can use INCLUDED. ... ok
+test_registered_with_rate_on_top_ok (core.tests.test_banking_feed_tax.BankFeedTaxValidationTest.test_registered_with_rate_on_top_ok)
+Registered business with active rate can use ON_TOP. ... ok
+test_registered_wrong_direction_rate_rejected (core.tests.test_banking_feed_tax.BankFeedTaxValidationTest.test_registered_wrong_direction_rate_rejected)
+Cannot use a sales-only rate on a purchase transaction. ... ok
+test_unregistered_business_no_tax_ok (core.tests.test_banking_feed_tax.BankFeedTaxValidationTest.test_unregistered_business_no_tax_ok)
+Unregistered business can create transaction with NO_TAX. ... ok
+test_unregistered_business_with_tax_rejected (core.tests.test_banking_feed_tax.BankFeedTaxValidationTest.test_unregistered_business_with_tax_rejected)
+Unregistered business cannot use tax treatments. ... ok
+test_invalid_date_format_returns_400 (core.tests.test_books_review_api.BooksReviewApiTests.test_invalid_date_format_returns_400)
+Test that an invalid date format returns a clear error. ... ok
+test_llm_not_called_when_companion_disabled (core.tests.test_books_review_api.BooksReviewApiTests.test_llm_not_called_when_companion_disabled) ... ok
+test_llm_results_persist_when_companion_enabled (core.tests.test_books_review_api.BooksReviewApiTests.test_llm_results_persist_when_companion_enabled) ... [PROVIDER: DeepSeek] Call failed: HTTPSConnectionPool(host='api.deepseek.com', port=443): Max retries exceeded with url: /v1/chat/completions (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x10ae28410>: Failed to resolve 'api.deepseek.com' ([Errno 8] nodename nor servname provided, or not known)"))
+ok
+test_run_review_and_persist_metrics (core.tests.test_books_review_api.BooksReviewApiTests.test_run_review_and_persist_metrics) ... ok
+test_run_review_invalid_period_returns_json_400 (core.tests.test_books_review_api.BooksReviewApiTests.test_run_review_invalid_period_returns_json_400) ... ok
+test_run_review_returns_json_on_success (core.tests.test_books_review_api.BooksReviewApiTests.test_run_review_returns_json_on_success) ... ok
+test_runs_listing_and_detail (core.tests.test_books_review_api.BooksReviewApiTests.test_runs_listing_and_detail) ... ok
+test_tenant_isolation (core.tests.test_books_review_api.BooksReviewApiTests.test_tenant_isolation) ... ok
+test_valid_date_range_from_user_request (core.tests.test_books_review_api.BooksReviewApiTests.test_valid_date_range_from_user_request)
+Test the exact date range from the user's bug report works. ... ok
+test_custom_range_filters_transactions (core.tests.test_cashflow_report_periods.CashflowReportPeriodTests.test_custom_range_filters_transactions) ... ok
+test_income_category_rejects_non_income_account (core.tests.test_category_validation.CategoryValidationTests.test_income_category_rejects_non_income_account) ... ok
+test_model_clean_blocks_mismatched_account_type (core.tests.test_category_validation.CategoryValidationTests.test_model_clean_blocks_mismatched_account_type) ... ok
+test_transactions_include_reconciliation_status (core.tests.test_coa_transactions.CoaBankTransactionsAPITests.test_transactions_include_reconciliation_status) ... ok
+test_excluded_status_is_covered (core.tests.test_companion_coverage.TestBankingCoverageSemantics.test_excluded_status_is_covered)
+EXCLUDED status should be counted as covered (intentional exclusion is a decision). ... ok
+test_matched_single_status_is_covered (core.tests.test_companion_coverage.TestBankingCoverageSemantics.test_matched_single_status_is_covered)
+MATCHED_SINGLE status should be counted as covered. ... ok
+test_matched_status_is_covered (core.tests.test_companion_coverage.TestBankingCoverageSemantics.test_matched_status_is_covered)
+MATCHED status should be counted as covered. ... ok
+test_new_status_is_not_covered (core.tests.test_companion_coverage.TestBankingCoverageSemantics.test_new_status_is_not_covered)
+NEW status should NOT be counted as covered. ... ok
+test_reconciled_status_is_covered (core.tests.test_companion_coverage.TestBankingCoverageSemantics.test_reconciled_status_is_covered)
+RECONCILED status should be counted as covered. ... ok
+test_each_domain_has_required_fields (core.tests.test_companion_coverage.TestBuildCompanionCoverage.test_each_domain_has_required_fields)
+Each domain should have coverage_percent, total_items, covered_items. ... ok
+test_empty_business_has_zero_items (core.tests.test_companion_coverage.TestBuildCompanionCoverage.test_empty_business_has_zero_items)
+Empty business should have 0 total_items for receipts/invoices/banking. ... ok
+test_returns_three_domains (core.tests.test_companion_coverage.TestBuildCompanionCoverage.test_returns_three_domains)
+Coverage should return 3 domains (books is omitted until real metrics available). ... ok
+test_bank_issue_maps_to_b1 (core.tests.test_companion_coverage.TestBuildCompanionPlaybook.test_bank_issue_maps_to_b1)
+Bank issues should map to the B1 task code. ... ok
+test_books_suspense_maps_to_g1 (core.tests.test_companion_coverage.TestBuildCompanionPlaybook.test_books_suspense_maps_to_g1)
+Suspense-related books issues should map to G1. ... ok
+test_coverage_step_has_canonical_task (core.tests.test_companion_coverage.TestBuildCompanionPlaybook.test_coverage_step_has_canonical_task)
+Coverage-driven steps should include a canonical task code. ... ok
+test_high_severity_issues_first (core.tests.test_companion_coverage.TestBuildCompanionPlaybook.test_high_severity_issues_first)
+High severity issues should appear before low severity. ... ok
+test_max_four_steps (core.tests.test_companion_coverage.TestBuildCompanionPlaybook.test_max_four_steps)
+Playbook should have at most 4 steps. ... ok
+test_returns_list (core.tests.test_companion_coverage.TestBuildCompanionPlaybook.test_returns_list)
+Playbook should return a list. ... ok
+test_steps_have_required_fields (core.tests.test_companion_coverage.TestBuildCompanionPlaybook.test_steps_have_required_fields)
+Each playbook step should have required fields. ... ok
+test_empty_business_is_ready (core.tests.test_companion_coverage.TestEvaluatePeriodCloseReadiness.test_empty_business_is_ready)
+Empty business with no issues should be ready to close. ... ok
+test_high_severity_issue_blocks_close (core.tests.test_companion_coverage.TestEvaluatePeriodCloseReadiness.test_high_severity_issue_blocks_close)
+High severity CompanionIssue in books/bank should block close. ... ok
+test_tax_anomaly_blocks_close (core.tests.test_companion_coverage.TestEvaluatePeriodCloseReadiness.test_tax_anomaly_blocks_close)
+High severity tax anomaly should block close readiness. ... ok
+test_unreconciled_at_threshold_blocks_close (core.tests.test_companion_coverage.TestEvaluatePeriodCloseReadiness.test_unreconciled_at_threshold_blocks_close)
+At least 5 unreconciled bank transactions should block period close. ... ok
+test_unreconciled_below_threshold_does_not_block (core.tests.test_companion_coverage.TestEvaluatePeriodCloseReadiness.test_unreconciled_below_threshold_does_not_block)
+Less than 5 unreconciled with ratio below 2% should NOT block period close. ... ok
+test_issue_ordering_prefers_high_impact (core.tests.test_companion_issues_api.CompanionIssuesApiTests.test_issue_ordering_prefers_high_impact) ... ok
+test_issues_listing_filters_and_patch (core.tests.test_companion_issues_api.CompanionIssuesApiTests.test_issues_listing_filters_and_patch) ... ok
+test_receipts_run_creates_issue_when_ai_enabled (core.tests.test_companion_issues_api.CompanionIssuesApiTests.test_receipts_run_creates_issue_when_ai_enabled) ... [PROVIDER: OpenAI] Vision API call failed: HTTPSConnectionPool(host='api.openai.com', port=443): Max retries exceeded with url: /v1/chat/completions (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x10ae29bd0>: Failed to resolve 'api.openai.com' ([Errno 8] nodename nor servname provided, or not known)"))
+Vision LLM returned no response for: receipts/1/1/dd66a8e6d7694b55ad48563ddcf8b563_receipt_1500.pdf
+[PROVIDER: DeepSeek] Call failed: HTTPSConnectionPool(host='api.deepseek.com', port=443): Max retries exceeded with url: /v1/chat/completions (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x10ae2b890>: Failed to resolve 'api.deepseek.com' ([Errno 8] nodename nor servname provided, or not known)"))
+[PROVIDER: DeepSeek] Call failed: HTTPSConnectionPool(host='api.deepseek.com', port=443): Max retries exceeded with url: /v1/chat/completions (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x10ae2aad0>: Failed to resolve 'api.deepseek.com' ([Errno 8] nodename nor servname provided, or not known)"))
+ok
+test_summary_includes_issue_counts (core.tests.test_companion_issues_api.CompanionIssuesApiTests.test_summary_includes_issue_counts) ... [PROVIDER: DeepSeek] Call failed: HTTPSConnectionPool(host='api.deepseek.com', port=443): Max retries exceeded with url: /v1/chat/completions (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x10b155e50>: Failed to resolve 'api.deepseek.com' ([Errno 8] nodename nor servname provided, or not known)"))
+Surface subtitles LLM returned no response.
+ok
+test_summary_includes_tax_block (core.tests.test_companion_issues_api.CompanionIssuesApiTests.test_summary_includes_tax_block) ... [PROVIDER: DeepSeek] Call failed: HTTPSConnectionPool(host='api.deepseek.com', port=443): Max retries exceeded with url: /v1/chat/completions (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x10ae2b110>: Failed to resolve 'api.deepseek.com' ([Errno 8] nodename nor servname provided, or not known)"))
+Surface subtitles LLM returned no response.
+ok
+test_summary_uses_aggregate_for_invoice_amounts (core.tests.test_companion_issues_api.CompanionIssuesApiTests.test_summary_uses_aggregate_for_invoice_amounts) ... ok
+test_age_penalty_applied (core.tests.test_companion_radar.TestBuildCompanionRadar.test_age_penalty_applied)
+Older issues should have additional point deductions (1 point per week, max 5). ... ok
+test_age_penalty_four_weeks (core.tests.test_companion_radar.TestBuildCompanionRadar.test_age_penalty_four_weeks)
+28-day-old issue should add 4 points age penalty (softened from 8 points). ... ok
+test_each_axis_has_score_and_open_issues (core.tests.test_companion_radar.TestBuildCompanionRadar.test_each_axis_has_score_and_open_issues)
+Each axis should have score and open_issues keys. ... ok
+test_multiple_issues_reduce_score_more (core.tests.test_companion_radar.TestBuildCompanionRadar.test_multiple_issues_reduce_score_more)
+Multiple issues should reduce score more than a single issue. ... ok
+test_perfect_score_with_no_issues (core.tests.test_companion_radar.TestBuildCompanionRadar.test_perfect_score_with_no_issues)
+All axes should have score 100 when no issues exist. ... ok
+test_resolved_issues_not_counted (core.tests.test_companion_radar.TestBuildCompanionRadar.test_resolved_issues_not_counted)
+Resolved issues should not affect the score. ... ok
+test_returns_all_four_axes (core.tests.test_companion_radar.TestBuildCompanionRadar.test_returns_all_four_axes)
+Radar should return all 4 axes. ... ok
+test_score_decreases_with_high_severity_issue (core.tests.test_companion_radar.TestBuildCompanionRadar.test_score_decreases_with_high_severity_issue)
+Score should decrease when high severity issues are added. ... ok
+test_tax_axis_reflects_anomalies (core.tests.test_companion_radar.TestBuildCompanionRadar.test_tax_axis_reflects_anomalies) ... ok
+test_empty_issues_still_works (core.tests.test_companion_story.TestGenerateCompanionStory.test_empty_issues_still_works)
+Empty issues list should not break story generation. ... ok
+test_exception_returns_none (core.tests.test_companion_story.TestGenerateCompanionStory.test_exception_returns_none)
+Exception should return None so caller can use fallback. ... LLM reasoning call failed: Connection error
+Story generation LLM returned no response (timeout or empty).
+ok
+test_invalid_json_returns_none (core.tests.test_companion_story.TestGenerateCompanionStory.test_invalid_json_returns_none)
+Invalid JSON response should return None. ... Story generation LLM returned non-JSON response.
+ok
+test_markdown_wrapped_json_is_parsed (core.tests.test_companion_story.TestGenerateCompanionStory.test_markdown_wrapped_json_is_parsed)
+JSON wrapped in markdown code block should be parsed correctly. ... ok
+test_missing_required_field_returns_none (core.tests.test_companion_story.TestGenerateCompanionStory.test_missing_required_field_returns_none)
+Response missing required field should return None. ... Story generation validation failed: 1 validation error for CompanionStoryResult
+overall_summary
+  Field required [type=missing, input_value={'timeline_bullets': ['Item 1']}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.11/v/missing
+ok
+test_success_returns_story_result (core.tests.test_companion_story.TestGenerateCompanionStory.test_success_returns_story_result)
+Successful LLM call should return CompanionStoryResult with required fields. ... ok
+test_timeout_returns_none (core.tests.test_companion_story.TestGenerateCompanionStory.test_timeout_returns_none)
+Timeout should return None so caller can use fallback. ... Story generation LLM returned no response (timeout or empty).
+ok
+test_uses_reasonable_timeout_by_default (core.tests.test_companion_story.TestGenerateCompanionStory.test_uses_reasonable_timeout_by_default)
+Story generation should use STORY_TIMEOUT_SECONDS by default (15s for reasoner). ... ok
+test_greeting_all_clear_with_name (core.tests.test_companion_voice.TestBuildGreeting.test_greeting_all_clear_with_name)
+All clear greeting includes emoji. ... ok
+test_greeting_fire_drill_with_name (core.tests.test_companion_voice.TestBuildGreeting.test_greeting_fire_drill_with_name)
+Fire drill greeting is urgent but not panicked. ... ok
+test_greeting_watchlist_with_name (core.tests.test_companion_voice.TestBuildGreeting.test_greeting_watchlist_with_name)
+Watchlist greeting is more casual. ... ok
+test_greeting_without_name (core.tests.test_companion_voice.TestBuildGreeting.test_greeting_without_name)
+Fallback when no name is provided. ... ok
+test_all_clear_tagline (core.tests.test_companion_voice.TestBuildToneTagline.test_all_clear_tagline) ... ok
+test_fire_drill_tagline (core.tests.test_companion_voice.TestBuildToneTagline.test_fire_drill_tagline) ... ok
+test_watchlist_tagline (core.tests.test_companion_voice.TestBuildToneTagline.test_watchlist_tagline) ... ok
+test_snapshot_all_clear (core.tests.test_companion_voice.TestBuildVoiceSnapshot.test_snapshot_all_clear)
+All clear snapshot has correct structure. ... ok
+test_snapshot_with_issues (core.tests.test_companion_voice.TestBuildVoiceSnapshot.test_snapshot_with_issues)
+Snapshot with issues includes primary CTA. ... ok
+test_all_clear_with_no_issues (core.tests.test_companion_voice.TestDetermineFocusMode.test_all_clear_with_no_issues)
+No issues should return all_clear. ... ok
+test_all_clear_with_only_low_issues (core.tests.test_companion_voice.TestDetermineFocusMode.test_all_clear_with_only_low_issues)
+Only low severity issues should return all_clear. ... ok
+test_fire_drill_priority_over_watchlist (core.tests.test_companion_voice.TestDetermineFocusMode.test_fire_drill_priority_over_watchlist)
+High issues take priority over medium issues. ... ok
+test_fire_drill_with_critical_issues (core.tests.test_companion_voice.TestDetermineFocusMode.test_fire_drill_with_critical_issues)
+Critical issues should return fire_drill. ... ok
+test_fire_drill_with_high_issues (core.tests.test_companion_voice.TestDetermineFocusMode.test_fire_drill_with_high_issues)
+High issues should return fire_drill. ... ok
+test_watchlist_with_medium_issues (core.tests.test_companion_voice.TestDetermineFocusMode.test_watchlist_with_medium_issues)
+Medium issues should return watchlist. ... ok
+test_afternoon (core.tests.test_companion_voice.TestGetTimeOfDay.test_afternoon) ... ok
+test_evening (core.tests.test_companion_voice.TestGetTimeOfDay.test_evening) ... ok
+test_morning (core.tests.test_companion_voice.TestGetTimeOfDay.test_morning) ... ok
+test_comparison_fields_present (core.tests.test_dashboard_periods.DashboardPeriodResolverTestCase.test_comparison_fields_present)
+Dashboard includes comparison fields when compare_to is set. ... FAIL
+
+======================================================================
+FAIL: test_comparison_fields_present (core.tests.test_dashboard_periods.DashboardPeriodResolverTestCase.test_comparison_fields_present)
+Dashboard includes comparison fields when compare_to is set.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/wherethefuckthefunction/Desktop/PROJECT BIBLE/core/tests/test_dashboard_periods.py", line 76, in test_comparison_fields_present
+    self.assertIn('"pl_compare_to":', content)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '"pl_compare_to":' not found in '\n<!DOCTYPE html>\n<html lang="en">\n\n<head>\n  <meta charset="utf-8">\n  <title>CERN Books · Dashboard</title>\n  <link rel="stylesheet" href="/static/css/app.css">\n  \n  \n  <style>\n    .mb-page-shell {\n      min-height: 100vh;\n      background: #f8fafc;\n      color: #0f172a;\n      font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;\n      padding: 40px 48px;\n    }\n\n    .mb-page-header {\n      display: flex;\n      flex-wrap: wrap;\n      justify-content: space-between;\n      gap: 24px;\n      margin-bottom: 32px;\n    }\n\n    .mb-kicker {\n      font-size: 11px;\n      font-weight: 600;\n      letter-spacing: 0.18em;\n      text-transform: uppercase;\n      color: #94a3b8;\n      margin-bottom: 6px;\n    }\n\n    .mb-page-title {\n      margin: 0;\n      font-size: 28px;\n      font-weight: 600;\n      letter-spacing: -0.01em;\n    }\n\n    .mb-page-subtitle {\n      font-size: 13px;\n      color: #64748b;\n      max-width: 460px;\n      margin-top: 4px;\n    }\n\n    .mb-page-actions {\n      display: flex;\n      gap: 10px;\n      align-items: center;\n      flex-wrap: wrap;\n    }\n\n    .mb-btn {\n      border-radius: 999px;\n      border: 1px solid transparent;\n      font-size: 13px;\n      font-weight: 600;\n      padding: 6px 18px;\n      cursor: pointer;\n      transition: .15s;\n      text-decoration: none;\n      display: inline-flex;\n      align-items: center;\n      justify-content: center;\n    }\n\n    .mb-btn-primary {\n      background: #0ea5e9;\n      border-color: #0ea5e9;\n      color: #fff;\n    }\n\n    .mb-btn-primary:hover {\n      background: #0284c7;\n      border-color: #0284c7;\n    }\n\n    .mb-btn-secondary {\n      background: #fff;\n      border-color: #e2e8f0;\n      color: #0f172a;\n    }\n\n    .mb-page-grid {\n      display: grid;\n      gap: 24px;\n      grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);\n    }\n\n    .mb-card {\n      border-radius: 24px;\n      background: #fff;\n      border: 1px solid #e2e8f0;\n      box-shadow: 0 18px 45px rgba(15, 23, 42, .06);\n    }\n\n    .mb-card-header {\n      display: flex;\n      justify-content: space-between;\n      gap: 16px;\n      padding: 18px 24px;\n      border-bottom: 1px solid #e2e8f0;\n    }\n\n    .mb-card-title {\n      margin: 0;\n      font-size: 14px;\n      font-weight: 600;\n    }\n\n    .mb-card-subtitle {\n      margin: 0;\n      font-size: 12px;\n      color: #64748b;\n    }\n\n    .mb-card-meta {\n      font-size: 11px;\n      color: #94a3b8;\n      white-space: nowrap;\n    }\n\n    .mb-card-body {\n      padding: 18px 24px;\n    }\n\n    .mb-field {\n      margin-bottom: 18px;\n    }\n\n    .mb-label {\n      display: block;\n      font-size: 12px;\n      font-weight: 500;\n      color: #475569;\n      margin-bottom: 4px;\n    }\n\n    .mb-text-required {\n      color: #fb7185;\n    }\n\n    .mb-input {\n      width: 100%;\n      height: 40px;\n      border-radius: 20px;\n      border: 1px solid #e2e8f0;\n      background: #f8fafc;\n      padding: 0 14px;\n      font-size: 13px;\n      color: #0f172a;\n      outline: none;\n      transition: .15s;\n    }\n\n    .mb-input:focus {\n      background: #fff;\n      border-color: #0ea5e9;\n      box-shadow: 0 0 0 2px rgba(14, 165, 233, .12);\n    }\n\n    .mb-input[type="file"] {\n      padding: 6px 14px;\n      height: auto;\n      background: #fff;\n      display: flex;\n      align-items: center;\n      gap: 12px;\n    }\n\n    .mb-input[type="file"]::file-selector-button {\n      margin-right: 12px;\n      border: 1px solid #bae6fd;\n      background: #e0f2fe;\n      color: #0f172a;\n      border-radius: 999px;\n      padding: 6px 14px;\n      font-weight: 600;\n      font-size: 12px;\n      cursor: pointer;\n      transition: .15s;\n    }\n\n    .mb-input[type="file"]::file-selector-button:hover {\n      background: #bae6fd;\n      border-color: #7dd3fc;\n    }\n\n    .mb-input[type="file"]::-webkit-file-upload-button {\n      margin-right: 12px;\n      border: 1px solid #bae6fd;\n      background: #e0f2fe;\n      color: #0f172a;\n      border-radius: 999px;\n      padding: 6px 14px;\n      font-weight: 600;\n      font-size: 12px;\n      cursor: pointer;\n      transition: .15s;\n    }\n\n    .mb-input[type="file"]::-webkit-file-upload-button:hover {\n      background: #bae6fd;\n      border-color: #7dd3fc;\n    }\n\n    .mb-textarea {\n      width: 100%;\n      border-radius: 20px;\n      border: 1px solid #e2e8f0;\n      background: #f8fafc;\n      padding: 10px 14px;\n      font-size: 13px;\n      color: #0f172a;\n      outline: none;\n      transition: .15s;\n      min-height: 96px;\n    }\n\n    .mb-textarea:focus {\n      background: #fff;\n      border-color: #0ea5e9;\n      box-shadow: 0 0 0 2px rgba(14, 165, 233, .12);\n    }\n\n    .mb-hint {\n      font-size: 11px;\n      color: #94a3b8;\n      margin-top: 4px;\n    }\n\n    .mb-error {\n      font-size: 11px;\n      color: #b91c1c;\n      margin-top: 4px;\n    }\n\n    .mb-overview-label {\n      font-size: 11px;\n      color: #94a3b8;\n      text-transform: uppercase;\n      letter-spacing: .08em;\n    }\n\n    .mb-overview-value {\n      font-size: 13px;\n      font-weight: 600;\n      color: #0f172a;\n    }\n\n    .mb-pill-toggle {\n      display: inline-flex;\n      gap: 6px;\n      padding: 4px;\n      border-radius: 999px;\n      background: #f1f5f9;\n    }\n\n    .mb-pill-toggle input {\n      display: none;\n    }\n\n    .mb-pill-option {\n      display: inline-flex;\n    }\n\n    .mb-pill-option span {\n      padding: 6px 18px;\n      border-radius: 999px;\n      font-size: 12px;\n      font-weight: 600;\n      color: #475569;\n    }\n\n    .mb-pill-option input:checked+span {\n      background: #fff;\n      box-shadow: 0 6px 16px rgba(15, 23, 42, .15);\n      color: #0f172a;\n    }\n\n    @media (max-width:960px) {\n      .mb-page-shell {\n        padding: 32px 20px;\n      }\n\n      .mb-page-grid {\n        grid-template-columns: 1fr;\n      }\n    }\n\n    .mb-status-pill {\n      display: inline-flex;\n      align-items: center;\n      gap: 6px;\n      padding: 4px 14px;\n      border-radius: 999px;\n      background: #ecfdf5;\n      border: 1px solid #bbf7d0;\n      font-size: 11px;\n      font-weight: 600;\n      color: #047857;\n    }\n\n    .mb-status-dot {\n      width: 8px;\n      height: 8px;\n      border-radius: 999px;\n      background: #22c55e;\n      box-shadow: 0 0 0 4px rgba(34, 197, 94, .18);\n    }\n\n    .mb-status-dot--tiny {\n      width: 6px;\n      height: 6px;\n      box-shadow: none;\n      margin-right: 2px;\n    }\n\n    .mb-status-text {\n      letter-spacing: .02em;\n    }\n\n    .mb-page-side {\n      display: flex;\n      flex-direction: column;\n      gap: 16px;\n    }\n\n    .mb-card-side {\n      box-shadow: 0 16px 36px rgba(15, 23, 42, .05);\n    }\n\n    .mb-card-body-muted {\n      font-size: 11px;\n      color: #61708d;\n      line-height: 1.6;\n    }\n\n    .mb-card-tip {\n      background: linear-gradient(135deg, #f8fafc, #eef2ff);\n      border-bottom-left-radius: 24px;\n      border-bottom-right-radius: 24px;\n    }\n\n    .mb-overview-row {\n      margin-bottom: 12px;\n    }\n\n    .mb-overview-row:last-child {\n      margin-bottom: 0;\n    }\n\n    .mb-overview-value-active {\n      display: inline-flex;\n      align-items: center;\n      gap: 6px;\n      color: #047857;\n      font-weight: 600;\n    }\n\n    .impersonation-banner {\n      background: #0f172a;\n      color: #e2e8f0;\n      padding: 12px 18px;\n      display: flex;\n      justify-content: space-between;\n      align-items: center;\n      gap: 14px;\n      font-size: 13px;\n      border-bottom: 1px solid #1e293b;\n    }\n\n    .impersonation-banner a {\n      color: #fde68a;\n      font-weight: 700;\n      text-decoration: underline;\n    }\n  </style>\n  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>\n</head>\n\n<body>\n  <div class="app-shell">\n    <aside id="sidebar-root" data-business-name="Test Biz"\n      data-business-initials="TB"\n      data-user-name="test"\n      data-user-email=""\n      data-active-route="dashboard"></aside>\n\n    \n    \n    <script type="module" src="/static/frontend/assets/sidebar-BqwbFLPL.js"></script>\n    \n\n    \n    \n    <link rel="stylesheet" href="/static/frontend/assets/index-8uUqajFL.css">\n    \n\n    <main class="app-main">\n      \n      <div class="app-main-inner">\n        \n\n<div id="dashboard-root"></div>\n\n\n\n<link rel="stylesheet" href="/static/frontend/assets/index-8uUqajFL.css">\n\n\n\n<script type="module" src="/static/frontend/assets/dashboard-EDsbyXSn.js"></script>\n\n\n      </div>\n    </main>\n  </div>\n\n</body>\n\n</html>'
+
+----------------------------------------------------------------------
+Ran 172 tests in 72.404s
+
+FAILED (failures=1)
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+ OK
+System check identified no issues (0 silenced).
+Generated 5 insights; skipped 0 workspaces.
+Seeded Companion test data (memories + expenses).
+Processed 1 workspaces | refreshed=1 | actions_delta=1 | new_profiles=1 | errors=0
+Processed 0 workspaces | refreshed=0 | actions_delta=0 | new_profiles=0 | errors=0
+Category alignment complete: income_fixed=2, expense_fixed=1, skipped=0
+[TRACE] [INFO] 2025-12-14T11:34:03.174363 | bank_review.workflow: line_reviewed | {"trace_id": "bank-review-trace-a59c1ed606db4744b470e2d50de6bf4f", "status": "MATCHED", "audit_score": 5.0}
+[TRACE] [INFO] 2025-12-14T11:34:03.174406 | bank_review.workflow: line_reviewed | {"trace_id": "bank-review-trace-a59c1ed606db4744b470e2d50de6bf4f", "status": "UNMATCHED", "audit_score": 45.0}
+[TRACE] [INFO] 2025-12-14T11:34:03.724907 | bank_review.workflow: line_reviewed | {"trace_id": "bank-review-trace-93c372de689842f7a601c532d41a338b", "status": "MATCHED", "audit_score": 5.0}
+[TRACE] [WARNING] 2025-12-14T11:34:03.724941 | bank_review.companion: reflection | {"trace_id": "bank-review-trace-93c372de689842f7a601c532d41a338b", "line_description": "Unknown", "flags": ["UNMATCHED_TRANSACTION"]}
+[TRACE] [INFO] 2025-12-14T11:34:03.724955 | bank_review.workflow: line_reviewed | {"trace_id": "bank-review-trace-93c372de689842f7a601c532d41a338b", "status": "UNMATCHED", "audit_score": 45.0}
+[TRACE] [INFO] 2025-12-14T11:34:04.837195 | bank_review.workflow: line_reviewed | {"trace_id": "bank-review-trace-f2284cd8427c4c95b780d1531c401663", "status": "MATCHED", "audit_score": 5.0}
+[TRACE] [INFO] 2025-12-14T11:34:04.837237 | bank_review.workflow: line_reviewed | {"trace_id": "bank-review-trace-f2284cd8427c4c95b780d1531c401663", "status": "UNMATCHED", "audit_score": 45.0}
+[TRACE] [INFO] 2025-12-14T11:34:05.388745 | bank_review.workflow: line_reviewed | {"trace_id": "bank-review-trace-baaef1b13ce54913b2fcb6201c7d7487", "status": "MATCHED", "audit_score": 5.0}
+[TRACE] [INFO] 2025-12-14T11:34:05.948986 | bank_review.workflow: line_reviewed | {"trace_id": "bank-review-trace-a4d8cfca05b74869afb45ea414b18b84", "status": "MATCHED", "audit_score": 5.0}
+[TRACE] [INFO] 2025-12-14T11:34:05.949021 | bank_review.workflow: line_reviewed | {"trace_id": "bank-review-trace-a4d8cfca05b74869afb45ea414b18b84", "status": "UNMATCHED", "audit_score": 45.0}
+[TRACE] [INFO] 2025-12-14T11:34:06.499974 | bank_review.workflow: line_reviewed | {"trace_id": "bank-review-trace-7160facc06de44fe9513314c30a0d9eb", "status": "MATCHED", "audit_score": 5.0}
+[TRACE] [INFO] 2025-12-14T11:34:06.500005 | bank_review.workflow: line_reviewed | {"trace_id": "bank-review-trace-7160facc06de44fe9513314c30a0d9eb", "status": "UNMATCHED", "audit_score": 45.0}
+[TRACE] [INFO] 2025-12-14T11:34:15.559481 | books_review.workflow: completed | {"trace_id": "books-review-trace-811a8d9c667f4e3a997c63492abbf1de", "journals_total": 2, "score": 35.0}
+[TRACE] [WARNING] 2025-12-14T11:34:16.110117 | books_review.companion: reflection | {"trace_id": "books-review-trace-b7e64fff45eb4c31b61498e01321d244", "finding_codes": ["LARGE_ENTRY", "ADJUSTMENT_ENTRY"]}
+[TRACE] [INFO] 2025-12-14T11:34:16.110904 | books_review.workflow: completed | {"trace_id": "books-review-trace-b7e64fff45eb4c31b61498e01321d244", "journals_total": 2, "score": 35.0}
+[TRACE] [INFO] 2025-12-14T11:34:16.833237 | books_review.workflow: completed | {"trace_id": "books-review-trace-bd78843e6bc3489a880f17a51aa745bf", "journals_total": 2, "score": 35.0}
+[TRACE] [INFO] 2025-12-14T11:34:17.927820 | books_review.workflow: completed | {"trace_id": "books-review-trace-70229be718f24d1eb6073f4d666aac9b", "journals_total": 0, "score": 5.0}
+[TRACE] [INFO] 2025-12-14T11:34:18.477472 | books_review.workflow: completed | {"trace_id": "books-review-trace-5a03cd40f7284d94aab2c91ea802fa49", "journals_total": 2, "score": 35.0}
+[TRACE] [INFO] 2025-12-14T11:34:19.041975 | books_review.workflow: completed | {"trace_id": "books-review-trace-2242201f3d4e4530b84366813b161700", "journals_total": 2, "score": 35.0}
+[TRACE] [INFO] 2025-12-14T11:34:20.247668 | books_review.workflow: completed | {"trace_id": "books-review-trace-12194075285f4321ba1c20e3a1299085", "journals_total": 0, "score": 5.0}
+[TRACE] [WARNING] 2025-12-14T11:34:32.228307 | receipts.companion: reflection | {"trace_id": "receipt-trace-774b3a2ccadd45b4998a3aaedb582345", "document": "receipt_1500", "flags": ["OCR_UNAVAILABLE"]}
+[TRACE] [INFO] 2025-12-14T11:34:32.228350 | receipts.workflow: document_processed | {"trace_id": "receipt-trace-774b3a2ccadd45b4998a3aaedb582345", "storage_key": "receipts/1/1/dd66a8e6d7694b55ad48563ddcf8b563_receipt_1500.pdf", "audit_status": "ok", "audit_score": 5.0}

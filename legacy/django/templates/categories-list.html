@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% load static mb_extras %}
+
+{% block title %}Categories | Clover Books{% endblock %}
+
+{% block content %}
+<div id="categories-root"></div>
+
+{% vite_asset 'categories-list' 'css' as categories_css %}
+{% if categories_css %}
+<link rel="stylesheet" href="{% static categories_css %}">
+{% endif %}
+{% vite_asset 'categories-list' as categories_js %}
+{% if categories_js %}
+<script type="module" src="{% static categories_js %}"></script>
+{% endif %}
+{% endblock %}

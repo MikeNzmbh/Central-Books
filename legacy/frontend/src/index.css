@@ -1,0 +1,350 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* JetBrains Mono for numeric/tabular data */
+@import "@fontsource/jetbrains-mono";
+
+:root {
+  --heading-lg: clamp(1.4rem, 1vw + 1.1rem, 2.15rem);
+  --heading-md: clamp(1.1rem, 0.6vw + 1rem, 1.6rem);
+  --mono-font: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco,
+    Consolas, "Liberation Mono", "Courier New", monospace;
+  --title-font: var(--mono-font);
+}
+
+/* Soft mono utility for numeric/tax text */
+.font-mono-soft {
+  font-family: var(--mono-font);
+  font-feature-settings: "tnum" 1, "lnum" 1;
+}
+
+/* Titles: JetBrains Mono */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.font-title {
+  font-family: var(--title-font);
+  letter-spacing: -0.01em;
+}
+
+/* Accent underline: grey + orange motif */
+.mb-accent-underline {
+  text-decoration-line: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.25em;
+  text-decoration-color: var(--accent-warm, #fb923c);
+}
+
+*,
+*::before,
+*::after {
+  min-width: 0;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+.heading-responsive {
+  font-size: var(--heading-lg);
+  line-height: 1.2;
+}
+
+.subheading-responsive {
+  font-size: var(--heading-md);
+  line-height: 1.3;
+}
+
+.text-wrap {
+  overflow-wrap: break-word;
+  word-break: break-word;
+  white-space: normal;
+}
+
+.text-balance {
+  text-wrap: balance;
+}
+
+.btn-wrap {
+  white-space: normal;
+  line-height: 1.2;
+}
+
+.report-shell {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+/*
+ * Companion Glow Effect
+ * Creates an animated halo around Companion cards using a pseudo-element.
+ * Manual verification checklist (glow halo visible + animated):
+ * - /dashboard/ - Companion panel with health index
+ * - /invoices/ - Companion strip above the cards
+ * - /expenses/ - Companion strip above the cards
+ * - /banking/ - Bank feed Companion strip
+ * - /reconciliation/ - Companion strip above the ledger
+ */
+.companion-glow {
+  position: relative;
+  border-radius: 24px;
+  isolation: isolate;
+}
+
+.companion-glow::before {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #28C7A2, #37B3FF, #0A1A34);
+  background-size: 300% 300%;
+  animation: companionPulse 8s ease-in-out infinite;
+  filter: blur(2px);
+  opacity: 0.9;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.companion-glow-inner {
+  position: relative;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.98);
+  z-index: 1;
+}
+
+@keyframes companionPulse {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@media print {
+  body {
+    background: #fff !important;
+    color: #0f172a !important;
+  }
+
+  nav,
+  header,
+  footer,
+  .print-hidden,
+  .print\\:hidden {
+    display: none !important;
+  }
+
+  .report-shell {
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+  }
+
+  .report-shell * {
+    color: #0f172a !important;
+  }
+
+  .avoid-break {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .bg-slate-50,
+  .bg-slate-100,
+  .bg-white {
+    background: #fff !important;
+  }
+}
+
+/* Print-specific styles for PDF export */
+@media print {
+
+  /* Page setup */
+  @page {
+    margin: 0.5in;
+    size: letter;
+  }
+
+  /* Ensure colors print correctly */
+  * {
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  /* Hide non-report elements */
+  body>*:not([id$="-root"]) {
+    display: none !important;
+  }
+
+  /* Hide floating print button */
+  button,
+  .print-button,
+  [class*="print-hidden"],
+  .fixed {
+    display: none !important;
+  }
+
+  /* Ensure white background */
+  body,
+  html {
+    background: white !important;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* Report container */
+  [id$="-root"] {
+    display: block !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+  }
+
+  /* Avoid breaks inside important elements */
+  .report-kpi-card,
+  table,
+  tr,
+  section {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* Ensure headings stay with content */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    page-break-after: avoid;
+    break-after: avoid;
+  }
+
+  /* Table improvements for print */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tbody {
+    display: table-row-group;
+  }
+
+  /* Prevent orphans/widows */
+  p,
+  li {
+    orphans: 3;
+    widows: 3;
+  }
+
+  /* Make text readable in print */
+  body {
+    font-size: 11pt;
+    line-height: 1.5;
+    color: #000 !important;
+  }
+
+  /* Ensure borders print */
+  [class*="border"] {
+    border-color: #ccc !important;
+  }
+
+  /* Print-safe colors for backgrounds */
+  [class*="bg-emerald"] {
+    background-color: #d1fae5 !important;
+  }
+
+  [class*="bg-rose"] {
+    background-color: #fecdd3 !important;
+  }
+
+  [class*="bg-slate-50"] {
+    background-color: #f8fafc !important;
+  }
+
+  [class*="bg-slate-100"] {
+    background-color: #f1f5f9 !important;
+  }
+
+  /* Print-safe text colors */
+  [class*="text-slate-900"] {
+    color: #0f172a !important;
+  }
+
+  [class*="text-slate-800"] {
+    color: #1e293b !important;
+  }
+
+  [class*="text-slate-700"] {
+    color: #334155 !important;
+  }
+
+  [class*="text-slate-600"] {
+    color: #475569 !important;
+  }
+
+  [class*="text-slate-500"] {
+    color: #64748b !important;
+  }
+
+  /* Ensure KPI cards print nicely */
+  [class*="grid"] {
+    display: grid !important;
+  }
+
+  /* Remove shadows for print */
+  * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  /* Ensure rounded corners still show */
+  [class*="rounded"] {
+    border-radius: 8px !important;
+  }
+
+  /* Optimize spacing for print */
+  [class*="gap-"] {
+    gap: 0.5rem !important;
+  }
+
+  [class*="p-8"] {
+    padding: 1rem !important;
+  }
+
+  [class*="p-6"] {
+    padding: 0.75rem !important;
+  }
+
+  [class*="p-4"] {
+    padding: 0.5rem !important;
+  }
+
+  /* Ensure max-width is respected */
+  [class*="max-w"] {
+    max-width: 100% !important;
+  }
+
+  /* Center content */
+  [class*="mx-auto"] {
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+}

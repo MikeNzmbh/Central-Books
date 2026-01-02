@@ -1,0 +1,70 @@
+{% load static mb_extras %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Print Report · Clover Books{% endblock %}</title>
+    <style>
+        /* Reset and base styles for print */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background: white;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        /* Hide everything except the report content */
+        body>*:not(#reconciliation-report-root):not(#cashflow-report-print-root):not(#pl-report-root) {
+            display: none !important;
+        }
+
+        @media print {
+
+            /* Print-specific styles */
+            @page {
+                margin: 0.75in;
+                size: letter;
+            }
+
+            body {
+                print-color-adjust: exact;
+                -webkit-print-color-adjust: exact;
+            }
+
+            /* Hide print button when actually printing */
+            .print-button,
+            button[onclick*="print"] {
+                display: none !important;
+            }
+
+            /* Avoid page breaks inside cards/tables */
+            .report-kpi-card,
+            .report-section,
+            table {
+                page-break-inside: avoid;
+                break-inside: avoid;
+            }
+
+            /* Ensure tables don't overflow */
+            table {
+                max-width: 100%;
+            }
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+
+<body>
+    {% block content %}{% endblock %}
+    {% block extra_js %}{% endblock %}
+</body>
+
+</html>

@@ -1,0 +1,15 @@
+{
+  "mode": "dry-run",
+  "legacy_db": "../legacy/db/db.sqlite3",
+  "timestamp": "2026-01-02T16:07:05.780921",
+  "tables": {
+    "auth_user": 26,
+    "core_business": 21,
+    "core_customer": 7,
+    "core_supplier": 7,
+    "core_account": 142,
+    "core_category": 13,
+    "core_invoice": 125
+  },
+  "total_records": 341
+}

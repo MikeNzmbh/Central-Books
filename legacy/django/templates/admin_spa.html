@@ -1,0 +1,30 @@
+{% load static mb_extras %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <title>Internal Admin · Clover Books</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  {% vite_asset 'admin' 'css' as css_path %}
+  {% if css_path %}
+  <link rel="stylesheet" href="{% static css_path %}">
+  {% endif %}
+</head>
+
+<body class="bg-slate-50 text-slate-900">
+  <div id="admin-root"></div>
+
+  {% vite_asset 'admin' as js_path %}
+  {% if js_path %}
+  <script type="module" src="{% static js_path %}"></script>
+  {% else %}
+  <!-- Vite JS asset not found for 'admin' -->
+  {% endif %}
+</body>
+
+</html>

@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+
+{% block title %}
+  {% if form.instance.pk %}Edit item – Clover Books{% else %}New item – Clover Books{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="mb-page-shell">
+  <div class="mb-page-header">
+    <div>
+      <div class="mb-kicker">PRODUCTS &amp; SERVICES</div>
+      <h1 class="mb-page-title">
+        {% if form.instance.pk %}Edit product or service{% else %}New product or service{% endif %}
+      </h1>
+      <p class="mb-page-subtitle">
+        Save the things you bill for often so invoices stay fast, consistent, and show in the right income bucket.
+      </p>
+    </div>
+    <div class="mb-page-actions">
+      <button type="button" class="mb-btn mb-btn-pill mb-btn-ghost">Draft</button>
+      <a href="{% url 'product_list' %}" class="mb-btn mb-btn-pill mb-btn-secondary">Cancel</a>
+      <button type="submit" form="item-form" class="mb-btn mb-btn-pill mb-btn-primary">
+        Save item
+      </button>
+    </div>
+  </div>
+
+  <form id="item-form" method="post" novalidate>
+    {% csrf_token %}
+    {% if form.non_field_errors %}
+      <div class="mb-error mb-error-block">{{ form.non_field_errors }}</div>
+    {% endif %}
+
+    <div class="mb-page-grid">
+      <div class="mb-page-main space-y-6">
+        <div class="mb-card">
+          <div class="mb-card-header">
+            <div>
+              <h2 class="mb-card-title">Item details</h2>
+              <p class="mb-card-subtitle">
+                Core info your customer sees on invoices and what powers your revenue reports.
+              </p>
+            </div>
+            <div class="mb-card-meta">
+              Required fields are marked with <span class="mb-text-required">*</span>.
+            </div>
+          </div>
+
+          <div class="mb-card-body max-w-xl">
+            <div class="mb-field">
+              <label class="mb-label">Item name <span class="mb-text-required">*</span></label>
+              {% if form.name.errors %}
+                {% for error in form.name.errors %}<div class="mb-error">{{ error }}</div>{% endfor %}
+              {% endif %}
+              <input type="text"
+                     name="{{ form.name.html_name }}"
+                     value="{{ form.name.value|default_if_none:'' }}"
+                     class="mb-input"
+                     placeholder="e.g. Consulting retainer" />
+              <p class="mb-hint">This appears on invoices and emails to clients.</p>
+            </div>
+
+            <div class="mb-field">
+              <label class="mb-label">Type <span class="mb-text-required">*</span></label>
+              {% if form.type.errors %}
+                {% for error in form.type.errors %}<div class="mb-error">{{ error }}</div>{% endfor %}
+              {% endif %}
+              <div class="mb-pill-toggle">
+                {% for value, label in form.fields.type.choices %}
+                  {% with current=form.type.value|stringformat:"s" option=value|stringformat:"s" %}
+                    <label class="mb-pill-option">
+                      <input type="radio"
+                             name="{{ form.type.html_name }}"
+                             value="{{ value }}"
+                             {% if current == option %}checked{% endif %}>
+                      <span>{{ label }}</span>
+                    </label>
+                  {% endwith %}
+                {% endfor %}
+              </div>
+              <p class="mb-hint">Service for time/retainers, Product for physical goods.</p>
+            </div>
+
+            {% if form.income_category %}
+            <div class="mb-field">
+              <label class="mb-label">Default income category <span class="mb-text-required">*</span></label>
+              {% if form.income_category.errors %}
+                {% for error in form.income_category.errors %}<div class="mb-error">{{ error }}</div>{% endfor %}
+              {% endif %}
+              <select name="{{ form.income_category.html_name }}" class="mb-input">
+                <option value="">Select category</option>
+                {% for cat in form.fields.income_category.queryset %}
+                  <option value="{{ cat.pk }}"
+                    {% if form.income_category.value|stringformat:"s" == cat.pk|stringformat:"s" %}selected{% endif %}>
+                    {{ cat.name }}
+                  </option>
+                {% endfor %}
+              </select>
+              <p class="mb-hint">Uses Profit &amp; Loss categories from your business.</p>
+            </div>
+            {% endif %}
+
+            {% if form.income_account %}
+            <div class="mb-field">
+              <label class="mb-label">Income account</label>
+              {% if form.income_account.errors %}
+                {% for error in form.income_account.errors %}<div class="mb-error">{{ error }}</div>{% endfor %}
+              {% endif %}
+              <select name="{{ form.income_account.html_name }}" class="mb-input">
+                <option value="">Select account</option>
+                {% for acc in form.fields.income_account.queryset %}
+                  <option value="{{ acc.pk }}"
+                    {% if form.income_account.value|stringformat:"s" == acc.pk|stringformat:"s" %}selected{% endif %}>
+                    {{ acc }}
+                  </option>
+                {% endfor %}
+              </select>
+              <p class="mb-hint">Maps this item to a chart-of-accounts income bucket.</p>
+            </div>
+            {% endif %}
+
+            {% if form.expense_account %}
+            <div class="mb-field">
+              <label class="mb-label">Expense account</label>
+              {% if form.expense_account.errors %}
+                {% for error in form.expense_account.errors %}<div class="mb-error">{{ error }}</div>{% endfor %}
+              {% endif %}
+              <select name="{{ form.expense_account.html_name }}" class="mb-input">
+                <option value="">Select account</option>
+                {% for acc in form.fields.expense_account.queryset %}
+                  <option value="{{ acc.pk }}"
+                    {% if form.expense_account.value|stringformat:"s" == acc.pk|stringformat:"s" %}selected{% endif %}>
+                    {{ acc }}
+                  </option>
+                {% endfor %}
+              </select>
+              <p class="mb-hint">Optional cost/COGS account for future purchase tracking.</p>
+            </div>
+            {% endif %}
+
+            <div class="mb-field">
+              <label class="mb-label">Default price <span class="mb-text-required">*</span></label>
+              {% if form.unit_price.errors %}
+                {% for error in form.unit_price.errors %}<div class="mb-error">{{ error }}</div>{% endfor %}
+              {% endif %}
+              <div style="display:flex;align-items:center;gap:10px;max-width:260px;">
+                <input type="number" step="0.01"
+                       name="{{ form.unit_price.html_name }}"
+                       value="{{ form.unit_price.value|default_if_none:'' }}"
+                       class="mb-input"
+                       placeholder="0.00" />
+                <span class="mb-hint" style="margin:0;">{{ business.currency|default:"USD" }}</span>
+              </div>
+              <p class="mb-hint">You can override this on single invoices.</p>
+            </div>
+
+            {% if form.sku %}
+            <div class="mb-field">
+              <label class="mb-label">SKU / Code</label>
+              {% if form.sku.errors %}
+                {% for error in form.sku.errors %}<div class="mb-error">{{ error }}</div>{% endfor %}
+              {% endif %}
+              <input type="text"
+                     name="{{ form.sku.html_name }}"
+                     value="{{ form.sku.value|default_if_none:'' }}"
+                     class="mb-input"
+                     placeholder="e.g. SVC-001" />
+              <p class="mb-hint">Optional reference used in exports and integrations.</p>
+            </div>
+            {% endif %}
+
+            {% if form.description %}
+            <div class="mb-field">
+              <label class="mb-label">Description</label>
+              {% if form.description.errors %}
+                {% for error in form.description.errors %}<div class="mb-error">{{ error }}</div>{% endfor %}
+              {% endif %}
+              <textarea name="{{ form.description.html_name }}"
+                        rows="3"
+                        class="mb-textarea"
+                        placeholder="Short summary customers see on invoices.">{{ form.description.value|default_if_none:'' }}</textarea>
+              <p class="mb-hint">Example: “Monthly social media management for Q2”.</p>
+            </div>
+            {% endif %}
+
+            <div class="mb-field">
+              <label class="mb-label">Item status</label>
+              <div class="mb-status-pill mb-status-pill--active">
+                <span class="mb-status-dot"></span>
+                <span class="mb-status-text">
+                  {% if form.instance.pk and not form.instance.is_active %}Archived{% else %}Active{% endif %}
+                </span>
+              </div>
+              <p class="mb-hint">Archive items later to keep lists tidy without losing history.</p>
+            </div>
+
+            {{ form.is_active }}
+          </div>
+        </div>
+      </div>
+
+      <div class="mb-page-side">
+        <div class="mb-card mb-card-side">
+          <div class="mb-card-header">
+            <h2 class="mb-card-title">Item overview</h2>
+          </div>
+          <div class="mb-card-body mb-card-body-muted">
+            <div class="mb-overview-row">
+              <div class="mb-overview-label">Will be used on</div>
+              <div class="mb-overview-value">Invoices, Products &amp; services list</div>
+            </div>
+            <div class="mb-overview-row">
+              <div class="mb-overview-label">Reports</div>
+              <div class="mb-overview-value">Profit &amp; Loss, Item performance</div>
+            </div>
+            <div class="mb-overview-row">
+              <div class="mb-overview-label">Status</div>
+              <div class="mb-overview-value mb-overview-value-active">
+                <span class="mb-status-dot mb-status-dot--tiny"></span>
+                <span>{% if form.instance.pk and not form.instance.is_active %}Archived{% else %}Active{% endif %}</span>
+              </div>
+            </div>
+            <div class="mb-overview-row">
+              <div class="mb-overview-label">Type</div>
+              <div class="mb-overview-value">
+                {% if form.type.value %}{{ form.type.value|title }}{% else %}Service{% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mb-card mb-card-side">
+          <div class="mb-card-header">
+            <h2 class="mb-card-title">Tip for faster invoicing</h2>
+          </div>
+          <div class="mb-card-body mb-card-body-muted mb-card-tip">
+            Save items you bill for more than once. When you create an invoice you can insert them
+            with one click, then tweak details for one-off work.
+          </div>
+        </div>
+      </div>
+    </div>
+  </form>
+</div>
+{% endblock %}
