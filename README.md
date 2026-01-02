@@ -84,12 +84,12 @@ Key screens (see demo video for full walkthrough):
 └─────────────────────────────┬───────────────────────────────┘
                               │
 ┌─────────────────────────────▼───────────────────────────────┐
-│                    DJANGO API                                │
-│              (REST endpoints + views)                        │
+│                    FASTAPI API                               │
+│             (JSON endpoints + auth)                          │
 ├─────────────────────────────────────────────────────────────┤
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
-│  │   Models    │  │   Agentic   │  │   Companion/LLM     │  │
-│  │  (Django)   │  │  Workflows  │  │    Integration      │  │
+│  │  Services   │  │   Agentic   │  │   Companion/LLM     │  │
+│  │  (Python)   │  │  Workflows  │  │    Integration      │  │
 │  └─────────────┘  └─────────────┘  └─────────────────────┘  │
 └─────────────────────────────┬───────────────────────────────┘
                               │
@@ -105,10 +105,12 @@ Key screens (see demo video for full walkthrough):
 
 | Layer | Technology |
 |-------|------------|
-| **Backend** | Django 5.x, Django REST Framework, PostgreSQL |
+| **Backend** | FastAPI, Uvicorn (API-only, no Django runtime) |
 | **Frontends** | Customer app: React 18, TypeScript, Vite. Admin app: React 18, TypeScript, Vite. |
 | **LLM (Text)** | DeepSeek Chat (deepseek-chat) for structured JSON output |
 | **LLM (Vision)** | OpenAI GPT-4o-mini for receipt OCR/extraction |
+
+Legacy Django code remains in the repository for reference, but the runtime stack is now FastAPI + standalone SPAs.
 
 ---
 
@@ -119,6 +121,20 @@ Key screens (see demo video for full walkthrough):
 - Python 3.11+
 - Node.js 18+
 - npm 9+
+
+### Repo Layout
+
+- `backend/` - FastAPI service (health + auth)
+- `apps/customer` - Customer React SPA
+- `apps/admin` - Admin React SPA
+- `apps/shared-ui` - Shared design system (theme + primitives)
+- `legacy/` - Archived Django monolith + legacy frontend (not used by Option B runtime)
+
+Legacy archive details:
+- `legacy/django` - Django project/apps, templates, static assets, and scripts
+- `legacy/frontend` - Original multi-entry Vite frontend
+- `legacy/db` - Local SQLite backup (if you keep one; ignored by git)
+If you have a local `db.sqlite3`, copy it into `legacy/db/` to keep a private backup.
 
 ### Backend Setup
 
@@ -132,29 +148,33 @@ python -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 # Install dependencies
+cd backend
 pip install -r requirements.txt
 
-# Run migrations
-python manage.py migrate
+# Configure environment
+cp .env.example .env
 
-# Create superuser (optional)
-python manage.py createsuperuser
+# Run database migrations
+alembic upgrade head
 
 # Start development server
-python manage.py runserver
+uvicorn app.main:app --reload --port 8000
 ```
 
 ### Customer Frontend (Vite)
 
 ```bash
 # Navigate to customer frontend directory
-cd frontend
+cd apps/customer
+
+# Configure environment
+cp .env.example .env
 
 # Install dependencies
-npm install
+npm ci
 
 # Start development server
-npm run dev
+npm run dev -- --port 5173
 
 # Or build for production
 npm run build
@@ -166,11 +186,14 @@ npm run build
 # Navigate to admin frontend directory
 cd apps/admin
 
+# Configure environment
+cp .env.example .env
+
 # Install dependencies
-npm install
+npm ci
 
 # Start development server
-npm run dev
+npm run dev -- --port 5174
 
 # Or build for production
 npm run build
@@ -178,43 +201,68 @@ npm run build
 
 ### Access the Application
 
-- **Backend API**: http://localhost:8000/api/health
+- **Backend API**: http://localhost:8000/healthz
 - **Customer app (dev)**: http://localhost:5173
 - **Admin app (dev)**: http://localhost:5174
+
+### Auth (minimal)
+
+- `POST /auth/login` accepts `email` + `password`, sets httpOnly refresh cookie, and returns a JWT access token.
+- `POST /auth/refresh` rotates the refresh cookie and returns a fresh access token.
+- `POST /auth/logout` clears the refresh cookie.
+- `GET /me` requires a valid access token (Authorization: `Bearer <token>`).
+
+### Database & Migrations
+
+- Default DB: SQLite at `backend/cloverbooks.db` (override with `DATABASE_URL`).
+- Run `alembic upgrade head` after changing models.
+- Dev seed user (configurable in `backend/.env`) is created on startup when `SEED_DEV_USER=true`.
+
+### Deployment Notes
+
+- Set `DATABASE_URL`, `JWT_SECRET`, and `CORS_ORIGINS` for the FastAPI service.
+- Set `COOKIE_SECURE=true` and `COOKIE_SAMESITE=none` in production when using HTTPS.
+- Run `alembic upgrade head` during deploy before starting the API.
+- Set `VITE_API_BASE_URL` for each SPA build (customer/admin).
+
+### CI Guardrails
+
+- `scripts/guardrails/check_separation.sh` fails CI if any Django/legacy imports appear in `backend/` or `apps/**`.
 
 ---
 
 ## Environment Variables
 
-Copy `.env.example` to `.env` and configure:
+Copy `backend/.env.example` to `backend/.env` and configure:
 
 ```bash
-cp .env.example .env
+cp backend/.env.example backend/.env
 ```
 
 Frontend env examples:
 
-- `frontend/.env.example`
+- `apps/customer/.env.example`
 - `apps/admin/.env.example`
 
 ### Key Variables
 
 | Variable | Description |
 |----------|-------------|
-| `DJANGO_SECRET_KEY` | Django secret key (change in production) |
-| `DATABASE_URL` | PostgreSQL connection string (prod) |
-| `COMPANION_LLM_ENABLED` | Enable AI Companion (`true`/`false`) |
-| `COMPANION_LLM_API_BASE` | DeepSeek API base URL (`https://api.deepseek.com/v1`) |
-| `COMPANION_LLM_API_KEY` | Your DeepSeek API key |
-| `COMPANION_LLM_MODEL` | Model name (`deepseek-chat`) |
-| `COMPANION_LLM_TIMEOUT_SECONDS` | Request timeout (default: 60) |
-| `COMPANION_LLM_MAX_TOKENS` | Max tokens per response (default: 2048) |
-| `OPENAI_API_KEY` | OpenAI API key for vision/OCR tasks |
-| `VITE_API_BASE_URL` | Backend base URL for both Vite frontends (set in each frontend .env) |
+| `JWT_SECRET` | JWT signing secret (change in production) |
+| `JWT_ALGORITHM` | JWT algorithm (default: `HS256`) |
+| `AUTH_DEMO_EMAIL` | Demo login email for `/auth/login` |
+| `AUTH_DEMO_PASSWORD` | Demo login password |
+| `AUTH_DEMO_NAME` | Demo display name |
+| `ACCESS_TOKEN_TTL_MINUTES` | Access token TTL (minutes) |
+| `REFRESH_TOKEN_TTL_DAYS` | Refresh token TTL (days) |
+| `CORS_ORIGINS` | Comma-separated list of allowed frontend origins |
+| `COOKIE_SECURE` | `true` in production when using HTTPS |
+| `COOKIE_DOMAIN` | Cookie domain for cross-subdomain auth |
+| `VITE_API_BASE_URL` | Backend base URL for each Vite frontend |
 
 > ⚠️ **Security**: Never commit secrets to the repository. All sensitive values are set via environment variables.
 
-See [`.env.example`](.env.example) for the complete list.
+See `backend/.env.example` for the complete list.
 
 ---
 
@@ -222,13 +270,13 @@ See [`.env.example`](.env.example) for the complete list.
 
 - **Customer frontend**: Vercel -> `https://app.<domain>`
 - **Admin frontend**: Vercel -> `https://admin.<domain>`
-- **Backend API**: Django host (Render, Fly, etc.) -> `https://api.<domain>` or your backend URL
+- **Backend API**: FastAPI service (Render, Fly, etc.) -> `https://api.<domain>` or your backend URL
 
-Recommended backend envs for cross-subdomain session auth:
+Recommended backend envs for cross-subdomain cookie auth:
 
-- `FRONTEND_ROOT_DOMAIN=<domain>`
-- `SESSION_COOKIE_DOMAIN=.<domain>`
-- `CSRF_COOKIE_DOMAIN=.<domain>`
+- `COOKIE_DOMAIN=.<domain>`
+- `COOKIE_SECURE=true`
+- `CORS_ORIGINS=https://app.<domain>,https://admin.<domain>`
 
 ---
 

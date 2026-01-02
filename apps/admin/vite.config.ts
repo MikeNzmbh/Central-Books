@@ -1,19 +1,31 @@
 /// <reference types="vitest" />
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "src"),
+      "@shared-ui": path.resolve(__dirname, "../shared-ui/src"),
+    },
+    // Ensure all shared-ui dependencies resolve from admin's node_modules
+    dedupe: ["react", "react-dom", "framer-motion", "lucide-react"],
+  },
+  optimizeDeps: {
+    include: ["framer-motion", "lucide-react"],
+  },
+  build: {
+    outDir: "dist",
+    emptyOutDir: true,
+  },
   server: {
     port: 5174,
     strictPort: true,
-    proxy: {
-      "/api": {
-        target: "http://localhost:8000",
-        changeOrigin: true,
-        secure: false,
-      },
-    },
   },
   test: {
     environment: "jsdom",

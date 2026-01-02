@@ -1,0 +1,168 @@
+/* JetBrains Mono font: must be imported from consuming app's node_modules */
+/* @import "@fontsource/jetbrains-mono"; - moved to consuming apps */
+
+:root {
+  color-scheme: light;
+  --bg: #f3f4f6;
+  --bg-0: #f8fafc;
+  --bg-1: #f5f7fb;
+  --bg-2: #eef2f7;
+  --sidebar-bg: #f9fafb;
+  --sidebar-border: #e5e7eb;
+  --card-bg: #ffffff;
+  --surface-0: rgba(255, 255, 255, 0.9);
+  --surface-1: rgba(255, 255, 255, 0.8);
+  --surface-2: rgba(15, 23, 42, 0.76);
+  --glass-border: rgba(148, 163, 184, 0.25);
+  --accent: #0ea5e9;
+  --accent-soft: #e0f2fe;
+  --accent-2: #22d3ee;
+  --accent-3: #38bdf8;
+  --accent-warm: #fb923c;
+  --accent-warm-strong: #f97316;
+  --ink: #0f172a;
+  --ink-muted: #6b7280;
+  --text-main: #0f172a;
+  --text-muted: #6b7280;
+  --mono-font: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco,
+    Consolas, "Liberation Mono", "Courier New", monospace;
+  --body-font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+    system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --title-font: var(--mono-font);
+  --radius-xl: 22px;
+  --shadow-soft: 0 20px 40px rgba(15, 23, 42, 0.12);
+  --shadow-card: 0 16px 30px rgba(15, 23, 42, 0.06);
+  --shadow-glow: 0 0 60px rgba(14, 165, 233, 0.12);
+  --ring-glow: 0 0 0 1px rgba(148, 163, 184, 0.3);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--body-font);
+  color: var(--text-main);
+  background: radial-gradient(circle at top left, #ffffff, var(--bg));
+  overflow-x: hidden;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(rgba(15, 23, 42, 0.08) 1px, transparent 1px),
+    radial-gradient(rgba(148, 163, 184, 0.06) 1px, transparent 1px);
+  background-size: 24px 24px, 60px 60px;
+  background-position: 0 0, 10px 10px;
+  opacity: 0.35;
+  z-index: 0;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    120deg,
+    rgba(15, 23, 42, 0.04) 0px,
+    rgba(15, 23, 42, 0.04) 1px,
+    transparent 1px,
+    transparent 16px
+  );
+  opacity: 0.2;
+  z-index: 0;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.font-title {
+  font-family: var(--title-font);
+  letter-spacing: -0.01em;
+}
+
+.font-mono-soft {
+  font-family: var(--mono-font);
+  font-feature-settings: "tnum" 1, "lnum" 1;
+}
+
+.glass-panel {
+  background: var(--surface-0);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(18px);
+}
+
+.glass-card {
+  background: var(--surface-1);
+  border: 1px solid rgba(226, 232, 240, 0.7);
+  box-shadow: var(--shadow-glow);
+  backdrop-filter: blur(14px);
+}
+
+.high-tech-ring {
+  box-shadow: var(--ring-glow);
+}
+
+.dot-grid {
+  position: relative;
+}
+
+.dot-grid::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(rgba(59, 130, 246, 0.12) 1px, transparent 1px);
+  background-size: 22px 22px;
+  opacity: 0.25;
+}
+
+.subtle-noise {
+  position: relative;
+}
+
+.subtle-noise::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    90deg,
+    rgba(15, 23, 42, 0.05) 0px,
+    rgba(15, 23, 42, 0.05) 1px,
+    transparent 1px,
+    transparent 10px
+  );
+  opacity: 0.2;
+}
+
+.numeral-haze {
+  position: relative;
+}
+
+.numeral-haze::after {
+  content: "0101 1100 0110 1001 1001 0010 1110 1000";
+  position: absolute;
+  inset: 0;
+  font-size: 10px;
+  letter-spacing: 0.6em;
+  opacity: 0.08;
+  color: rgba(15, 23, 42, 0.45);
+  pointer-events: none;
+  mix-blend-mode: multiply;
+}
+
+.app-shell {
+  position: relative;
+  z-index: 1;
+}

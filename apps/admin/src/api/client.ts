@@ -1,118 +1,85 @@
 import { buildApiUrl } from "./base";
-import { ensureCsrfToken } from "./csrf";
 
-export type Paginated<T> = {
-  results: T[];
-  next: string | null;
-  previous: string | null;
-  count?: number;
+export type HealthResponse = {
+  status: string;
+};
+
+export type InternalAdmin = {
+  role?: string;
+  canAccessInternalAdmin?: boolean;
+  adminPanelAccess?: boolean;
+  canManageAdminUsers?: boolean;
+  canGrantSuperadmin?: boolean;
+};
+
+export type Workspace = {
+  businessId: number;
+  businessName: string;
+  role: string;
+  roleLabel: string;
+  roleDescription: string;
+  roleColor: string;
+  permissions: string[];
+  permissionLevels?: Record<string, string>;
+  isOwner: boolean;
+  department: string | null;
+  region: string | null;
+};
+
+export type User = {
+  id?: number;
+  email: string;
+  name?: string | null;
+  username?: string;
+  firstName?: string;
+  lastName?: string;
+  fullName?: string;
+  first_name?: string;
+  last_name?: string;
+  is_admin?: boolean;
+  role?: string | null;
+  isStaff?: boolean;
+  isSuperuser?: boolean;
+  is_staff?: boolean;
+  is_superuser?: boolean;
+  internalAdmin?: InternalAdmin | null;
+  workspace?: Workspace | null;
 };
 
 export type AuthResponse = {
   authenticated: boolean;
-  user: {
-    id: number;
-    email: string;
-    fullName?: string;
-    isStaff?: boolean;
-    internalAdmin?: {
-      role?: string;
-      canAccessInternalAdmin?: boolean;
-    } | null;
-  } | null;
+  user: User;
 };
 
-export type OverviewMetrics = {
-  active_users_30d: number;
-  unreconciled_transactions: number;
-  ai_flagged_open_issues: number;
-  failed_invoice_emails_24h: number;
-  api_p95_response_ms_1h: number;
-};
-
-export type AdminUser = {
-  id: number;
-  email: string;
-  full_name?: string;
-  is_staff?: boolean;
-  is_superuser?: boolean;
-  last_login?: string | null;
-  admin_role?: string | null;
-  workspace_count?: number;
-};
-
-export type Workspace = {
-  id: number;
-  name: string;
-  owner_email?: string;
-  plan?: string | null;
-  status?: string;
-  is_deleted?: boolean;
-};
-
-export type AISettings = {
-  ai_enabled: boolean;
-  kill_switch: boolean;
-  ai_mode: string;
-  velocity_limit_per_minute: number;
-  value_breaker_threshold: string;
-  anomaly_stddev_threshold: string;
-  trust_downgrade_rejection_rate: string;
-  updated_at: string;
-};
-
-export type AISettingsResponse = {
-  global_ai_enabled: boolean;
-  settings: AISettings;
-};
-
-export type IntegrityReport = {
-  id: number | string;
-  period_start: string;
-  period_end: string;
-  summary: string;
-  flagged_items: unknown;
-  created_at: string;
-};
-
-export type AuditEntry = {
-  id: number;
-  timestamp: string;
-  admin_email?: string | null;
-  actor_role?: string | null;
-  action: string;
-  object_type: string;
-  object_id: string;
-  level?: string;
-  category?: string | null;
+export type TokenResponse = {
+  access_token: string;
+  token_type: "bearer";
+  user: User;
 };
 
 type RequestOptions = {
   method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
   body?: unknown;
-  params?: Record<string, string | number | undefined | null>;
-  headers?: Record<string, string>;
+  auth?: boolean;
 };
 
-const buildQuery = (params?: RequestOptions["params"]) => {
-  if (!params) return "";
-  const qs = new URLSearchParams();
-  Object.entries(params).forEach(([key, value]) => {
-    if (value === undefined || value === null || value === "") return;
-    qs.set(key, String(value));
-  });
-  const query = qs.toString();
-  return query ? `?${query}` : "";
+let accessToken: string | null = null;
+
+export const setAccessToken = (token: string | null) => {
+  accessToken = token;
 };
+
+export const getAccessToken = () => accessToken;
 
 const apiJson = async <T>(path: string, options: RequestOptions = {}): Promise<T> => {
   const method = options.method ?? "GET";
-  const query = buildQuery(options.params);
-  const url = buildApiUrl(`${path}${query}`);
+  const shouldAttachAuth = options.auth ?? true;
   const headers: Record<string, string> = {
     Accept: "application/json",
-    ...(options.headers || {}),
   };
+  if (shouldAttachAuth && accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
 
   let body: BodyInit | undefined;
   if (options.body !== undefined) {
@@ -120,12 +87,7 @@ const apiJson = async <T>(path: string, options: RequestOptions = {}): Promise<T
     body = JSON.stringify(options.body);
   }
 
-  if (method !== "GET") {
-    const csrf = await ensureCsrfToken();
-    if (csrf) headers["X-CSRFToken"] = csrf;
-  }
-
-  const res = await fetch(url, {
+  const res = await fetch(buildApiUrl(path), {
     method,
     headers,
     body,
@@ -140,34 +102,23 @@ const apiJson = async <T>(path: string, options: RequestOptions = {}): Promise<T
   return data as T;
 };
 
-export const fetchAuthMe = () => apiJson<AuthResponse>("/api/auth/me");
+export const fetchHealth = () => apiJson<HealthResponse>("/healthz");
 
-export const login = (username: string, password: string) =>
-  apiJson("/api/auth/login/", { method: "POST", body: { username, password } });
-
-export const fetchOverviewMetrics = () =>
-  apiJson<OverviewMetrics>("/api/admin/overview-metrics/");
-
-export const fetchUsers = (params?: RequestOptions["params"]) =>
-  apiJson<Paginated<AdminUser>>("/api/admin/users/", { params });
-
-export const fetchWorkspaces = (params?: RequestOptions["params"]) =>
-  apiJson<Paginated<Workspace>>("/api/admin/workspaces/", { params });
-
-export const fetchAISettings = (workspaceId: number) =>
-  apiJson<AISettingsResponse>("/api/admin/ai/settings/", { params: { workspace_id: workspaceId } });
-
-export const updateAISettings = (workspaceId: number, body: Partial<AISettings>) =>
-  apiJson<AISettingsResponse>("/api/admin/ai/settings/", {
-    method: "PATCH",
-    params: { workspace_id: workspaceId },
-    body,
+export const login = (email: string, password: string) =>
+  apiJson<TokenResponse>("/auth/login", { method: "POST", body: { email, password }, auth: false }).then((data) => {
+    setAccessToken(data.access_token);
+    return data;
   });
 
-export const fetchIntegrityReports = (workspaceId: number) =>
-  apiJson<IntegrityReport[]>("/api/admin/ai/integrity-reports/", {
-    params: { workspace_id: workspaceId },
+export const refresh = () =>
+  apiJson<TokenResponse>("/auth/refresh", { method: "POST", auth: false }).then((data) => {
+    setAccessToken(data.access_token);
+    return data;
   });
 
-export const fetchAuditLog = (params?: RequestOptions["params"]) =>
-  apiJson<Paginated<AuditEntry>>("/api/admin/audit-log/", { params });
+export const logout = () =>
+  apiJson<{ ok: boolean }>("/auth/logout", { method: "POST", auth: false }).finally(() => {
+    setAccessToken(null);
+  });
+
+export const fetchMe = () => apiJson<AuthResponse>("/me");

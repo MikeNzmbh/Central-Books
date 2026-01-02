@@ -1,0 +1,30 @@
+{
+  "mode": "import",
+  "legacy_db": "../legacy/db/db.sqlite3",
+  "target_db": "sqlite:///./cloverbooks.db",
+  "timestamp": "2026-01-02T16:09:41.652929+00:00",
+  "results": {
+    "users": {
+      "imported": 24
+    },
+    "businesses": {
+      "imported": 19
+    },
+    "customers": {
+      "imported": 7
+    },
+    "suppliers": {
+      "imported": 7
+    },
+    "accounts": {
+      "imported": 124
+    },
+    "categories": {
+      "imported": 13
+    },
+    "invoices": {
+      "imported": 125
+    }
+  },
+  "total_imported": 319
+}

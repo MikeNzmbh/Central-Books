@@ -1,0 +1,196 @@
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap");
+
+:root {
+  color-scheme: light;
+  --bg-1: #f7f4ed;
+  --bg-2: #f2efe9;
+  --surface: #ffffff;
+  --surface-muted: #f8f6f1;
+  --ink: #1b1a17;
+  --muted: #6f6a60;
+  --accent: #ff7a45;
+  --accent-dark: #d15a1c;
+  --border: #e2ddd4;
+  --shadow: 0 24px 50px rgba(28, 22, 12, 0.12);
+}
+
+body {
+  margin: 0;
+  font-family: "Space Grotesk", "Segoe UI", sans-serif;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at top right, rgba(255, 221, 178, 0.5), transparent 45%),
+    radial-gradient(circle at 20% 30%, rgba(255, 189, 142, 0.4), transparent 40%),
+    linear-gradient(135deg, var(--bg-1), var(--bg-2));
+}
+
+a {
+  color: inherit;
+}
+
+.app-shell {
+  min-height: 100vh;
+  padding: 48px clamp(20px, 6vw, 80px);
+  display: flex;
+  flex-direction: column;
+  gap: 36px;
+}
+
+.hero {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.eyebrow {
+  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  color: var(--muted);
+  margin: 0 0 8px;
+}
+
+h1 {
+  font-size: clamp(2rem, 2vw + 1.5rem, 3.2rem);
+  margin: 0 0 12px;
+}
+
+.subtitle {
+  font-size: 15px;
+  line-height: 1.5;
+  max-width: 520px;
+  color: var(--muted);
+  margin: 0;
+}
+
+.status-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 18px 20px;
+  min-width: 240px;
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 12px;
+}
+
+.label {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin-bottom: 6px;
+}
+
+.status {
+  font-weight: 600;
+  font-size: 14px;
+  text-transform: capitalize;
+}
+
+.status.ok {
+  color: #1f7a45;
+}
+
+.status.unreachable,
+.status.checking {
+  color: #c26a21;
+}
+
+.value {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 24px;
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: var(--shadow);
+}
+
+.panel h2 {
+  margin-top: 0;
+  margin-bottom: 8px;
+}
+
+.panel-subtitle {
+  margin-top: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.form {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.form label {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.form input {
+  height: 40px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  padding: 0 16px;
+  font-size: 14px;
+  font-family: inherit;
+  background: var(--surface-muted);
+}
+
+.form input:focus {
+  outline: 2px solid rgba(255, 122, 69, 0.25);
+  border-color: var(--accent);
+  background: #fff;
+}
+
+.form button {
+  height: 42px;
+  border-radius: 999px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.form button:hover {
+  background: var(--accent-dark);
+}
+
+.error {
+  font-size: 12px;
+  color: #b43a23;
+}
+
+.session-card {
+  display: grid;
+  gap: 16px;
+}
+
+@media (max-width: 720px) {
+  .app-shell {
+    padding: 32px 20px;
+  }
+
+  .status-card {
+    width: 100%;
+  }
+}

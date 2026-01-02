@@ -7,7 +7,7 @@ on:
     branches: [main]
   schedule:
     # Run weekly on Sundays at 00:00 UTC
-    - cron: '0 0 * * 0'
+    - cron: "0 0 * * 0"
 
 jobs:
   analyze:
@@ -21,7 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: ['python', 'javascript']
+        language: ["python", "javascript"]
 
     steps:
       - name: Checkout code
@@ -36,27 +36,33 @@ jobs:
         if: matrix.language == 'python'
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
-          cache: 'pip'
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
 
       - name: Install Python dependencies
         if: matrix.language == 'python'
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r backend/requirements.txt
 
       - name: Set up Node.js (for JavaScript analysis)
         if: matrix.language == 'javascript'
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: |
+            apps/customer/package-lock.json
+            apps/admin/package-lock.json
 
       - name: Install JavaScript dependencies and build
         if: matrix.language == 'javascript'
         run: |
-          cd frontend
+          cd apps/customer
+          npm ci
+          npm run build
+          cd ../admin
           npm ci
           npm run build
 
