@@ -1,0 +1,10 @@
+@import "@shared-ui/theme.css";
+@import "@shared-ui/animations.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: var(--body-font);
+}

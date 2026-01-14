@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the universal PDF export functionality for CERN Books reports. All reports use the browser's Print → "Save as PDF" feature, with no backend PDF generation required.
+This document describes the universal PDF export functionality for Clover Books reports. All reports use the browser's Print → "Save as PDF" feature, with no backend PDF generation required.
 
 ## Architecture
 

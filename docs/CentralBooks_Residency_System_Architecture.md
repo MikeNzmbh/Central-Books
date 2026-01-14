@@ -1,4 +1,4 @@
-# Central Books — System Architecture
+# Clover Books — System Architecture
 
 *Technical architecture reference for AI Residency reviewers*
 
@@ -6,7 +6,7 @@
 
 ## System Overview
 
-Central Books is a Django-based accounting platform with a React frontend. The system features:
+Clover Books is a Django-based accounting platform with a React frontend. The system features:
 
 - **Core Accounting**: Invoices, expenses, receipts, journal entries, chart of accounts
 - **Banking**: Bank accounts, transactions, reconciliation
@@ -111,7 +111,7 @@ Central Books is a Django-based accounting platform with a React frontend. The s
 
 ### Provider Architecture
 
-Central Books uses two LLM providers:
+Clover Books uses two LLM providers:
 
 | Provider | Model | Use Case |
 |----------|-------|----------|

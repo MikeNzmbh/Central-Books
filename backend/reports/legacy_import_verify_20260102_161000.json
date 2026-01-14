@@ -1,0 +1,56 @@
+{
+  "mode": "verify",
+  "timestamp": "2026-01-02T16:10:00.149990+00:00",
+  "comparisons": [
+    {
+      "legacy_table": "auth_user",
+      "legacy_count": 26,
+      "new_table": "users",
+      "new_count": 24,
+      "status": "FAIL"
+    },
+    {
+      "legacy_table": "core_business",
+      "legacy_count": 21,
+      "new_table": "businesss",
+      "new_count": 19,
+      "status": "FAIL"
+    },
+    {
+      "legacy_table": "core_customer",
+      "legacy_count": 7,
+      "new_table": "customers",
+      "new_count": 7,
+      "status": "PASS"
+    },
+    {
+      "legacy_table": "core_supplier",
+      "legacy_count": 7,
+      "new_table": "suppliers",
+      "new_count": 7,
+      "status": "PASS"
+    },
+    {
+      "legacy_table": "core_account",
+      "legacy_count": 142,
+      "new_table": "accounts",
+      "new_count": 124,
+      "status": "FAIL"
+    },
+    {
+      "legacy_table": "core_category",
+      "legacy_count": 13,
+      "new_table": "categorys",
+      "new_count": 13,
+      "status": "PASS"
+    },
+    {
+      "legacy_table": "core_invoice",
+      "legacy_count": 125,
+      "new_table": "invoices",
+      "new_count": 125,
+      "status": "PASS"
+    }
+  ],
+  "status": "FAIL"
+}

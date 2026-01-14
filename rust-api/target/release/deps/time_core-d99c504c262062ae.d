@@ -1,0 +1,10 @@
+/Users/wherethefuckthefunction/Desktop/Project Clover/rust-api/target/release/deps/time_core-d99c504c262062ae.d: /Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/time-core-0.1.6/src/lib.rs /Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/time-core-0.1.6/src/convert.rs /Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/time-core-0.1.6/src/hint.rs /Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/time-core-0.1.6/src/util.rs
+
+/Users/wherethefuckthefunction/Desktop/Project Clover/rust-api/target/release/deps/libtime_core-d99c504c262062ae.rlib: /Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/time-core-0.1.6/src/lib.rs /Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/time-core-0.1.6/src/convert.rs /Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/time-core-0.1.6/src/hint.rs /Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/time-core-0.1.6/src/util.rs
+
+/Users/wherethefuckthefunction/Desktop/Project Clover/rust-api/target/release/deps/libtime_core-d99c504c262062ae.rmeta: /Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/time-core-0.1.6/src/lib.rs /Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/time-core-0.1.6/src/convert.rs /Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/time-core-0.1.6/src/hint.rs /Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/time-core-0.1.6/src/util.rs
+
+/Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/time-core-0.1.6/src/lib.rs:
+/Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/time-core-0.1.6/src/convert.rs:
+/Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/time-core-0.1.6/src/hint.rs:
+/Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/time-core-0.1.6/src/util.rs:

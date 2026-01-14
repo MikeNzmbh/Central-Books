@@ -1,0 +1,624 @@
+/* ==========================================================================
+   Onboarding Premium Styles
+   Glassmorphism, animations, and micro-interactions for the setup wizard
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   CSS Variables
+   -------------------------------------------------------------------------- */
+.onboarding-root {
+    --ob-gradient-start: #10b981;
+    --ob-gradient-mid: #06b6d4;
+    --ob-gradient-end: #f59e0b;
+    --ob-bg-glass: rgba(255, 255, 255, 0.85);
+    --ob-border-glass: rgba(255, 255, 255, 0.4);
+    --ob-shadow-soft: 0 8px 32px rgba(0, 0, 0, 0.08);
+    --ob-shadow-glow: 0 0 40px rgba(16, 185, 129, 0.15);
+    --ob-transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+    --ob-transition-smooth: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+    --ob-transition-bounce: 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* --------------------------------------------------------------------------
+   Page Background
+   -------------------------------------------------------------------------- */
+.onboarding-page {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 50%, #e2e8f0 100%);
+    background-attachment: fixed;
+    position: relative;
+    overflow-x: hidden;
+}
+
+.onboarding-page::before {
+    content: "";
+    position: fixed;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background:
+        radial-gradient(circle at 20% 80%, rgba(16, 185, 129, 0.08) 0%, transparent 50%),
+        radial-gradient(circle at 80% 20%, rgba(6, 182, 212, 0.08) 0%, transparent 50%),
+        radial-gradient(circle at 50% 50%, rgba(245, 158, 11, 0.06) 0%, transparent 60%);
+    animation: backgroundShift 20s ease-in-out infinite;
+    pointer-events: none;
+    z-index: 0;
+}
+
+@keyframes backgroundShift {
+
+    0%,
+    100% {
+        transform: translate(0, 0) rotate(0deg);
+    }
+
+    33% {
+        transform: translate(2%, 2%) rotate(1deg);
+    }
+
+    66% {
+        transform: translate(-1%, -1%) rotate(-0.5deg);
+    }
+}
+
+/* --------------------------------------------------------------------------
+   Progress Bar
+   -------------------------------------------------------------------------- */
+.onboarding-progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: rgba(226, 232, 240, 0.8);
+    z-index: 100;
+    overflow: hidden;
+}
+
+.onboarding-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--ob-gradient-start), var(--ob-gradient-mid), var(--ob-gradient-end));
+    background-size: 200% 100%;
+    transition: width 500ms cubic-bezier(0.4, 0, 0.2, 1);
+    animation: progressShimmer 3s linear infinite;
+    border-radius: 0 2px 2px 0;
+}
+
+@keyframes progressShimmer {
+    0% {
+        background-position: 200% 0;
+    }
+
+    100% {
+        background-position: -200% 0;
+    }
+}
+
+/* --------------------------------------------------------------------------
+   Step Container & Transitions
+   -------------------------------------------------------------------------- */
+.onboarding-step-container {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 3rem 1.5rem;
+}
+
+.onboarding-step {
+    width: 100%;
+    max-width: 32rem;
+    animation: stepEnter 400ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes stepEnter {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.onboarding-step-exit {
+    animation: stepExit 200ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes stepExit {
+    to {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+}
+
+/* --------------------------------------------------------------------------
+   Glass Card
+   -------------------------------------------------------------------------- */
+.onboarding-card {
+    background: var(--ob-bg-glass);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--ob-border-glass);
+    border-radius: 1.5rem;
+    box-shadow: var(--ob-shadow-soft), var(--ob-shadow-glow);
+    padding: 2rem;
+    transition: var(--ob-transition-smooth);
+}
+
+.onboarding-card:hover {
+    box-shadow:
+        0 12px 40px rgba(0, 0, 0, 0.1),
+        0 0 60px rgba(16, 185, 129, 0.12);
+}
+
+/* --------------------------------------------------------------------------
+   Headings
+   -------------------------------------------------------------------------- */
+.onboarding-title {
+    font-size: 1.875rem;
+    font-weight: 700;
+    line-height: 1.2;
+    background: linear-gradient(135deg, #0f172a 0%, #334155 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 0.5rem;
+}
+
+.onboarding-title-gradient {
+    background: linear-gradient(135deg, var(--ob-gradient-start), var(--ob-gradient-mid));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.onboarding-subtitle {
+    font-size: 1rem;
+    color: #64748b;
+    line-height: 1.5;
+}
+
+.onboarding-step-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #10b981;
+    margin-bottom: 0.75rem;
+}
+
+.onboarding-step-label::before {
+    content: "";
+    width: 0.5rem;
+    height: 0.5rem;
+    background: currentColor;
+    border-radius: 50%;
+    animation: stepLabelPulse 2s ease-in-out infinite;
+}
+
+@keyframes stepLabelPulse {
+
+    0%,
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+
+    50% {
+        transform: scale(1.2);
+        opacity: 0.7;
+    }
+}
+
+/* --------------------------------------------------------------------------
+   Selection Cards
+   -------------------------------------------------------------------------- */
+.onboarding-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    border: 2px solid #e2e8f0;
+    border-radius: 1rem;
+    background: white;
+    cursor: pointer;
+    transition: var(--ob-transition-fast);
+    position: relative;
+    overflow: hidden;
+}
+
+.onboarding-option::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.05), rgba(6, 182, 212, 0.05));
+    opacity: 0;
+    transition: var(--ob-transition-fast);
+}
+
+.onboarding-option:hover {
+    border-color: #94a3b8;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.onboarding-option:hover::before {
+    opacity: 1;
+}
+
+.onboarding-option-selected {
+    border-color: #10b981;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.08), rgba(6, 182, 212, 0.05));
+    box-shadow:
+        0 0 0 3px rgba(16, 185, 129, 0.15),
+        0 4px 12px rgba(16, 185, 129, 0.1);
+}
+
+.onboarding-option-selected .onboarding-option-icon {
+    color: #10b981;
+    transform: scale(1.1);
+}
+
+.onboarding-option-icon {
+    flex-shrink: 0;
+    width: 1.5rem;
+    height: 1.5rem;
+    color: #64748b;
+    transition: var(--ob-transition-bounce);
+}
+
+.onboarding-option-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.onboarding-option-title {
+    font-weight: 600;
+    color: #0f172a;
+    font-size: 0.9375rem;
+}
+
+.onboarding-option-desc {
+    font-size: 0.8125rem;
+    color: #64748b;
+    margin-top: 0.125rem;
+}
+
+/* --------------------------------------------------------------------------
+   Multi-select Chips
+   -------------------------------------------------------------------------- */
+.onboarding-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.onboarding-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.5rem 1rem;
+    border: 2px solid #e2e8f0;
+    border-radius: 9999px;
+    background: white;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #475569;
+    cursor: pointer;
+    transition: var(--ob-transition-fast);
+}
+
+.onboarding-chip:hover {
+    border-color: #94a3b8;
+    background: #f8fafc;
+}
+
+.onboarding-chip-selected {
+    border-color: #10b981;
+    background: linear-gradient(135deg, #ecfdf5, #f0fdfa);
+    color: #047857;
+}
+
+.onboarding-chip-selected::before {
+    content: "✓";
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+/* --------------------------------------------------------------------------
+   Input Fields
+   -------------------------------------------------------------------------- */
+.onboarding-input {
+    width: 100%;
+    padding: 0.875rem 1rem;
+    border: 2px solid #e2e8f0;
+    border-radius: 0.875rem;
+    font-size: 1rem;
+    color: #0f172a;
+    background: white;
+    transition: var(--ob-transition-fast);
+    outline: none;
+}
+
+.onboarding-input::placeholder {
+    color: #94a3b8;
+}
+
+.onboarding-input:focus {
+    border-color: #10b981;
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+}
+
+/* --------------------------------------------------------------------------
+   Buttons
+   -------------------------------------------------------------------------- */
+.onboarding-btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    background: linear-gradient(135deg, #0f172a, #1e293b);
+    color: white;
+    font-weight: 600;
+    font-size: 0.9375rem;
+    border: none;
+    border-radius: 0.875rem;
+    cursor: pointer;
+    transition: var(--ob-transition-fast);
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.25);
+}
+
+.onboarding-btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.3);
+}
+
+.onboarding-btn-primary:active {
+    transform: translateY(0);
+}
+
+.onboarding-btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    background: white;
+    color: #475569;
+    font-weight: 500;
+    font-size: 0.9375rem;
+    border: 2px solid #e2e8f0;
+    border-radius: 0.875rem;
+    cursor: pointer;
+    transition: var(--ob-transition-fast);
+}
+
+.onboarding-btn-secondary:hover {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+}
+
+.onboarding-skip-link {
+    font-size: 0.875rem;
+    color: #64748b;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.5rem;
+    transition: var(--ob-transition-fast);
+}
+
+.onboarding-skip-link:hover {
+    color: #475569;
+}
+
+/* --------------------------------------------------------------------------
+   Step Indicator Dots
+   -------------------------------------------------------------------------- */
+.onboarding-dots {
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.onboarding-dot {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 9999px;
+    background: #cbd5e1;
+    transition: var(--ob-transition-smooth);
+}
+
+.onboarding-dot-active {
+    width: 1.5rem;
+    background: linear-gradient(90deg, var(--ob-gradient-start), var(--ob-gradient-mid));
+}
+
+.onboarding-dot-completed {
+    background: #10b981;
+}
+
+/* --------------------------------------------------------------------------
+   Hero Icon (Welcome Step)
+   -------------------------------------------------------------------------- */
+.onboarding-hero-icon {
+    width: 5rem;
+    height: 5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, var(--ob-gradient-start), var(--ob-gradient-mid));
+    border-radius: 1.5rem;
+    box-shadow:
+        0 10px 40px rgba(16, 185, 129, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    margin: 0 auto 1.5rem;
+    animation: heroFloat 4s ease-in-out infinite;
+}
+
+.onboarding-hero-icon svg {
+    width: 2.5rem;
+    height: 2.5rem;
+    color: white;
+}
+
+@keyframes heroFloat {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-8px);
+    }
+}
+
+/* --------------------------------------------------------------------------
+   Completion Animation
+   -------------------------------------------------------------------------- */
+.onboarding-complete-icon {
+    width: 6rem;
+    height: 6rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+    border-radius: 9999px;
+    margin: 0 auto 1.5rem;
+    animation: completePopIn 500ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.onboarding-complete-icon svg {
+    width: 3rem;
+    height: 3rem;
+    color: #10b981;
+    animation: checkmarkDraw 400ms 200ms ease-out forwards;
+    stroke-dasharray: 50;
+    stroke-dashoffset: 50;
+}
+
+@keyframes completePopIn {
+    0% {
+        transform: scale(0);
+        opacity: 0;
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+@keyframes checkmarkDraw {
+    to {
+        stroke-dashoffset: 0;
+    }
+}
+
+/* --------------------------------------------------------------------------
+   Save Indicator (Floating Toast)
+   -------------------------------------------------------------------------- */
+.onboarding-save-toast {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    animation: toastSlideIn 300ms ease-out forwards;
+}
+
+.onboarding-save-toast-syncing {
+    background: #0f172a;
+    color: white;
+}
+
+.onboarding-save-toast-synced {
+    background: #10b981;
+    color: white;
+}
+
+.onboarding-save-toast-offline {
+    background: #f59e0b;
+    color: white;
+}
+
+.onboarding-save-toast-error {
+    background: #ef4444;
+    color: white;
+}
+
+@keyframes toastSlideIn {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.onboarding-spinner {
+    width: 1rem;
+    height: 1rem;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 9999px;
+    animation: spin 700ms linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* --------------------------------------------------------------------------
+   Responsive Adjustments
+   -------------------------------------------------------------------------- */
+@media (max-width: 640px) {
+    .onboarding-step-container {
+        padding: 2rem 1rem;
+    }
+
+    .onboarding-card {
+        padding: 1.5rem;
+        border-radius: 1.25rem;
+    }
+
+    .onboarding-title {
+        font-size: 1.5rem;
+    }
+
+    .onboarding-hero-icon {
+        width: 4rem;
+        height: 4rem;
+        border-radius: 1rem;
+    }
+
+    .onboarding-hero-icon svg {
+        width: 2rem;
+        height: 2rem;
+    }
+}

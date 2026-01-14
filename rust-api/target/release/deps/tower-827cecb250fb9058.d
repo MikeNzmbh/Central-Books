@@ -1,0 +1,10 @@
+/Users/wherethefuckthefunction/Desktop/Project Clover/rust-api/target/release/deps/tower-827cecb250fb9058.d: /Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tower-0.4.13/src/lib.rs /Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tower-0.4.13/src/macros.rs /Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tower-0.4.13/src/builder/mod.rs /Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tower-0.4.13/src/layer.rs
+
+/Users/wherethefuckthefunction/Desktop/Project Clover/rust-api/target/release/deps/libtower-827cecb250fb9058.rlib: /Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tower-0.4.13/src/lib.rs /Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tower-0.4.13/src/macros.rs /Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tower-0.4.13/src/builder/mod.rs /Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tower-0.4.13/src/layer.rs
+
+/Users/wherethefuckthefunction/Desktop/Project Clover/rust-api/target/release/deps/libtower-827cecb250fb9058.rmeta: /Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tower-0.4.13/src/lib.rs /Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tower-0.4.13/src/macros.rs /Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tower-0.4.13/src/builder/mod.rs /Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tower-0.4.13/src/layer.rs
+
+/Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tower-0.4.13/src/lib.rs:
+/Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tower-0.4.13/src/macros.rs:
+/Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tower-0.4.13/src/builder/mod.rs:
+/Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tower-0.4.13/src/layer.rs:

@@ -1,0 +1,6 @@
+/target/
+**/*.rs.bk
+Cargo.lock.bk
+.env
+.env.local
+.env.*.local

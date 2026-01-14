@@ -61,7 +61,7 @@ If available in your banking feed:
 #### Solution 3: Import/Sync Invoices
 
 If you have invoices in another system:
-- Import them into CERN Books first
+- Import them into Clover Books first
 - Then reconcile bank transactions against them
 
 ---

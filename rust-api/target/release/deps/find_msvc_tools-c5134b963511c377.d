@@ -1,0 +1,9 @@
+/Users/wherethefuckthefunction/Desktop/Project Clover/rust-api/target/release/deps/find_msvc_tools-c5134b963511c377.d: /Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/find-msvc-tools-0.1.6/src/lib.rs /Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/find-msvc-tools-0.1.6/src/find_tools.rs /Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/find-msvc-tools-0.1.6/src/tool.rs
+
+/Users/wherethefuckthefunction/Desktop/Project Clover/rust-api/target/release/deps/libfind_msvc_tools-c5134b963511c377.rlib: /Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/find-msvc-tools-0.1.6/src/lib.rs /Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/find-msvc-tools-0.1.6/src/find_tools.rs /Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/find-msvc-tools-0.1.6/src/tool.rs
+
+/Users/wherethefuckthefunction/Desktop/Project Clover/rust-api/target/release/deps/libfind_msvc_tools-c5134b963511c377.rmeta: /Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/find-msvc-tools-0.1.6/src/lib.rs /Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/find-msvc-tools-0.1.6/src/find_tools.rs /Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/find-msvc-tools-0.1.6/src/tool.rs
+
+/Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/find-msvc-tools-0.1.6/src/lib.rs:
+/Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/find-msvc-tools-0.1.6/src/find_tools.rs:
+/Users/wherethefuckthefunction/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/find-msvc-tools-0.1.6/src/tool.rs:

@@ -1,4 +1,4 @@
-# Reconciliation backend fixes (CERN Books)
+# Reconciliation backend fixes (Clover Books)
 
 ## What was broken
 - All `/api/reconciliation/...` calls were returning HTTP 500, leaving the UI with empty dropdowns and “Everything is reconciled” despite real data.

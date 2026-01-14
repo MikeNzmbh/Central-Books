@@ -1,4 +1,4 @@
-# Central Books — Product Brief
+# Clover Books — Product Brief
 
 *Non-technical overview for reviewers and stakeholders*
 
@@ -43,7 +43,7 @@ Existing solutions fall short:
 
 ---
 
-## What Central Books Does Today
+## What Clover Books Does Today
 
 ### Core Accounting
 - **Invoices**: Create, send, track, and collect payments
@@ -64,7 +64,7 @@ Existing solutions fall short:
 
 ### The Control Tower
 
-The **AI Companion Control Tower** is Central Books' signature feature:
+The **AI Companion Control Tower** is Clover Books' signature feature:
 
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -81,11 +81,11 @@ The **AI Companion Control Tower** is Central Books' signature feature:
 
 ---
 
-## What Makes Central Books Different
+## What Makes Clover Books Different
 
 ### vs. QuickBooks / Xero
 
-| Aspect | QuickBooks/Xero | Central Books |
+| Aspect | QuickBooks/Xero | Clover Books |
 |--------|-----------------|---------------|
 | **Complexity** | Built for accountants | Built for business owners |
 | **AI** | Basic automation | True AI insights |
@@ -94,7 +94,7 @@ The **AI Companion Control Tower** is Central Books' signature feature:
 
 ### vs. Wave / FreshBooks
 
-| Aspect | Wave/FreshBooks | Central Books |
+| Aspect | Wave/FreshBooks | Clover Books |
 |--------|-----------------|---------------|
 | **AI Features** | None | Full AI suite |
 | **Audit** | Manual | Automated Books Review |
@@ -102,7 +102,7 @@ The **AI Companion Control Tower** is Central Books' signature feature:
 
 ### vs. ChatGPT Wrappers
 
-| Aspect | ChatGPT Wrappers | Central Books |
+| Aspect | ChatGPT Wrappers | Clover Books |
 |--------|------------------|---------------|
 | **Execution** | Answers questions | Does the work |
 | **Integration** | Standalone chat | Embedded in workflow |
@@ -112,7 +112,7 @@ The **AI Companion Control Tower** is Central Books' signature feature:
 
 ## The Control Tower Concept
 
-Most accounting software shows you *data*. Central Books shows you *what to do*.
+Most accounting software shows you *data*. Clover Books shows you *what to do*.
 
 **Mental load reduction through automation**:
 

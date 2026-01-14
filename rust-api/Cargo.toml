@@ -1,0 +1,59 @@
+[package]
+name = "clover-api"
+version = "0.1.0"
+edition = "2021"
+authors = ["Clover Books"]
+description = "High-performance Rust API for Clover Books"
+
+[dependencies]
+# Web framework
+axum = { version = "0.7", features = ["macros", "multipart"] }
+tokio = { version = "1.35", features = ["full"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Auth
+jsonwebtoken = "9.2"
+bcrypt = "0.15"
+
+# Database - SQLite (matches legacy db.sqlite3)
+sqlx = { version = "0.7", features = ["runtime-tokio", "sqlite", "chrono", "uuid", "migrate"] }
+
+# Crypto - for legacy password verification (PBKDF2-SHA256)
+pbkdf2 = "0.12"
+sha2 = "0.10"
+hmac = "0.12"
+base64 = "0.21"
+
+# Financial calculations
+rust_decimal = { version = "1.33", features = ["serde", "serde-with-str"] }
+
+# Utils
+uuid = { version = "1.6", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+dotenvy = "0.15"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Pattern matching for bank rules
+regex = "1.10"
+
+# URL encoding for OAuth
+urlencoding = "2.1"
+
+# HTTP client for legacy proxy
+reqwest = { version = "0.11", features = ["json"] }
+
+[dev-dependencies]
+# Testing
+axum-test = "16"
+tokio-test = "0.4"
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
