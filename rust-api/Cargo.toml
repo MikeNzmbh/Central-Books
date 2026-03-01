@@ -21,7 +21,7 @@ jsonwebtoken = "9.2"
 bcrypt = "0.15"
 
 # Database - SQLite (matches legacy db.sqlite3)
-sqlx = { version = "0.7", features = ["runtime-tokio", "sqlite", "chrono", "uuid", "migrate"] }
+sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite", "chrono", "uuid", "migrate"] }
 
 # Crypto - for legacy password verification (PBKDF2-SHA256)
 pbkdf2 = "0.12"
